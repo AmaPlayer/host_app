@@ -3,7 +3,8 @@ import { MessageSquare, Link2, Loader } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { organizationConnectionService } from '../../../services/api/organizationConnectionService';
 import friendsService from '../../../services/api/friendsService';
-import { userService } from '../../../services/api/userService';
+import userService from '../../../services/api/userService';
+import { db } from '../../../lib/firebase';
 
 interface MessageButtonProps {
   targetUserId: string;

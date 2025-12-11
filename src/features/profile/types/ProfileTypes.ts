@@ -1,7 +1,7 @@
 // TypeScript interfaces for enhanced profile functionality
 import { TalentVideo } from './TalentVideoTypes';
 
-export type UserRole = 'athlete' | 'organization' | 'parents' | 'coaches';
+export type UserRole = 'athlete' | 'organization' | 'parent' | 'coach';
 
 export interface PersonalDetails {
   // Common fields
@@ -167,14 +167,14 @@ export const roleConfigurations: Record<UserRole, RoleConfig> = {
     editableFields: ['name', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
     displayName: 'Organization'
   },
-  parents: {
-    role: 'parents',
+  parent: {
+    role: 'parent',
     sections: ['personal', 'connectedAthletes', 'posts'],
     editableFields: ['name', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
     displayName: 'Parent'
   },
-  coaches: {
-    role: 'coaches',
+  coach: {
+    role: 'coach',
     sections: ['personal', 'coachingInfo', 'certificates', 'posts'],
     editableFields: ['name', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
     displayName: 'Coach'

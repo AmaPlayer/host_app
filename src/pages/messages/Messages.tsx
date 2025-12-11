@@ -14,7 +14,7 @@ import UserAvatar from '../../components/common/user/UserAvatar';
 import { filterChatMessage, getChatViolationMessage, logChatViolation } from '../../utils/content/chatFilter';
 import notificationService from '../../services/notificationService';
 import friendsService from '../../services/api/friendsService';
-import { userService } from '../../services/api/userService';
+import userService from '../../services/api/userService';
 import './Messages.css';
 
 interface FriendRequest {

@@ -7,7 +7,6 @@ import LanguageSelector from '../../components/common/forms/LanguageSelector';
 import { SPORTS_CONFIG } from '../../features/athlete-onboarding/data/sportsConfig';
 import OrganizationRegistrationForm from './OrganizationRegistrationForm';
 import ParentRegistrationForm from './ParentRegistrationForm';
-import videoSource from '../assets/video/sport.mp4';
 import './AboutPage.css';
 
 interface RoleInfo {
@@ -317,7 +316,8 @@ const AboutPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="video-section">
+            {/* Video section disabled - video file not found */}
+            {/* <div className="video-section">
               <h2 className="video-title">{t('watchOurStory')}</h2>
               <div className="video-container">
                 <video
@@ -333,7 +333,7 @@ const AboutPage: React.FC = () => {
                   {t('videoNotSupported', 'Your browser does not support the video tag.')}
                 </video>
               </div>
-            </div>
+            </div> */}
           </>
         )}
 

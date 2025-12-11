@@ -40,7 +40,7 @@ import MessageButton from '../components/MessageButton';
 import { organizationConnectionService } from '../../../services/api/organizationConnectionService';
 import friendsService from '../../../services/api/friendsService';
 import { useRealtimeFriendRequests } from '../../../hooks/useRealtimeFriendRequests';
-import { userService } from '../../../services/api/userService';
+import userService from '../../../services/api/userService';
 import { COLLECTIONS } from '../../../constants/firebase';
 import '../styles/Profile.css';
 
@@ -57,14 +57,14 @@ const CertificatesSectionModal = lazy(() => import('../components/CertificatesSe
 // Helper function to map role to Firestore collection
 const getCollectionForRole = (role: UserRole): string => {
   switch (role) {
-    case 'parent':
-      return COLLECTIONS.PARENTS;
+    case 'athlete':
+      return COLLECTIONS.ATHLETES;
     case 'coach':
       return COLLECTIONS.COACHES;
     case 'organization':
       return COLLECTIONS.ORGANIZATIONS;
-    case 'athlete':
-      return COLLECTIONS.ATHLETES;
+    case 'parent':
+      return COLLECTIONS.PARENTS;
     default:
       return COLLECTIONS.ATHLETES; // Default to athletes
   }
@@ -258,59 +258,61 @@ const Profile: React.FC = React.memo(() => {
             }
 
             // Set personal details from Firestore data
-            // Handle sport data: use sportDetails (array of objects) or fall back to sport field
+            // Handle sport data: use sportDetails (array of objects) or fall back to sports field
             const sportData = userData.sportDetails && userData.sportDetails.length > 0
               ? userData.sportDetails[0].name // Use first sport's name
-              : userData.sport;
+              : userData.sports?.[0] || undefined;
 
             // Handle position data: use positionName or fall back to position field
             const positionData = userData.positionName || userData.position;
 
             setPersonalDetails({
-              name: userData.displayName || userData.name || firebaseUser?.displayName || 'User',
+              name: userData.displayName || firebaseUser?.displayName || 'User',
               dateOfBirth: userData.dateOfBirth,
               gender: userData.gender,
               mobile: userData.mobile,
               email: userData.email,
               city: userData.city,
-              district: userData.district,
+              district: undefined,
               state: userData.state,
               country: userData.country,
-              playerType: userData.playerType,
+              playerType: undefined,
               sport: sportData,
               position: positionData,
               // Organization fields
-              organizationName: userData.organizationName,
-              organizationType: userData.organizationType,
+              organizationName: undefined,
+              organizationType: undefined,
               location: userData.location,
-              contactEmail: userData.contactEmail,
+              contactEmail: userData.email,
               website: userData.website,
               // Parent fields
-              relationship: userData.relationship,
-              connectedAthletes: userData.connectedAthletes || [],
+              relationship: undefined,
+              connectedAthletes: [],
               // Coach fields
               specializations: userData.specializations || [],
-              yearsExperience: userData.yearsExperience,
-              coachingLevel: userData.coachingLevel
+              yearsExperience: typeof (userData as any)?.yearsExperience === 'string' 
+                ? parseInt((userData as any).yearsExperience, 10) 
+                : (userData as any)?.yearsExperience || 0,
+              coachingLevel: (userData as any)?.coachingLevel
             });
 
             // Set physical attributes
             setPhysicalAttributes({
-              height: userData.height,
-              weight: userData.weight,
-              dominantSide: userData.dominantSide,
-              personalBest: userData.personalBest,
-              seasonBest: userData.seasonBest,
-              coachName: userData.coachName,
-              coachContact: userData.coachContact,
-              trainingAcademy: userData.trainingAcademy,
-              schoolName: userData.schoolName,
-              clubName: userData.clubName
+              height: userData.height ? parseInt(userData.height as string, 10) : undefined,
+              weight: userData.weight ? parseInt(userData.weight as string, 10) : undefined,
+              dominantSide: undefined,
+              personalBest: undefined,
+              seasonBest: undefined,
+              coachName: undefined,
+              coachContact: undefined,
+              trainingAcademy: undefined,
+              schoolName: undefined,
+              clubName: undefined
             });
 
             // Load other profile data
-            setAchievements(userData.achievements || []);
-            setCertificates(userData.certificates || []);
+            setAchievements([]);
+            setCertificates([]);
             // Load talent videos from separate talentVideos collection (not from user document)
             const { collection, query, where, getDocs, Timestamp } = await import('firebase/firestore');
             const talentVideosRef = collection(db, 'talentVideos');
@@ -327,9 +329,9 @@ const Profile: React.FC = React.memo(() => {
               } as TalentVideo);
             });
             setTalentVideos(talentVideosList);
-            setTrackBest(userData.trackBest || {});
-            setProfilePicture(userData.profilePicture || userData.photoURL || null);
-            setCoverPhoto(userData.coverPhoto || null);
+            setTrackBest({});
+            setProfilePicture(userData.photoURL || null);
+            setCoverPhoto(null);
             setAthleteSports(userData.sportDetails || []);
 
             // Load posts from separate posts collection
@@ -361,7 +363,8 @@ const Profile: React.FC = React.memo(() => {
             // Remove any remaining undefined values
             const cleanUserDocData = Object.fromEntries(
               Object.entries(userDocData).filter(([_, value]) => value !== undefined)
-            );// Create in role-specific collection (default: athletes for backward compatibility)
+            );
+// Create in role-specific collection (default: athletes for backward compatibility)
             const defaultRole: UserRole = 'athlete';
             const collection = getCollectionForRole(defaultRole);
             setCurrentRole(defaultRole);
@@ -535,7 +538,7 @@ const Profile: React.FC = React.memo(() => {
 
         // Clear sport-related localStorage for organizations and coaches
         // to prevent showing athlete-specific data
-        if (newRole === 'organization' || newRole === 'coaches') {
+        if (newRole === 'organization' || newRole === 'coach') {
           localStorage.removeItem('userSport');
           localStorage.removeItem('userPosition');
           localStorage.removeItem('userPlayerType');
@@ -550,7 +553,8 @@ const Profile: React.FC = React.memo(() => {
         // Dispatch custom event to notify other components about role change
         window.dispatchEvent(new CustomEvent('userProfileUpdated', {
           detail: { role: newRole }
-        }));announceToScreenReader(`Role changed to ${roleConfigurations[newRole].displayName}`);
+        }));
+announceToScreenReader(`Role changed to ${roleConfigurations[newRole].displayName}`);
       } catch (error) {
         console.error('Error saving role:', error);
         announceToScreenReader('Failed to save role change');
@@ -572,10 +576,12 @@ const Profile: React.FC = React.memo(() => {
   // Memoize handlers to prevent unnecessary re-renders
   const achievementHandlers = useMemo(() => ({
     onAddAchievement: () => {
-      // Handle add achievement - would open add modalannounceToScreenReader('Opening add achievement form');
+      // Handle add achievement - would open add modal
+announceToScreenReader('Opening add achievement form');
     },
     onEditAchievement: (achievement: Achievement) => {
-      // Handle edit achievement - would open edit modalannounceToScreenReader(`Editing achievement: ${achievement.title}`);
+      // Handle edit achievement - would open edit modal
+announceToScreenReader(`Editing achievement: ${achievement.title}`);
     },
     onDeleteAchievement: async (id: string) => {
       try {
@@ -608,10 +614,12 @@ const Profile: React.FC = React.memo(() => {
 
   const certificateHandlers = useMemo(() => ({
     onAddCertificate: () => {
-      // Handle add certificate - would open add modalannounceToScreenReader('Opening add certificate form');
+      // Handle add certificate - would open add modal
+announceToScreenReader('Opening add certificate form');
     },
     onEditCertificate: (certificate: Certificate) => {
-      // Handle edit certificate - would open edit modalannounceToScreenReader(`Editing certificate: ${certificate.name}`);
+      // Handle edit certificate - would open edit modal
+announceToScreenReader(`Editing certificate: ${certificate.name}`);
     },
     onDeleteCertificate: async (id: string) => {
       try {
@@ -674,7 +682,8 @@ const Profile: React.FC = React.memo(() => {
   const videoHandlers = useMemo(() => ({
     onAddVideo: () => {
       // Handle add video - reload videos after upload
-      // The TalentVideosSection handles the actual uploadannounceToScreenReader('Opening add video form');
+      // The TalentVideosSection handles the actual upload
+announceToScreenReader('Opening add video form');
     },
     onEditVideo: async (video: TalentVideo) => {
       try {
@@ -757,7 +766,8 @@ const Profile: React.FC = React.memo(() => {
       }
     },
     onVideoClick: (video: TalentVideo) => {
-      // Handle video click - would open video player modalannounceToScreenReader(`Playing video: ${video.title}`);
+      // Handle video click - would open video player modal
+announceToScreenReader(`Playing video: ${video.title}`);
     }
   }), [announceToScreenReader, talentVideos, firebaseUser]);
 
@@ -787,7 +797,8 @@ const Profile: React.FC = React.memo(() => {
 
   const postHandlers = useMemo(() => ({
     onPostClick: (post: Post) => {
-      // Handle post click - would navigate to post detailannounceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
+      // Handle post click - would navigate to post detail
+announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
     },
     onEditPost: async (id: string, postData: Omit<Post, 'id' | 'createdDate' | 'likes' | 'comments'>) => {
       try {
@@ -888,7 +899,8 @@ const Profile: React.FC = React.memo(() => {
 
         const collection = getCollectionForRole(currentRole);
         const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, cleanedUpdateData);// Dispatch custom event to notify other components about profile update
+        await updateDoc(userRef, cleanedUpdateData);
+// Dispatch custom event to notify other components about profile update
         window.dispatchEvent(new CustomEvent('userProfileUpdated', {
           detail: { personalDetails: updatedPersonalDetails }
         }));
@@ -935,7 +947,8 @@ const Profile: React.FC = React.memo(() => {
 
         const collection = getCollectionForRole(currentRole);
         const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, cleanedUpdateData);}
+        await updateDoc(userRef, cleanedUpdateData);
+}
 
       setIsPhysicalAttributesModalOpen(false);
       announceToScreenReader('Physical attributes updated successfully');
@@ -973,7 +986,8 @@ const Profile: React.FC = React.memo(() => {
 
         const collection = getCollectionForRole(currentRole);
         const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, cleanedUpdateData);// Dispatch custom event to notify other components about profile update
+        await updateDoc(userRef, cleanedUpdateData);
+// Dispatch custom event to notify other components about profile update
         window.dispatchEvent(new CustomEvent('userProfileUpdated', {
           detail: { personalDetails: updatedPersonalDetails }
         }));
@@ -1003,7 +1017,8 @@ const Profile: React.FC = React.memo(() => {
         await updateDoc(userRef, {
           trackBest: updatedTrackBest,
           updatedAt: new Date()
-        });}
+        });
+}
 
       setIsTrackBestModalOpen(false);
       announceToScreenReader('Track best updated successfully');
@@ -1030,7 +1045,8 @@ const Profile: React.FC = React.memo(() => {
         await updateDoc(userRef, {
           achievements: updatedAchievements,
           updatedAt: new Date()
-        });}
+        });
+}
 
       setIsAchievementsSectionModalOpen(false);
       announceToScreenReader('Achievements updated successfully');
@@ -1057,7 +1073,8 @@ const Profile: React.FC = React.memo(() => {
         await updateDoc(userRef, {
           certificates: updatedCertificates,
           updatedAt: new Date()
-        });}
+        });
+}
 
       setIsCertificatesSectionModalOpen(false);
       announceToScreenReader('Certificates updated successfully');
@@ -1137,7 +1154,8 @@ const Profile: React.FC = React.memo(() => {
 
         const collection = getCollectionForRole(currentRole);
         const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, cleanedUpdateData);}
+        await updateDoc(userRef, cleanedUpdateData);
+}
 
       setIsEditModalOpen(false);
 
@@ -1568,7 +1586,7 @@ const Profile: React.FC = React.memo(() => {
         </header>
 
         {/* Track Best Section - Only for Athletes/Players and Parents */}
-        {(currentRole === 'athlete' || currentRole === 'parents') && (
+        {(currentRole === 'athlete' || currentRole === 'parent') && (
           <TrackBestSection
             trackBest={trackBest}
             sport={getDisplayValue(personalDetails.sport)}

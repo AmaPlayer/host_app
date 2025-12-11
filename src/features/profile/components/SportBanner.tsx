@@ -15,8 +15,8 @@ interface SportBannerProps {
 
 // Map post UserRole to profile UserRole
 const mapRoleToProfileRole = (role: ProfileUserRole | PostUserRole): ProfileUserRole => {
-  if (role === 'parent') return 'parents';
-  if (role === 'coach') return 'coaches';
+  if (role === 'parent') return 'parent';
+  if (role === 'coach') return 'coach';
   return role as ProfileUserRole;
 };
 
@@ -36,11 +36,11 @@ const SportBanner: React.FC<SportBannerProps> = ({
     switch (normalizedRole) {
       case 'athlete':
         return <Dribbble size={16} />;
-      case 'coaches':
+      case 'coach':
         return <Award size={16} />;
       case 'organization':
         return <Trophy size={16} />;
-      case 'parents':
+      case 'parent':
         return <Trophy size={16} />;
       default:
         return <Dribbble size={16} />;
@@ -59,7 +59,7 @@ const SportBanner: React.FC<SportBannerProps> = ({
         return athleteParts.length > 0 ? athleteParts.join(' • ') : 'Player';
       }
 
-      case 'coaches': {
+      case 'coach': {
         const coachParts = ['Coach'];
         // Only show specializations for coaches, NOT sport
         if (specializations && specializations.length > 0) {
@@ -79,7 +79,7 @@ const SportBanner: React.FC<SportBannerProps> = ({
         return orgParts.join(' • ');
       }
 
-      case 'parents':
+      case 'parent':
         return sport ? `Parent • ${sport}` : 'Parent';
 
       default:

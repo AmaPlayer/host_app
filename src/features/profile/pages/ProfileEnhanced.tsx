@@ -113,8 +113,8 @@ const ProfileEnhanced: React.FC = () => {
           if (userData) {
             // Map user role to profile role format
             let profileRole: UserRole = 'athlete';
-            if (userData.role === 'parent') profileRole = 'parents';
-            else if (userData.role === 'coach') profileRole = 'coaches';
+            if (userData.role === 'parent') profileRole = 'parent';
+            else if (userData.role === 'coach') profileRole = 'coach';
             else if (userData.role) profileRole = userData.role as UserRole;
             
             // Update state with Firebase data
@@ -168,11 +168,12 @@ const ProfileEnhanced: React.FC = () => {
     // Save to Firebase
     if (currentUser) {
       try {
-        // Map profile role to user role format
-        const userRole = newRole === 'parents' ? 'parent' : newRole === 'coaches' ? 'coach' : newRole;
+        // Map profile role to user role format (already in correct format)
+        const userRole = newRole;
         await userService.updateUserProfile(currentUser.uid, {
           role: userRole as any
-        });} catch (error) {
+        });
+} catch (error) {
         console.error('❌ Error saving role to Firebase:', error);
       }
     }
@@ -235,7 +236,8 @@ const ProfileEnhanced: React.FC = () => {
           sports: data.personalDetails.sport ? [data.personalDetails.sport] : undefined,
           position: data.personalDetails.position,
           specializations: data.personalDetails.specializations
-        } as any);} catch (error) {
+        } as any);
+} catch (error) {
         console.error('❌ Error saving profile to Firebase:', error);
       }
     }
@@ -273,7 +275,8 @@ const ProfileEnhanced: React.FC = () => {
           sports: updatedPersonalDetails.sport ? [updatedPersonalDetails.sport] : undefined,
           position: updatedPersonalDetails.position,
           specializations: updatedPersonalDetails.specializations
-        } as any);} catch (error) {
+        } as any);
+} catch (error) {
         console.error('❌ Error saving personal details to Firebase:', error);
       }
     }
@@ -294,7 +297,8 @@ const ProfileEnhanced: React.FC = () => {
     // Save to Firebase
     if (currentUser) {
       try {
-        // Physical attributes would be saved as part of user profile} catch (error) {
+        // Physical attributes would be saved as part of user profile
+} catch (error) {
         console.error('❌ Error saving physical attributes:', error);
       }
     }
@@ -318,7 +322,8 @@ const ProfileEnhanced: React.FC = () => {
           location: updatedPersonalDetails.location,
           contactEmail: updatedPersonalDetails.contactEmail,
           website: updatedPersonalDetails.website
-        } as any);} catch (error) {
+        } as any);
+} catch (error) {
         console.error('❌ Error saving organization info to Firebase:', error);
       }
     }
@@ -337,7 +342,8 @@ const ProfileEnhanced: React.FC = () => {
     // Save to Firebase
     if (currentUser) {
       try {
-        // Achievements would be saved as part of user profile} catch (error) {
+        // Achievements would be saved as part of user profile
+} catch (error) {
         console.error('❌ Error saving achievements:', error);
       }
     }
@@ -355,7 +361,8 @@ const ProfileEnhanced: React.FC = () => {
     // Save to Firebase
     if (currentUser) {
       try {
-        // Certificates would be saved as part of user profile} catch (error) {
+        // Certificates would be saved as part of user profile
+} catch (error) {
         console.error('❌ Error saving certificates:', error);
       }
     }
@@ -373,7 +380,8 @@ const ProfileEnhanced: React.FC = () => {
     // Save to Firebase
     if (currentUser) {
       try {
-        // Track best would be saved as part of user profile} catch (error) {
+        // Track best would be saved as part of user profile
+} catch (error) {
         console.error('❌ Error saving track best:', error);
       }
     }
@@ -382,7 +390,8 @@ const ProfileEnhanced: React.FC = () => {
   };
 
   const handleAddAthlete = () => {
-    // TODO: Implement add athlete functionality};
+    // TODO: Implement add athlete functionality
+};
 
   // Achievement management functions
   const handleAddAchievement = () => {

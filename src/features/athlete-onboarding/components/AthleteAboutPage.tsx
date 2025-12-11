@@ -5,7 +5,6 @@ import { useOnboardingStore, AthleteProfile } from '../store/onboardingStore';
 import ThemeToggle from '../../../components/common/ui/ThemeToggle';
 import LanguageSelector from '../../../components/common/forms/LanguageSelector';
 import useTranslation from '../../../login_flow/hooks/useTranslation';
-import videoSource from '../../../login_flow/assets/video/sport.mp4';
 import '../styles/AthleteAboutPage.css';
 
 const AthleteAboutPage: React.FC = () => {
@@ -179,7 +178,8 @@ const AthleteAboutPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="video-section">
+        {/* Video section disabled - video file not found */}
+        {/* <div className="video-section">
           <h2 className="video-title">{t('watchOurStory')}</h2>
           <div className="video-container">
             <video 
@@ -195,7 +195,7 @@ const AthleteAboutPage: React.FC = () => {
               {t('videoNotSupported', 'Your browser does not support the video tag.')}
             </video>
           </div>
-        </div>
+        </div> */}
 
         <div className="athlete-about-actions">
           <button className="continue-btn" onClick={handleContinue}>

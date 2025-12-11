@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Mail, Camera, Save, X, LogOut, AlertCircle, Lock, LockOpen } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { userService } from '../../../services/api/userService';
+import userService from '../../../services/api/userService';
 import FormField from '../../../components/common/forms/FormField';
 import LoadingSpinner from '../../../components/common/ui/LoadingSpinner';
 import ToastContainer from '../../../components/common/ui/ToastContainer';
@@ -106,7 +106,10 @@ const AccountSection: React.FC = () => {
         const userData = await userService.getUserProfile(currentUser.uid);
 
         if (userData) {
-          setNameChangeCount(userData.displayNameChanges || 0);
+          // Note: displayNameChanges is not tracked in the User model
+          // Using localStorage as fallback for tracking name changes
+          const storedChangeCount = localStorage.getItem(`nameChangeCount_${currentUser.uid}`);
+          setNameChangeCount(storedChangeCount ? parseInt(storedChangeCount, 10) : 0);
           setOriginalName(userData.displayName || currentUser.displayName || '');
         }
       } catch (error) {
@@ -161,11 +164,14 @@ const AccountSection: React.FC = () => {
         return;
       }
 
-      // Save and update the change counter in Firestore
+      // Save and update the change counter in localStorage
       if (currentUser?.uid) {
+        const newChangeCount = nameChangeCount + 1;
+        localStorage.setItem(`nameChangeCount_${currentUser.uid}`, newChangeCount.toString());
+        setNameChangeCount(newChangeCount);
+        
         await userService.updateUserProfile(currentUser.uid, {
-          displayName: newDisplayName,
-          displayNameChanges: nameChangeCount + 1
+          displayName: newDisplayName
         });
 
         // Update Firebase Auth profile
