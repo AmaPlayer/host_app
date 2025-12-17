@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useRealtimeFriendRequests } from '../../hooks/useRealtimeFriendRequests';
 import { db } from '../../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, getDoc, getDocs, deleteDoc, orderBy, limit, writeBatch } from 'firebase/firestore';
@@ -67,6 +68,7 @@ export default function Messages() {
   const navigate = useNavigate();
   const { userId } = useParams<{ userId: string }>();
   const { currentUser, isGuest } = useAuth();
+  const { t } = useLanguage();
 
   const handleTitleClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -988,19 +990,19 @@ await addDoc(collection(db, 'messages'), {
 
       <div className="main-content messages-content">
         <div className="messages-tabs">
-          <button 
+          <button
             className={`tab-btn ${activeTab === 'friends' ? 'active' : ''}`}
             onClick={() => setActiveTab('friends')}
           >
             <Users size={20} />
-            Friends ({friends.length})
+            {t('friends')} ({friends.length})
           </button>
-          <button 
+          <button
             className={`tab-btn ${activeTab === 'requests' ? 'active' : ''}`}
             onClick={() => setActiveTab('requests')}
           >
             <UserPlus size={20} />
-            Requests ({friendRequests.length})
+            {t('requests')} ({friendRequests.length})
           </button>
           {/* Notifications moved to NavigationBar */}
         </div>
@@ -1167,8 +1169,8 @@ await addDoc(collection(db, 'messages'), {
             {friendRequests.length === 0 ? (
               <div className="empty-state">
                 <UserPlus size={48} />
-                <h3>No Friend Requests</h3>
-                <p>You don't have any pending friend requests</p>
+                <h3>{t('noFriendRequests')}</h3>
+                <p>{t('noPendingRequests')}</p>
               </div>
             ) : (
               friendRequests.map((request) => (
@@ -1184,7 +1186,7 @@ await addDoc(collection(db, 'messages'), {
                     <strong className="request-user-name">
                       {request.requesterName}
                     </strong>
-                    <p>wants to be your friend</p>
+                    <p>{t('wantsToBeFriend')}</p>
                   </div>
                   <div className="request-actions">
                     <button
@@ -1192,14 +1194,14 @@ await addDoc(collection(db, 'messages'), {
                       onClick={() => handleAcceptRequest(request.id, request.requesterId)}
                     >
                       <Check size={16} />
-                      Accept
+                      {t('accept')}
                     </button>
-                    <button 
+                    <button
                       className="reject-btn"
                       onClick={() => handleRejectRequest(request.id)}
                     >
                       <X size={16} />
-                      Reject
+                      {t('reject')}
                     </button>
                   </div>
                 </div>

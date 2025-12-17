@@ -2,6 +2,7 @@ import { memo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Play, Calendar, MessageCircle, User, LucideIcon } from 'lucide-react';
 import { useUnreadMessages } from '@hooks/useUnreadMessages';
+import { useLanguage } from '../../contexts/LanguageContext';
 import './FooterNav.css';
 
 interface NavItem {
@@ -14,6 +15,7 @@ interface NavItem {
 const FooterNav = memo(function FooterNav() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   // Preload critical routes on component mount
   useEffect(() => {
@@ -49,31 +51,31 @@ const FooterNav = memo(function FooterNav() {
     {
       id: 'home',
       icon: Home,
-      label: 'Home',
+      label: t('home'),
       path: '/home'
     },
     {
       id: 'moments',
       icon: Play,
-      label: 'Moments',
+      label: t('moments'),
       path: '/moments'
     },
     {
       id: 'events',
       icon: Calendar,
-      label: 'Events',
+      label: t('events'),
       path: '/events'
     },
     {
       id: 'messages',
       icon: MessageCircle,
-      label: 'Messages',
+      label: t('messages'),
       path: '/messages'
     },
     {
       id: 'profile',
       icon: User,
-      label: 'Profile',
+      label: t('profile'),
       path: '/profile'
     }
   ];

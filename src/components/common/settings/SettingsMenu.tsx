@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import ThemeToggle from '../ui/ThemeToggle';
@@ -32,6 +33,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
   currentUser,
 }) => {
   const { logout } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
   const [animationState, setAnimationState] = useState<'entering' | 'entered' | 'exiting'>('entering');
@@ -144,7 +146,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
         {/* Header */}
         <div className="settings-menu-modal-header">
           <Settings size={28} />
-          <h2>Settings</h2>
+          <h2>{t('settings')}</h2>
         </div>
 
         {/* Content */}
@@ -160,8 +162,8 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
                   <Settings size={24} />
                 </div>
                 <div className="settings-option-text">
-                  <h3>Account Settings</h3>
-                  <p>Manage your profile and account information</p>
+                  <h3>{t('accountSettings')}</h3>
+                  <p>{t('manageProfile')}</p>
                 </div>
               </button>
             </div>
@@ -169,14 +171,14 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
 
           {/* Theme Toggle */}
           <div className="settings-menu-section">
-            <h4 className="settings-section-title">Appearance</h4>
+            <h4 className="settings-section-title">{t('appearance')}</h4>
             <div className="settings-menu-option theme-option">
               <div className="settings-option-icon">
                 <Sun size={24} />
               </div>
               <div className="settings-option-text">
-                <h3>Theme</h3>
-                <p>Choose your preferred color theme</p>
+                <h3>{t('theme')}</h3>
+                <p>{t('choosePreferredTheme')}</p>
               </div>
               <div className="settings-option-control">
                 <ThemeToggle inline={true} showLabel={false} />
@@ -186,14 +188,14 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
 
           {/* Language Selector */}
           <div className="settings-menu-section">
-            <h4 className="settings-section-title">Language</h4>
+            <h4 className="settings-section-title">{t('language')}</h4>
             <div className="settings-menu-option language-option">
               <div className="settings-option-icon">
                 <Globe size={24} />
               </div>
               <div className="settings-option-text">
-                <h3>Language</h3>
-                <p>Select your preferred language</p>
+                <h3>{t('language')}</h3>
+                <p>{t('selectPreferredLanguage')}</p>
               </div>
               <div className="settings-option-control">
                 <LanguageSelector inline={true} showLabel={false} dropdownPosition="left" />
@@ -215,8 +217,8 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
                   <Lock size={24} />
                 </div>
                 <div className="settings-option-text">
-                  <h3>Change Password</h3>
-                  <p>Update your account password</p>
+                  <h3>{t('changePassword')}</h3>
+                  <p>{t('updatePassword')}</p>
                 </div>
               </button>
             </div>
@@ -232,8 +234,8 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
                 <FileText size={24} />
               </div>
               <div className="settings-option-text">
-                <h3>Privacy Policy</h3>
-                <p>Read our privacy and terms</p>
+                <h3>{t('privacyPolicy')}</h3>
+                <p>{t('readPrivacyTerms')}</p>
               </div>
             </button>
           </div>
@@ -248,8 +250,8 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
                 <LogOut size={24} />
               </div>
               <div className="settings-option-text">
-                <h3>{isGuest ? 'Sign In' : 'Logout'}</h3>
-                <p>{isGuest ? 'Sign in to your account' : 'Sign out from your account'}</p>
+                <h3>{isGuest ? t('signIn') : t('logout')}</h3>
+                <p>{isGuest ? t('signInToAccount') : t('signOutFromAccount')}</p>
               </div>
             </button>
           </div>

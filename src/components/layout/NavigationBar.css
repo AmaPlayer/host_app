@@ -332,11 +332,11 @@
   .nav-content {
     height: 48px;
   }
-  
+
   .app-title {
     font-size: 18px;
   }
-  
+
   .search-btn,
   .notification-btn,
   .settings-btn,
@@ -344,8 +344,21 @@
     width: 40px;
     height: 40px;
   }
-  
+
   .nav-actions {
     gap: 8px;
+  }
+}
+
+/* Language Selector Container */
+.language-selector-nav-container {
+  display: flex;
+  align-items: center;
+}
+
+/* Hide language selector on small mobile screens (use FooterNav instead) */
+@media (max-width: 480px) {
+  .language-selector-nav-container {
+    display: none;
   }
 }

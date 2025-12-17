@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Heart, MessageCircle, Video, Trash2, MoreVertical, Edit3, Share2, Check } from 'lucide-react';
 import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import OptimizedImage from '../../../components/common/media/OptimizedImage';
 import VideoPlayer from '../../../components/common/media/VideoPlayer';
 import LazyImage from '../../../components/common/ui/LazyImage';
@@ -65,6 +66,8 @@ const Post: React.FC<PostProps> = ({
   onNavigateToPost,
   onUserClick
 }) => {
+  const { t } = useLanguage();
+
   // Handle both string[] and Like[] formats for backward compatibility
   const userLiked = Array.isArray(post.likes) && post.likes.length > 0 && typeof post.likes[0] === 'string'
     ? (post.likes as unknown as string[]).includes(currentUser?.uid || '')
@@ -330,12 +333,12 @@ const Post: React.FC<PostProps> = ({
                   {shareSuccess[post.id] ? (
                     <>
                       <Check size={16} />
-                      Link Copied!
+                      {t('linkCopied')}
                     </>
                   ) : (
                     <>
                       <Share2 size={16} />
-                      Share Post
+                      {t('sharePost')}
                     </>
                   )}
                 </button>
@@ -351,7 +354,7 @@ const Post: React.FC<PostProps> = ({
                       }}
                     >
                       <Edit3 size={16} />
-                      Edit Post
+                      {t('edit')}
                     </button>
                     <button
                       className="menu-item delete"
@@ -361,7 +364,7 @@ const Post: React.FC<PostProps> = ({
                       }}
                     >
                       <Trash2 size={16} />
-                      Delete Post
+                      {t('deletePost')}
                     </button>
                   </>
                 )}
@@ -434,7 +437,7 @@ const Post: React.FC<PostProps> = ({
                   className="edit-post-input"
                   value={editText}
                   onChange={(e) => onSetEditText(e.target.value)}
-                  placeholder="Edit your post..."
+                  placeholder={t('editYourPost')}
                   rows={4}
                   autoFocus
                 />
@@ -444,13 +447,13 @@ const Post: React.FC<PostProps> = ({
                     onClick={() => onSaveEdit(post.id)}
                     disabled={!editText.trim()}
                   >
-                    Save
+                    {t('save')}
                   </button>
                   <button
                     className="cancel-edit-btn"
                     onClick={onCancelEdit}
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                 </div>
               </div>
@@ -471,7 +474,7 @@ const Post: React.FC<PostProps> = ({
               >
                 {post.caption}
                 {(post as any).editedAt && (
-                  <span className="edited-indicator"> (edited)</span>
+                  <span className="edited-indicator"> {t('edited')}</span>
                 )}
               </div>
             )}
@@ -529,7 +532,7 @@ const Post: React.FC<PostProps> = ({
                   className="edit-post-input"
                   value={editText}
                   onChange={(e) => onSetEditText(e.target.value)}
-                  placeholder="Edit your post..."
+                  placeholder={t('editYourPost')}
                   rows={3}
                   autoFocus
                 />
@@ -539,13 +542,13 @@ const Post: React.FC<PostProps> = ({
                     onClick={() => onSaveEdit(post.id)}
                     disabled={!editText.trim()}
                   >
-                    Save
+                    {t('save')}
                   </button>
                   <button
                     className="cancel-edit-btn"
                     onClick={onCancelEdit}
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                 </div>
               </div>
@@ -562,7 +565,7 @@ const Post: React.FC<PostProps> = ({
                   {displayName}
                 </strong> {post.caption}
                 {(post as any).editedAt && (
-                  <span className="edited-indicator"> (edited)</span>
+                  <span className="edited-indicator"> {t('edited')}</span>
                 )}
               </div>
             )}

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import { useMediaUpload } from '../../../hooks/useMediaUpload';
 import { filterPostContent, getPostViolationMessage, logPostViolation } from '../../../utils/content/postContentFilter';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -38,6 +39,8 @@ const PostComposer: React.FC<PostComposerProps> = ({
   onPostCreated,
   disabled = false
 }) => {
+  const { t } = useLanguage();
+
   // Local state for post composition
   const [postText, setPostText] = useState<string>('');
   const [postViolation, setPostViolation] = useState<PostViolation | null>(null);
@@ -192,18 +195,18 @@ const PostComposer: React.FC<PostComposerProps> = ({
    */
   const handleCreatePost = useCallback(async () => {
     if (isGuest) {
-      alert('Please sign up or log in to create posts');
+      alert(t('pleaseSignUpToCreatePosts'));
       return;
     }
 
     if (!currentUser || !firestoreUser) { // Check for firestoreUser as well
-      alert('You must be logged in to create posts');
+      alert(t('mustBeLoggedIn'));
       return;
     }
 
     const text = postText.trim();
     if (!text && !selectedMedia) {
-      alert('Please write something or select media to share');
+      alert(t('writeOrSelectMedia'));
       return;
     }
 
@@ -224,7 +227,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
 
         if (filterResult.shouldBlock || filterResult.shouldWarn) {
           const violationMsg = getPostViolationMessage(filterResult.violations, filterResult.categories);
-          alert(`❌ You can't post this content: ${violationMsg}`);
+          alert(`❌ ${t('cantPostContent')}: ${violationMsg}`);
           return;
         }
       }
@@ -321,10 +324,10 @@ const PostComposer: React.FC<PostComposerProps> = ({
         onPostCreated();
       }
 
-      alert('Post created successfully!');
+      alert(t('postCreatedSuccessfully'));
     } catch (error) {
       console.error('Error creating post:', error);
-      alert('Failed to create post. Please try again.');
+      alert(t('failedToCreatePost'));
     } finally {
       setIsSubmitting(false);
     }
@@ -336,7 +339,8 @@ const PostComposer: React.FC<PostComposerProps> = ({
     firestoreUser,
     uploadMedia,
     videoCropData,
-    onPostCreated
+    onPostCreated,
+    t
   ]);
 
   /**
@@ -363,7 +367,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
   if (profileLoading) {
     return (
       <div className="post-composer loading">
-        Loading profile...
+        {t('loadingProfile')}
       </div>
     );
   }
@@ -387,7 +391,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
         </div>
         <textarea
           className={`composer-input ${showPostWarning ? 'content-warning' : ''}`}
-          placeholder="What's on your mind?"
+          placeholder={t('whatsOnYourMind')}
           value={postText}
           onChange={handlePostTextChange}
           disabled={isFormDisabled}
@@ -400,13 +404,13 @@ const PostComposer: React.FC<PostComposerProps> = ({
         <div className="composer-warning">
           <div className="warning-header">
             <Trash2 size={16} />
-            Inappropriate Content Detected
+            {t('inappropriateContentDetected')}
           </div>
           <div className="warning-message">
             {getPostViolationMessage(postViolation.violations, postViolation.categories)}
           </div>
           <div className="warning-suggestion">
-            💪 Try sharing your training progress, sports achievements, or positive team experiences!
+            💪 {t('trySharingProgress')}
           </div>
         </div>
       )}
@@ -424,7 +428,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
           {mediaPreview.type === 'image' ? (
             <img
               src={mediaPreview.url}
-              alt="Preview"
+              alt={t('preview')}
             />
           ) : (
             <video
@@ -448,7 +452,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
               style={{ width: `${uploadProgress}%` }}
             ></div>
           </div>
-          <span>{uploadProgress}% uploaded</span>
+          <span>{uploadProgress}% {t('uploaded')}</span>
         </div>
       )}
 
@@ -475,7 +479,7 @@ const PostComposer: React.FC<PostComposerProps> = ({
           />
           <label htmlFor="media-upload" className={`media-btn ${isFormDisabled ? 'disabled' : ''}`}>
             <Image size={20} />
-            Photo/Video
+            {t('photoVideo')}
           </label>
         </div>
 
@@ -487,10 +491,10 @@ const PostComposer: React.FC<PostComposerProps> = ({
           {isSubmitting || uploading ? (
             <>
               <Upload size={16} />
-              {uploading ? 'Uploading...' : 'Posting...'}
+              {uploading ? t('uploading') : t('posting')}
             </>
           ) : (
-            'Post'
+            t('post')
           )}
         </button>
       </div>

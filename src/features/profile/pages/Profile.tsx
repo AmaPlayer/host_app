@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from
 import { useNavigate, useParams } from 'react-router-dom';
 import { Edit3 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import NavigationBar from '../../../components/layout/NavigationBar';
 import FooterNav from '../../../components/layout/FooterNav';
 import { db } from '../../../lib/firebase';
@@ -74,6 +75,7 @@ const Profile: React.FC = React.memo(() => {
   const navigate = useNavigate();
   const { userId } = useParams<{ userId?: string }>();
   const { currentUser: firebaseUser, isGuest, updateUserProfile } = useAuth();
+  const { t } = useLanguage();
   const [currentRole, setCurrentRole] = useState<UserRole>('athlete');
   const [viewerRole, setViewerRole] = useState<string>('athlete'); // Viewer's role
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -1639,7 +1641,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
         {sections.includes('personal') && (
           <section className="personal-details" aria-labelledby="personal-details-heading">
             <div className="section-header">
-              <h2 id="personal-details-heading" className="section-title">Personal Details</h2>
+              <h2 id="personal-details-heading" className="section-title">{t('personalDetails')}</h2>
               {isOwner && (
                 <button
                   className="section-edit-button"
@@ -1653,39 +1655,39 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
             </div>
             <div className="details-card" role="group" aria-labelledby="personal-details-heading">
               <div className="field-row">
-                <span className="field-label" id="name-label">NAME</span>
+                <span className="field-label" id="name-label">{t('nameLabel')}</span>
                 <span className="field-value" aria-labelledby="name-label">{personalDetails.name}</span>
               </div>
               <div className="field-row">
-                <span className="field-label" id="dob-label">DATE OF BIRTH</span>
+                <span className="field-label" id="dob-label">{t('dateOfBirthLabel')}</span>
                 <span className="field-value" aria-labelledby="dob-label">{formatDateOfBirth(personalDetails.dateOfBirth)}</span>
               </div>
               <div className="field-row">
-                <span className="field-label" id="gender-label">GENDER</span>
-                <span className="field-value" aria-labelledby="gender-label">{personalDetails.gender || 'Not specified'}</span>
+                <span className="field-label" id="gender-label">{t('genderLabel')}</span>
+                <span className="field-value" aria-labelledby="gender-label">{personalDetails.gender || t('notSpecified')}</span>
               </div>
               <div className="field-row">
-                <span className="field-label" id="mobile-label">MOBILE</span>
-                <span className="field-value" aria-labelledby="mobile-label">{personalDetails.mobile || 'Not specified'}</span>
+                <span className="field-label" id="mobile-label">{t('mobileLabel')}</span>
+                <span className="field-value" aria-labelledby="mobile-label">{personalDetails.mobile || t('notSpecified')}</span>
               </div>
               <div className="field-row">
-                <span className="field-label" id="email-label">EMAIL</span>
-                <span className="field-value" aria-labelledby="email-label">{personalDetails.email || 'Not specified'}</span>
+                <span className="field-label" id="email-label">{t('emailLabel')}</span>
+                <span className="field-value" aria-labelledby="email-label">{personalDetails.email || t('notSpecified')}</span>
               </div>
               <div className="field-row">
-                <span className="field-label" id="city-label">CITY</span>
-                <span className="field-value" aria-labelledby="city-label">{personalDetails.city || 'Not specified'}</span>
+                <span className="field-label" id="city-label">{t('cityLabel')}</span>
+                <span className="field-value" aria-labelledby="city-label">{personalDetails.city || t('notSpecified')}</span>
               </div>
               <div className="field-row">
-                <span className="field-label" id="state-label">STATE</span>
-                <span className="field-value" aria-labelledby="state-label">{personalDetails.state || 'Not specified'}</span>
+                <span className="field-label" id="state-label">{t('stateLabel')}</span>
+                <span className="field-value" aria-labelledby="state-label">{personalDetails.state || t('notSpecified')}</span>
               </div>
               <div className="field-row">
-                <span className="field-label" id="country-label">COUNTRY</span>
-                <span className="field-value" aria-labelledby="country-label">{personalDetails.country || 'Not specified'}</span>
+                <span className="field-label" id="country-label">{t('countryLabel')}</span>
+                <span className="field-value" aria-labelledby="country-label">{personalDetails.country || t('notSpecified')}</span>
               </div>
               <div className="field-row">
-                <span className="field-label" id="role-label">ACCOUNT TYPE</span>
+                <span className="field-label" id="role-label">{t('accountTypeLabel')}</span>
                 <span className="field-value" aria-labelledby="role-label">{currentRoleConfig.displayName}</span>
               </div>
             </div>
@@ -1737,7 +1739,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
             <Suspense fallback={
               <div className="section-loading" role="status" aria-label="Loading talent videos">
                 <div className="section-loading-spinner" aria-hidden="true"></div>
-                <p>Loading videos...</p>
+                <p>{t('loadingVideos')}</p>
                 <div className="sr-only">Please wait while talent videos are loading</div>
               </div>
             }>
@@ -1765,7 +1767,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
             <Suspense fallback={
               <div className="section-loading" role="status" aria-label="Loading posts">
                 <div className="section-loading-spinner" aria-hidden="true"></div>
-                <p>Loading posts...</p>
+                <p>{t('loadingPosts')}</p>
                 <div className="sr-only">Please wait while posts are loading</div>
               </div>
             }>

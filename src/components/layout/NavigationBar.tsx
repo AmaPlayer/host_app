@@ -3,8 +3,10 @@ import { Settings, ArrowLeft, Bell, Search } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SettingsMenu from '../common/settings/SettingsMenu';
 import NotificationDropdown from '../common/notifications/NotificationDropdown';
+import LanguageSelector from '../common/forms/LanguageSelector';
 import { User } from 'firebase/auth';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { db } from '../../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import './NavigationBar.css';
@@ -25,6 +27,7 @@ interface NavigationBarProps {
  */
 const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer", showBackButton = false, onBackClick }: NavigationBarProps) => {
   const { isGuest: authIsGuest } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
@@ -126,12 +129,12 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
         
         <div className="nav-links">
           {isGuest && (
-            <span 
+            <span
               className="guest-indicator"
               role="status"
               aria-label="Currently in guest mode"
             >
-              Guest Mode
+              {t('guestMode')}
             </span>
           )}
           
@@ -140,13 +143,22 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
             <button
               className={`search-btn ${location.pathname === '/search' ? 'active' : ''}`}
               onClick={handleSearchClick}
-              aria-label="Search users"
+              aria-label={t('searchUsers')}
               title="Search"
               type="button"
             >
               <Search size={24} aria-hidden="true" />
               <span className="sr-only">Search</span>
             </button>
+
+            {/* Language Selector */}
+            <div className="language-selector-nav-container">
+              <LanguageSelector
+                inline={false}
+                showLabel={false}
+                dropdownPosition="left"
+              />
+            </div>
 
             {/* Notifications */}
             {!authIsGuest() && (

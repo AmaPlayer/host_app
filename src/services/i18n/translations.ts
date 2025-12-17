@@ -167,6 +167,83 @@ export const translations = {
     writeCaption: 'Write a caption...',
     writeComment: 'Write a comment...',
     yourJourney: 'Your journey to athletic excellence starts here',
+
+    // Navigation & App Menu (new keys for language selector implementation)
+    guestMode: 'Guest Mode',
+    searchUsers: 'Search users',
+    appearance: 'Appearance',
+    manageProfile: 'Manage your profile and account information',
+    choosePreferredTheme: 'Choose your preferred color theme',
+    selectPreferredLanguage: 'Select your preferred language',
+    updatePassword: 'Update your account password',
+    readPrivacyTerms: 'Read our privacy and terms',
+    signInToAccount: 'Sign in to your account',
+    signOutFromAccount: 'Sign out from your account',
+
+    // PostComposer
+    whatsOnYourMind: "What's on your mind?",
+    photoVideo: 'Photo/Video',
+    posting: 'Posting...',
+    uploading: 'Uploading...',
+    loadingProfile: 'Loading profile...',
+    inappropriateContentDetected: 'Inappropriate Content Detected',
+    trySharingProgress: 'Try sharing your training progress, sports achievements, or positive team experiences!',
+    preview: 'Preview',
+    uploaded: 'uploaded',
+    pleaseSignUpToCreatePosts: 'Please sign up or log in to create posts',
+    mustBeLoggedIn: 'You must be logged in to create posts',
+    writeOrSelectMedia: 'Please write something or select media to share',
+    cantPostContent: "You can't post this content",
+    postCreatedSuccessfully: 'Post created successfully!',
+    failedToCreatePost: 'Failed to create post. Please try again.',
+
+    // NotificationPrompt
+    stayUpdated: 'Stay Updated!',
+    getNotifiedWhenSomeoneLikes: 'Get notified when someone likes your posts or interacts with your content.',
+    maybelater: 'Maybe Later',
+    enabling: 'Enabling...',
+
+    // Post Component
+    edit: 'Edit',
+    deletePost: 'Delete Post',
+    confirmDeletePost: 'Are you sure you want to delete this post?',
+    likes: 'Likes',
+    viewAllComments: 'View all comments',
+
+    // FooterNav
+    moments: 'Moments',
+
+    // Messages Page
+    friends: 'Friends',
+    requests: 'Requests',
+    noFriendRequests: 'No Friend Requests',
+    noPendingRequests: "You don't have any pending friend requests",
+    wantsToBeFriend: 'wants to be your friend',
+    accept: 'Accept',
+    reject: 'Reject',
+
+    // Profile Page
+    personalDetails: 'Personal Details',
+    nameLabel: 'NAME',
+    dateOfBirthLabel: 'DATE OF BIRTH',
+    genderLabel: 'GENDER',
+    mobileLabel: 'MOBILE',
+    emailLabel: 'EMAIL',
+    cityLabel: 'CITY',
+    stateLabel: 'STATE',
+    countryLabel: 'COUNTRY',
+    accountTypeLabel: 'ACCOUNT TYPE',
+    notSpecified: 'Not specified',
+    loadingVideos: 'Loading videos...',
+
+    // Common
+    save: 'Save',
+    saved: 'Saved',
+    remove: 'Remove',
+    sharePost: 'Share Post',
+    linkCopied: 'Link Copied!',
+    editYourPost: 'Edit your post...',
+    edited: '(edited)',
   },
 
   hi: {
@@ -288,6 +365,83 @@ export const translations = {
     writeCaption: 'कैप्शन लिखें...',
     writeComment: 'टिप्पणी लिखें...',
     yourJourney: 'एथलेटिक उत्कृष्टता की आपकी यात्रा यहाँ से शुरू होती है',
+
+    // Navigation & App Menu (नेविगेशन और ऐप मेनू)
+    guestMode: 'अतिथि मोड',
+    searchUsers: 'उपयोगकर्ताओं को खोजें',
+    appearance: 'दिखावट',
+    manageProfile: 'अपनी प्रोफ़ाइल और खाता जानकारी प्रबंधित करें',
+    choosePreferredTheme: 'अपनी पसंदीदा थीम चुनें',
+    selectPreferredLanguage: 'अपनी पसंदीदा भाषा चुनें',
+    updatePassword: 'अपना पासवर्ड अपडेट करें',
+    readPrivacyTerms: 'हमारी गोपनीयता और शर्तें पढ़ें',
+    signInToAccount: 'अपने खाते में साइन इन करें',
+    signOutFromAccount: 'अपने खाते से साइन आउट करें',
+
+    // PostComposer (पोस्ट कंपोज़र)
+    whatsOnYourMind: 'आपके मन में क्या है?',
+    photoVideo: 'फोटो/वीडियो',
+    posting: 'पोस्ट किया जा रहा है...',
+    uploading: 'अपलोड किया जा रहा है...',
+    loadingProfile: 'प्रोफाइल लोड हो रही है...',
+    inappropriateContentDetected: 'अनुचित सामग्री का पता चला',
+    trySharingProgress: 'अपनी प्रशिक्षण प्रगति, खेल उपलब्धियों या सकारात्मक टीम अनुभवों को साझा करने का प्रयास करें!',
+    preview: 'पूर्वावलोकन',
+    uploaded: 'अपलोड किया गया',
+    pleaseSignUpToCreatePosts: 'पोस्ट बनाने के लिए कृपया साइन अप करें या लॉग इन करें',
+    mustBeLoggedIn: 'पोस्ट बनाने के लिए आपको लॉग इन होना चाहिए',
+    writeOrSelectMedia: 'कृपया कुछ लिखें या साझा करने के लिए मीडिया चुनें',
+    cantPostContent: 'आप यह सामग्री पोस्ट नहीं कर सकते',
+    postCreatedSuccessfully: 'पोस्ट सफलतापूर्वक बनाई गई!',
+    failedToCreatePost: 'पोस्ट बनाने में विफल। कृपया पुनः प्रयास करें।',
+
+    // NotificationPrompt (सूचना प्रॉम्प्ट)
+    stayUpdated: 'अपडेट रहें!',
+    getNotifiedWhenSomeoneLikes: 'जब कोई आपकी पोस्ट को पसंद करता है या आपकी सामग्री के साथ इंटरैक्ट करता है तो सूचना प्राप्त करें।',
+    maybelater: 'बाद में शायद',
+    enabling: 'सक्षम किया जा रहा है...',
+
+    // Post Component (पोस्ट कंपोनेंट)
+    edit: 'संपादित करें',
+    deletePost: 'पोस्ट हटाएं',
+    confirmDeletePost: 'क्या आप वाकई इस पोस्ट को हटाना चाहते हैं?',
+    likes: 'पसंद',
+    viewAllComments: 'सभी टिप्पणियां देखें',
+
+    // FooterNav (फुटर नेविगेशन)
+    moments: 'पल',
+
+    // Messages Page (संदेश पेज)
+    friends: 'मित्र',
+    requests: 'अनुरोध',
+    noFriendRequests: 'कोई मित्र अनुरोध नहीं',
+    noPendingRequests: 'आपके पास कोई लंबित मित्र अनुरोध नहीं है',
+    wantsToBeFriend: 'आपका मित्र बनना चाहता है',
+    accept: 'स्वीकार करें',
+    reject: 'अस्वीकार करें',
+
+    // Profile Page (प्रोफ़ाइल पेज)
+    personalDetails: 'व्यक्तिगत विवरण',
+    nameLabel: 'नाम',
+    dateOfBirthLabel: 'जन्म तिथि',
+    genderLabel: 'लिंग',
+    mobileLabel: 'मोबाइल',
+    emailLabel: 'ईमेल',
+    cityLabel: 'शहर',
+    stateLabel: 'राज्य',
+    countryLabel: 'देश',
+    accountTypeLabel: 'खाता प्रकार',
+    notSpecified: 'निर्दिष्ट नहीं',
+    loadingVideos: 'वीडियो लोड हो रहे हैं...',
+
+    // Common (सामान्य)
+    save: 'सहेजें',
+    saved: 'सहेजा गया',
+    remove: 'हटाएं',
+    sharePost: 'पोस्ट साझा करें',
+    linkCopied: 'लिंक कॉपी हो गया!',
+    editYourPost: 'अपनी पोस्ट संपादित करें...',
+    edited: '(संपादित)',
   },
 
   pa: {
