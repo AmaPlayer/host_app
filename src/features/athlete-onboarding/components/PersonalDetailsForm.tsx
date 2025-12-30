@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useOnboardingStore } from '../store/onboardingStore';
 import { indianStates, getCitiesByState } from '../data/indianLocations';
+import { athleteService } from '../../../services/supabase';
 import userService from '../../../services/api/userService';
+import { usernameValidationService } from '../../../services/username/usernameValidationService';
 import './PersonalDetailsForm.css';
 
 interface PersonalDetails {
   fullName: string;
+  username: string;
   dateOfBirth: string;
   gender: string;
   heightFeet: string;
@@ -27,6 +30,12 @@ export default function PersonalDetailsForm() {
   const [loading, setLoading] = useState(false);
   const [cities, setCities] = useState<string[]>([]);
 
+  // Username validation state
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState<string>('');
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+
   // Load saved data from localStorage or use defaults
   const [formData, setFormData] = useState<PersonalDetails>(() => {
     const saved = localStorage.getItem('pendingPersonalDetails');
@@ -39,6 +48,7 @@ export default function PersonalDetailsForm() {
     }
     return {
       fullName: currentUser?.displayName || '',
+      username: '',
       dateOfBirth: '',
       gender: '',
       heightFeet: '',
@@ -76,11 +86,104 @@ export default function PersonalDetailsForm() {
     }
   };
 
+  // Debounced username availability check
+  const debouncedCheckUsername = useCallback(
+    debounce(async (username: string) => {
+      if (!username) return;
+
+      setUsernameLoading(true);
+      try {
+        const available = await userService.checkUsernameAvailability(username, currentUser?.uid);
+        setUsernameAvailable(available);
+
+        if (!available) {
+          setUsernameError('Username is already taken');
+          const suggestions = await usernameValidationService.suggestAlternativeUsernames(username);
+          setUsernameSuggestions(suggestions);
+        } else {
+          setUsernameError('');
+          setUsernameSuggestions([]);
+        }
+      } catch (error) {
+        console.error('Error checking username:', error);
+        setUsernameError('Unable to verify username. Try again.');
+      } finally {
+        setUsernameLoading(false);
+      }
+    }, 500),
+    [currentUser]
+  );
+
+  // Handle username input change
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toLowerCase().trim();
+    setFormData(prev => ({ ...prev, username: value }));
+    setUsernameError('');
+    setUsernameSuggestions([]);
+    setUsernameAvailable(null);
+
+    // Clear error for username field
+    if (errors.username) {
+      setErrors(prev => ({ ...prev, username: '' }));
+    }
+
+    // Format validation (instant)
+    const formatResult = usernameValidationService.validateUsername(value);
+    if (!formatResult.valid && value.length > 0) {
+      setUsernameError(formatResult.error || '');
+      setUsernameAvailable(false);
+      return;
+    }
+
+    // Availability check (debounced 500ms)
+    if (value.length >= 3) {
+      debouncedCheckUsername(value);
+    }
+  };
+
+  // Handle username blur - auto-generate if empty
+  const handleUsernameBlur = () => {
+    if (!formData.username && formData.fullName) {
+      const generated = usernameValidationService.generateUsernameFromDisplayName(formData.fullName);
+      setFormData(prev => ({ ...prev, username: generated }));
+      debouncedCheckUsername(generated);
+    }
+  };
+
+  // Handle suggestion click
+  const handleSelectSuggestion = (suggestion: string) => {
+    setFormData(prev => ({ ...prev, username: suggestion }));
+    setUsernameSuggestions([]);
+    setUsernameAvailable(true);
+    setUsernameError('');
+  };
+
+  // Debounce utility function
+  function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
+    let timeout: NodeJS.Timeout;
+    return function executedFunction(...args: Parameters<T>) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
   const validateForm = (): boolean => {
     const newErrors: Partial<PersonalDetails> = {};
 
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+// Username validation
+    if (!formData.username?.trim()) {
+      newErrors.username = 'Username is required';
+    } else {
+      const formatResult = usernameValidationService.validateUsername(formData.username);
+      if (!formatResult.valid) {
+        newErrors.username = formatResult.error;
+      } else if (usernameAvailable === false) {
+        newErrors.username = 'Username is already taken';
+      }
     }
 
     if (!formData.dateOfBirth) {
@@ -139,7 +242,7 @@ export default function PersonalDetailsForm() {
     setLoading(true);
 
     try {
-      // If user is already authenticated, save everything to Firebase
+      // If user is already authenticated, save everything to Supabase
       if (currentUser) {
         // Update Firebase Auth display name
         await updateUserProfile({
@@ -156,7 +259,8 @@ export default function PersonalDetailsForm() {
 
         // Build profile data object, only including fields with values
         const profileData: any = {
-          displayName: formData.fullName,
+          fullName: formData.fullName,
+          username: formData.username.toLowerCase().trim(),
           dateOfBirth: formData.dateOfBirth,
           gender: formData.gender,
           country: formData.country,
@@ -172,7 +276,7 @@ export default function PersonalDetailsForm() {
         if (formData.phone) profileData.mobile = formData.phone;
 
         // Save personal details to Firestore
-        await userService.updateUserProfile(currentUser.uid, profileData);
+        await athleteService.updateAthletePersonalDetails(currentUser.uid, profileData);
 
         // Clear saved data from localStorage
         localStorage.removeItem('pendingPersonalDetails');navigate('/home');
@@ -186,7 +290,9 @@ export default function PersonalDetailsForm() {
           position: selectedPosition,
           subcategory: selectedSubcategory,
           specializations: selectedSpecializations
-        }));navigate('/signup');
+        }));
+        localStorage.setItem('selectedUserRole', 'athlete');
+        navigate('/auth-choice/athlete');
       }
     } catch (error) {
       console.error('Error saving personal details:', error);
@@ -197,9 +303,10 @@ export default function PersonalDetailsForm() {
   };
 
   const handleSkip = () => {
-    // Clear any saved data and navigate to signup for new users
+    // Clear any saved data and navigate to auth choice for new users
     localStorage.removeItem('pendingPersonalDetails');
-    navigate('/signup');
+    localStorage.setItem('selectedUserRole', 'athlete');
+    navigate('/auth-choice/athlete');
   };
 
   const handleBack = () => {
@@ -238,6 +345,54 @@ export default function PersonalDetailsForm() {
               placeholder="Enter your full name"
             />
             {errors.fullName && <span className="error-message">{errors.fullName}</span>}
+          </div>
+
+          {/* Username */}
+          <div className="form-group">
+            <label htmlFor="username">
+              Username <span className="required">*</span>
+              {usernameAvailable === true && <span className="success-check"> ✓</span>}
+              {usernameAvailable === false && <span className="error-x"> ✗</span>}
+            </label>
+            <div className="username-input-wrapper">
+              <span className="username-prefix">@</span>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                value={formData.username}
+                onChange={handleUsernameChange}
+                onBlur={handleUsernameBlur}
+                placeholder="john_doe"
+                className={
+                  usernameAvailable === true
+                    ? 'valid'
+                    : usernameAvailable === false || errors.username
+                    ? 'error'
+                    : ''
+                }
+              />
+            </div>
+            {usernameLoading && <span className="loading-text">Checking availability...</span>}
+            {usernameError && !errors.username && <span className="error-message">{usernameError}</span>}
+            {errors.username && <span className="error-message">{errors.username}</span>}
+            {usernameSuggestions.length > 0 && (
+              <div className="suggestions-box">
+                <p className="suggestions-label">Try these instead:</p>
+                <div className="suggestions-list">
+                  {usernameSuggestions.map(suggestion => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      className="suggestion-button"
+                      onClick={() => handleSelectSuggestion(suggestion)}
+                    >
+                      @{suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Date of Birth */}

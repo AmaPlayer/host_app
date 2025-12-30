@@ -6,6 +6,7 @@ export type UserRole = 'athlete' | 'organization' | 'parent' | 'coach';
 export interface PersonalDetails {
   // Common fields
   name: string;
+  username: string;
   dateOfBirth?: string;
   gender?: string;
 
@@ -209,7 +210,7 @@ export const roleConfigurations: Record<UserRole, RoleConfig> = {
   athlete: {
     role: 'athlete',
     sections: ['personal', 'physicalAttributes', 'achievements', 'certificates', 'talentVideos', 'posts'],
-    editableFields: ['name', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
+    editableFields: ['name', 'username', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
     displayName: 'Player'
   },
   organization: {
@@ -221,13 +222,13 @@ export const roleConfigurations: Record<UserRole, RoleConfig> = {
   parent: {
     role: 'parent',
     sections: ['personal', 'connectedAthletes', 'posts'],
-    editableFields: ['name', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
+    editableFields: ['name', 'username', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
     displayName: 'Parent'
   },
   coach: {
     role: 'coach',
     sections: ['personal', 'coachingInfo', 'certificates', 'posts'],
-    editableFields: ['name', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
+    editableFields: ['name', 'username', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
     displayName: 'Coach'
   }
 };

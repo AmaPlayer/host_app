@@ -83,7 +83,7 @@ const AthleteAboutPage: React.FC = () => {
             />
             <div className="athlete-badge-info">
               <span className="athlete-badge-text">
-                {t('joiningAs', 'Joining as')} Athlete
+                {t('joiningAs', 'Joining as')} Athlete{athleteProfile.position?.name ? `, ${athleteProfile.position.name}` : ''}
               </span>
               <div className="athlete-sport-position">
                 <span className="sport-name">

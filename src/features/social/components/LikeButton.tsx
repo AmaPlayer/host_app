@@ -1,9 +1,8 @@
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { Heart } from 'lucide-react';
-import { useSocialActions } from '@/hooks/useSocialActions';
-import { useAuth } from '@/contexts/AuthContext';
-import LoadingSpinner from '@/components/common/feedback/LoadingSpinner';
-import { useToast } from '@/hooks/useToast';
+import postsService from '../../../services/api/postsService';
+import { useAuth } from '../../../contexts/AuthContext';
+import { queryClient } from '../../../lib/queryClient';
 
 interface LikeButtonProps {
   postId: string;
@@ -16,10 +15,6 @@ interface LikeButtonProps {
   onLikeChange?: (liked: boolean, count: number) => void;
 }
 
-/**
- * Enhanced LikeButton component with optimistic updates and error handling
- * Uses the new useSocialActions hook for reliable like functionality
- */
 const LikeButton: React.FC<LikeButtonProps> = memo(({
   postId,
   initialLiked = false,
@@ -30,127 +25,86 @@ const LikeButton: React.FC<LikeButtonProps> = memo(({
   className = '',
   onLikeChange
 }) => {
-  const { currentUser: user } = useAuth();
-  const { showToast } = useToast();
-  const { getLikeState, toggleLike, isLoading, getError, clearError, retryFailedActions } = useSocialActions();
-  
-  // Local state for debouncing rapid clicks
-  const [clickCount, setClickCount] = useState(0);
-  const [lastClickTime, setLastClickTime] = useState(0);
-  
-  // Get current like state from the hook
-  const likeState = getLikeState(postId);
-  const error = getError(postId);
-  const loading = isLoading(postId);
+  const { currentUser } = useAuth();
 
-  // Initialize state on mount or when initial values change
+  // Local state for optimistic UI
+  const [liked, setLiked] = useState(initialLiked);
+  const [count, setCount] = useState(initialCount);
+  const isLiking = useRef(false);
+
+  // Sync state with props when they change (Fix Issue #1)
   useEffect(() => {
-    // Only initialize if the hook doesn't have state for this post yet
-    if (likeState.likesCount === 0 && likeState.isLiked === false && !likeState.error) {
-      // This will be handled by the hook internally when toggleLike is first called
-    }
-  }, [postId, initialLiked, initialCount, likeState]);
+    setLiked(initialLiked);
+  }, [initialLiked]);
 
-  // Notify parent component of like state changes
   useEffect(() => {
-    if (onLikeChange && (likeState.likesCount > 0 || likeState.isLiked)) {
-      onLikeChange(likeState.isLiked, likeState.likesCount);
-    }
-  }, [likeState.isLiked, likeState.likesCount, onLikeChange]);
+    setCount(initialCount);
+  }, [initialCount]);
 
-  // Show error toast when error occurs
-  useEffect(() => {
-    if (error) {
-      showToast('Like Failed', error, {
-        type: 'error',
-        duration: 5000,
-        action: {
-          label: 'Retry',
-          onClick: handleRetry
-        }
-      });
-    }
-  }, [error, showToast]);
-
-  /**
-   * Handle like button click with debouncing
-   */
-  const handleLikeClick = useCallback(async (e: React.MouseEvent) => {
+  const handleLike = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!user) {
-      showToast('Sign In Required', 'Please sign in to like posts', {
-        type: 'warning',
-        duration: 3000
-      });
+    if (!currentUser) {
+      alert('Please sign in to like posts');
       return;
     }
 
-    if (disabled || loading) {
-      return;
+    if (disabled || isLiking.current) return;
+
+    // 1. Optimistic Update
+    const newLiked = !liked;
+    const newCount = newLiked ? count + 1 : Math.max(0, count - 1);
+    
+    setLiked(newLiked);
+    setCount(newCount);
+    
+    // Notify parent immediately
+    if (onLikeChange) {
+      onLikeChange(newLiked, newCount);
     }
 
-    // Debounce rapid clicks
-    const now = Date.now();
-    if (now - lastClickTime < 300) {
-      setClickCount(prev => prev + 1);
-      setLastClickTime(now);
-      return;
-    }
-
-    setClickCount(1);
-    setLastClickTime(now);
-
-    // Clear any existing errors
-    if (error) {
-      clearError(postId);
-    }
+    isLiking.current = true;
 
     try {
-      // Use current state from hook, fallback to initial values
-      const currentLiked = likeState.isLiked || initialLiked;
-      const currentCount = likeState.likesCount || initialCount;
-      
-      await toggleLike(postId, currentLiked, currentCount);
-    } catch (err) {
-      // Error is handled by the hook and will show via useEffect
-      console.error('Like operation failed:', err);
+      // 2. Call API (Supabase)
+      console.log('❤️ Toggling like for:', postId);
+      const result = await postsService.toggleLike(
+        postId,
+        currentUser.uid,
+        {
+          displayName: currentUser.displayName || 'User',
+          photoURL: currentUser.photoURL
+        }
+      );
+
+      // 3. Sync with Server Result (Optional, but good for consistency)
+      // If server returns different count, correct it.
+      if (result.likesCount !== newCount) {
+        console.warn('⚠️ Like count mismatch with server. Correcting...');
+        setCount(result.likesCount);
+        if (onLikeChange) {
+          onLikeChange(newLiked, result.likesCount);
+        }
+      }
+
+      // 4. Invalidate React Query cache (Fix Issue #3)
+      console.log('🔄 Invalidating cache for posts...');
+      await queryClient.invalidateQueries({ queryKey: ['posts'] });
+      await queryClient.invalidateQueries({ queryKey: ['posts', postId] });
+
+    } catch (error) {
+      console.error('❌ Like failed:', error);
+      // 4. Rollback on Error
+      setLiked(!newLiked);
+      setCount(count); // Revert to old count
+      if (onLikeChange) {
+        onLikeChange(!newLiked, count);
+      }
+    } finally {
+      isLiking.current = false;
     }
-  }, [
-    user,
-    disabled,
-    loading,
-    error,
-    postId,
-    likeState.isLiked,
-    likeState.likesCount,
-    initialLiked,
-    initialCount,
-    lastClickTime,
-    toggleLike,
-    clearError,
-    showToast
-  ]);
-
-  /**
-   * Handle retry action
-   */
-  const handleRetry = useCallback(async () => {
-    clearError(postId);
-    await retryFailedActions();
-  }, [postId, clearError, retryFailedActions]);
-
-  // Determine display values
-  const displayLiked = likeState.isLiked || initialLiked;
-  const displayCount = likeState.likesCount || initialCount;
-
-  // Size-based styling
-  const sizeClasses = {
-    small: 'like-button--small',
-    medium: 'like-button--medium',
-    large: 'like-button--large'
-  };
+  }, [liked, count, currentUser, disabled, postId, onLikeChange]);
 
   const iconSizes = {
     small: 16,
@@ -158,51 +112,25 @@ const LikeButton: React.FC<LikeButtonProps> = memo(({
     large: 24
   };
 
+  const sizeClass = size === 'small' ? 'text-sm' : size === 'large' ? 'text-lg' : 'text-base';
+
   return (
     <button
-      className={`like-button ${sizeClasses[size]} ${displayLiked ? 'like-button--liked' : ''} ${loading ? 'like-button--loading' : ''} ${error ? 'like-button--error' : ''} ${className}`}
-      onClick={handleLikeClick}
-      disabled={disabled || loading}
-      aria-label={displayLiked ? 'Unlike this post' : 'Like this post'}
-      title={
-        !user 
-          ? 'Sign in to like posts'
-          : error 
-          ? `Error: ${error}. Click to retry.`
-          : displayLiked 
-          ? 'Unlike this post' 
-          : 'Like this post'
-      }
+      className={`flex items-center gap-1.5 transition-colors ${className} ${liked ? 'text-pink-600' : 'text-gray-500 hover:text-pink-500'}`}
+      onClick={handleLike}
+      disabled={disabled}
+      title={liked ? 'Unlike' : 'Like'}
     >
-      <div className="like-button__content">
-        {loading ? (
-          <LoadingSpinner size="small" color={displayLiked ? 'primary' : 'secondary'} />
-        ) : (
-          <Heart
-            size={iconSizes[size]}
-            fill={displayLiked ? '#e91e63' : 'none'}
-            color={displayLiked ? '#e91e63' : 'currentColor'}
-            className={`like-button__icon ${displayLiked ? 'like-button__icon--liked' : ''}`}
-          />
-        )}
-        
-        {showCount && (
-          <span className="like-button__count">
-            {displayCount}
-          </span>
-        )}
-        
-        {/* Visual feedback for rapid clicks */}
-        {clickCount > 1 && (
-          <span className="like-button__click-feedback">
-            +{clickCount - 1}
-          </span>
-        )}
-      </div>
-      
-      {/* Error indicator */}
-      {error && (
-        <div className="like-button__error-indicator" />
+      <Heart
+        size={iconSizes[size]}
+        fill={liked ? 'currentColor' : 'none'}
+        strokeWidth={2.5}
+        className={`transition-transform active:scale-90 ${liked ? 'scale-110' : ''}`}
+      />
+      {showCount && (
+        <span className={`font-medium ${sizeClass}`}>
+          {count > 0 ? count : ''}
+        </span>
       )}
     </button>
   );

@@ -5,15 +5,15 @@ import { Timestamp } from 'firebase/firestore';
  */
 export interface Message {
   id: string;
+  conversationId: string;
   senderId: string;
-  receiverId: string;
+  // receiverId removed - messages belong to conversation
   message: string;
   timestamp: Timestamp | Date | string;
-  read: boolean;
-  edited?: boolean;
-  editedAt?: Timestamp | Date | string;
-  deletedFor?: string[];
-  deletedForEveryone?: boolean;
+  readBy: string[]; // Changed from read boolean to array of IDs
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
+  isSystemMessage?: boolean;
 }
 
 /**
@@ -21,13 +21,17 @@ export interface Message {
  */
 export interface ChatConversation {
   id: string;
-  userId: string;
-  displayName: string;
+  isGroup: boolean;
+  groupId?: string;
+  groupName?: string;
+  userId?: string; // For 1:1, the other user
+  displayName: string; // Group name or User name
   photoURL: string | null;
   lastMessage: string;
   lastMessageTime: Timestamp | Date | string;
   unreadCount: number;
   isOnline?: boolean;
+  participants: string[];
 }
 
 /**

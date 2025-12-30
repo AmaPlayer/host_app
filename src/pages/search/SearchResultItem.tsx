@@ -8,6 +8,7 @@ import SafeImage from '../../components/common/SafeImage';
 interface UserData {
   id: string;
   displayName?: string;
+  username?: string;
   email?: string;
   name?: string;
   bio?: string;
@@ -159,6 +160,7 @@ const SearchResultItem: React.FC<SearchResultItemProps> = ({ user }) => {
       </div>
       <div className="user-info" onClick={() => navigate(`/profile/${user.id}`)}>
         <strong>{user.displayName || 'Anonymous User'}</strong>
+        {user.username && <span className="user-handle">@{user.username}</span>}
         <div className="user-details">
           {user.role && <span className="user-role">{user.role}</span>}
           {user.location && <span className="user-location"><MapPin size={12} />{user.location}</span>}

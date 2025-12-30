@@ -23,6 +23,7 @@ export interface TalentVideo {
   mainCategory?: string; // Category ID (e.g., 'batting', 'shooting')
   mainCategoryName?: string; // Display name (e.g., 'Batting', 'Shooting')
   specificSkill?: string; // Skill name (e.g., 'Cover Drive', 'Volley')
+  skills?: string[]; // Array of skills
 
   // Legacy field (for backwards compatibility)
   skillCategory?: string; // Generic category (e.g., 'Highlights', 'Training')

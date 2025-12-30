@@ -12,6 +12,7 @@ import SendButton from '../../features/messaging/components/SendButton';
 import FriendsList from '../../features/messaging/components/FriendsList';
 import ChatHeader from '../../features/messaging/components/ChatHeader';
 import UserAvatar from '../../components/common/user/UserAvatar';
+import GroupList from '../../features/groups/GroupList';
 import { filterChatMessage, getChatViolationMessage, logChatViolation } from '../../utils/content/chatFilter';
 import notificationService from '../../services/notificationService';
 import friendsService from '../../services/api/friendsService';
@@ -62,7 +63,7 @@ interface FilterResult {
   maxSeverity?: string | null;
 }
 
-type TabType = 'friends' | 'requests';
+type TabType = 'friends' | 'requests' | 'groups';
 
 export default function Messages() {
   const navigate = useNavigate();
@@ -125,12 +126,12 @@ export default function Messages() {
         const unsubscribeFriends = fetchFriends();
         fetchFollowedUsers();
         // Notifications moved to NavigationBar
-        
+
         // Set loading to false after a brief delay to allow data to load
         setTimeout(() => {
           setLoading(false);
         }, 1000);
-        
+
         // Return cleanup function
         return () => {
           if (unsubscribeFriends) unsubscribeFriends();
@@ -176,7 +177,7 @@ export default function Messages() {
     const mergeAndSetMessages = () => {
       // Combine and deduplicate
       const allMessages = [...messages1, ...messages2];
-      const uniqueMessages = allMessages.filter((msg, index, self) => 
+      const uniqueMessages = allMessages.filter((msg, index, self) =>
         index === self.findIndex((m) => m.id === msg.id)
       );
 
@@ -240,7 +241,7 @@ export default function Messages() {
       if (currentUser && !isGuest()) {
         // Clear current friends immediately
         setFriends([]);
-        
+
         // Refresh from database with delay
         setTimeout(() => {
           fetchFriends();
@@ -250,7 +251,7 @@ export default function Messages() {
     };
 
     window.addEventListener('friendshipChanged', handleFriendshipChange);
-    
+
     return () => {
       window.removeEventListener('friendshipChanged', handleFriendshipChange);
     };
@@ -262,7 +263,7 @@ export default function Messages() {
 
   const fetchFriends = () => {
     if (!currentUser) return;
-    
+
     // Standard Friendships (Legacy)
     const q1 = query(
       collection(db, 'friendships'),
@@ -284,36 +285,36 @@ export default function Messages() {
       where('recipientId', '==', currentUser.uid),
       where('status', '==', 'accepted')
     );
-    
+
     // Debounce updates to prevent duplicate calls
     let updateTimeout: NodeJS.Timeout | null = null;
-    
+
     // Function to combine results from all queries with deduplication
     async function updateFriendsList() {
       // Clear any pending updates
       if (updateTimeout) {
         clearTimeout(updateTimeout);
       }
-      
+
       // Debounce the update by 100ms to prevent race conditions
       updateTimeout = setTimeout(async () => {
         try {
           const friendsList: Friend[] = [];
           const addedFriendIds = new Set<string>(); // Track added friends to prevent duplicates
-          
+
           // Helper to process friend/partner ID
           const processPartner = async (partnerId: string, connectionId: string) => {
             if (addedFriendIds.has(partnerId)) return;
-            
+
             try {
               const friendProfile = await userService.getUserProfile(partnerId);
               if (friendProfile) {
                 // Normalize name field
-                const displayName = friendProfile.displayName || 
-                                  (friendProfile as any).organizationName || 
-                                  (friendProfile as any).fullName || 
-                                  (friendProfile as any).name || 
-                                  'Unknown User';
+                const displayName = friendProfile.displayName ||
+                  (friendProfile as any).organizationName ||
+                  (friendProfile as any).fullName ||
+                  (friendProfile as any).name ||
+                  'Unknown User';
 
                 const friendData: Friend = {
                   id: partnerId,
@@ -334,7 +335,7 @@ export default function Messages() {
           for (const docSnap of snapshot1.docs) {
             await processPartner(docSnap.data().user2, docSnap.id);
           }
-          
+
           // 2. Process Standard Friendships (I am user2)
           const snapshot2 = await getDocs(q2);
           for (const docSnap of snapshot2.docs) {
@@ -354,7 +355,7 @@ export default function Messages() {
           }
 
           console.log('📱 Messages: Total connections found:', friendsList.length);
-          
+
           setFriends(prevFriends => {
             // Deep comparison to prevent unnecessary re-renders (which cause image reload loops)
             if (JSON.stringify(prevFriends) === JSON.stringify(friendsList)) {
@@ -367,7 +368,7 @@ export default function Messages() {
         }
       }, 100);
     }
-    
+
     const unsubscribe1 = onSnapshot(q1, () => updateFriendsList(), (e) => console.error('Error q1', e));
     const unsubscribe2 = onSnapshot(q2, () => updateFriendsList(), (e) => console.error('Error q2', e));
     const unsubscribe3 = onSnapshot(q3, () => updateFriendsList(), (e) => console.error('Error q3', e));
@@ -386,7 +387,7 @@ export default function Messages() {
     };
   };
 
-  
+
   // Notifications functionality moved to NavigationBar
 
   // Notification functions moved to NavigationBar
@@ -416,7 +417,7 @@ export default function Messages() {
       };
 
       const friendshipRef = await addDoc(collection(db, 'friendships'), friendshipData);
-alert('Friend request accepted! Check the Friends tab.');
+      alert('Friend request accepted! Check the Friends tab.');
 
     } catch (error: any) {
       console.error('❌ Error accepting friend request:', error);
@@ -475,7 +476,7 @@ alert('Friend request accepted! Check the Friends tab.');
       if (chatMessagesContainer) {
         // Check if user is near bottom before auto-scrolling
         const isNearBottom = chatMessagesContainer.scrollHeight - chatMessagesContainer.scrollTop - chatMessagesContainer.clientHeight < 100;
-        
+
         // Always scroll to bottom when chat is first opened or user is near bottom
         if (isNearBottom || chatMessagesContainer.scrollTop === 0) {
           // Use requestAnimationFrame for better performance
@@ -498,7 +499,7 @@ alert('Friend request accepted! Check the Friends tab.');
           handleScroll();
           scrollToBottom(false); // Instant scroll for new chat
         }, 100);
-        
+
         return () => {
           chatMessagesContainer.removeEventListener('scroll', handleScroll);
         };
@@ -517,10 +518,10 @@ alert('Friend request accepted! Check the Friends tab.');
       if (viewport) {
         const chatInterface = document.querySelector('.chat-interface') as HTMLElement;
         const messageInputArea = document.querySelector('.message-input-area') as HTMLElement;
-        
+
         if (chatInterface && messageInputArea) {
           const keyboardHeight = window.innerHeight - viewport.height;
-          
+
           if (keyboardHeight > 150) { // Virtual keyboard is likely open
             chatInterface.style.height = `${viewport.height - 180}px`;
             messageInputArea.style.paddingBottom = '8px';
@@ -563,14 +564,14 @@ alert('Friend request accepted! Check the Friends tab.');
   const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const newMessageText = e.target.value;
     setNewMessage(newMessageText);
-    
+
     // Real-time filter check (strict for messages)
     if (newMessageText.trim().length > 3) { // Check after minimal content
-const filterResult = filterChatMessage(newMessageText, {
+      const filterResult = filterChatMessage(newMessageText, {
         checkPatterns: true,
         languages: ['english', 'hindi']
       });
-if (!filterResult.isClean && filterResult.shouldBlock) {
+      if (!filterResult.isClean && filterResult.shouldBlock) {
         setMessageViolation(filterResult);
         setShowMessageWarning(true);
         setInputValidationState('error');
@@ -599,24 +600,24 @@ if (!filterResult.isClean && filterResult.shouldBlock) {
     if (!newMessage.trim() || !selectedChat || isGuest() || sendingMessage || !currentUser) return;
 
     const messageText = newMessage.trim();
-    
+
     // Reset send button error state
     setSendButtonError(false);
-    
+
     // Content filtering check for messages
-const filterResult = filterChatMessage(messageText, {
+    const filterResult = filterChatMessage(messageText, {
       checkPatterns: true,
       languages: ['english', 'hindi']
     });
-if (!filterResult.isClean) {
+    if (!filterResult.isClean) {
       setMessageViolation(filterResult);
       setShowMessageWarning(true);
-      
+
       // Log violation for admin review
       if (filterResult.shouldFlag) {
         await logChatViolation(currentUser.uid, messageText, filterResult.violations, 'chat');
-}
-      
+      }
+
       // Block content without confirmation - just show error
       if (filterResult.shouldBlock || filterResult.shouldWarn) {
         const violationMsg = getChatViolationMessage(filterResult.violations, filterResult.categories);
@@ -629,13 +630,13 @@ if (!filterResult.isClean) {
     } else {
       setMessageViolation(null);
       setShowMessageWarning(false);
-}
+    }
 
     setSendingMessage(true);
     setNewMessage(''); // Clear input immediately for better UX
 
     try {
-await addDoc(collection(db, 'messages'), {
+      await addDoc(collection(db, 'messages'), {
         senderId: currentUser.uid,
         receiverId: selectedChat.id,
         senderName: currentUser.displayName || 'Anonymous User',
@@ -646,9 +647,9 @@ await addDoc(collection(db, 'messages'), {
         edited: false,
         deletedFor: [] // Array to track who deleted the message
       });
-// Scroll to bottom after sending
+      // Scroll to bottom after sending
       setTimeout(() => scrollToBottom(true), 200);
-      
+
     } catch (error: any) {
       console.error('❌ Error sending message:', error);
       setNewMessage(messageText); // Restore message if failed
@@ -657,7 +658,7 @@ await addDoc(collection(db, 'messages'), {
       // Auto-clear error state after 5 seconds
       setTimeout(() => setSendButtonError(false), 5000);
     }
-    
+
     setSendingMessage(false);
   };
 
@@ -665,33 +666,33 @@ await addDoc(collection(db, 'messages'), {
     try {
       const messageRef = doc(db, 'messages', messageId);
       const messageDoc = await getDoc(messageRef);
-      
+
       if (!messageDoc.exists()) {
         alert('Message not found');
         return;
       }
 
       const messageData = messageDoc.data() as Message;
-      
+
       if (deleteType === 'everyone') {
         // Only sender can delete for everyone
         if (messageData.senderId !== currentUser?.uid) {
           alert('You can only delete your own messages for everyone');
           return;
         }
-        
+
         // Delete the entire message document
         await deleteDoc(messageRef);
-} else {
+      } else {
         // Delete for me only - add current user to deletedFor array
         const currentDeletedFor = messageData.deletedFor || [];
         if (!currentDeletedFor.includes(currentUser!.uid)) {
           await updateDoc(messageRef, {
             deletedFor: [...currentDeletedFor, currentUser!.uid]
           });
-}
+        }
       }
-      
+
       setShowMessageOptions(null);
     } catch (error: any) {
       console.error('❌ Error deleting message:', error);
@@ -712,11 +713,11 @@ await addDoc(collection(db, 'messages'), {
         edited: true,
         editedAt: serverTimestamp()
       });
-      
+
       setEditingMessage(null);
       setEditText('');
       setShowMessageOptions(null);
-} catch (error: any) {
+    } catch (error: any) {
       console.error('❌ Error editing message:', error);
       alert('Failed to edit message: ' + error.message);
     }
@@ -744,11 +745,11 @@ await addDoc(collection(db, 'messages'), {
       const menuRect = optionsMenu.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      
+
       // Calculate optimal position
       let left = messageRect.right + 10; // Default to right side
       let top = messageRect.top - 10;
-      
+
       // Check if menu would go off-screen on the right
       if (left + menuRect.width > viewportWidth - 20) {
         // Position to the left of the message
@@ -759,7 +760,7 @@ await addDoc(collection(db, 'messages'), {
         optionsMenu.classList.add('position-right');
         optionsMenu.classList.remove('position-left', 'position-center');
       }
-      
+
       // Check if menu would go off-screen on the left
       if (left < 20) {
         // Center the menu above/below the message
@@ -767,16 +768,16 @@ await addDoc(collection(db, 'messages'), {
         optionsMenu.classList.add('position-center');
         optionsMenu.classList.remove('position-left', 'position-right');
       }
-      
+
       // Ensure menu doesn't go off-screen vertically
       if (top + menuRect.height > viewportHeight - 20) {
         top = messageRect.bottom - menuRect.height + 10;
       }
-      
+
       if (top < 20) {
         top = 20;
       }
-      
+
       // Apply the calculated position
       optionsMenu.style.left = `${Math.max(20, Math.min(left, viewportWidth - menuRect.width - 20))}px`;
       optionsMenu.style.top = `${top}px`;
@@ -786,22 +787,22 @@ await addDoc(collection(db, 'messages'), {
   // Enhanced long press handlers with visual feedback
   const handleMouseDown = (message: Message, event: React.MouseEvent): void => {
     if (!message.senderId || message.senderId !== currentUser?.uid) return;
-    
+
     const messageElement = event.currentTarget as HTMLElement;
     messageElement.classList.add('long-press-active');
-    
+
     const timer = setTimeout(() => {
       setShowMessageOptions(message.id);
       positionOptionsMenu(messageElement, message.id);
     }, 500); // 500ms long press
-    
+
     setLongPressTimer(timer);
   };
 
   const handleMouseUp = (event: React.MouseEvent): void => {
     const messageElement = event.currentTarget as HTMLElement;
     messageElement.classList.remove('long-press-active');
-    
+
     if (longPressTimer) {
       clearTimeout(longPressTimer);
       setLongPressTimer(null);
@@ -810,10 +811,10 @@ await addDoc(collection(db, 'messages'), {
 
   const handleTouchStart = (message: Message, event: React.TouchEvent): void => {
     if (!message.senderId || message.senderId !== currentUser?.uid) return;
-    
+
     const messageElement = event.currentTarget as HTMLElement;
     messageElement.classList.add('long-press-active');
-    
+
     const timer = setTimeout(() => {
       setShowMessageOptions(message.id);
       positionOptionsMenu(messageElement, message.id);
@@ -822,14 +823,14 @@ await addDoc(collection(db, 'messages'), {
         navigator.vibrate(50);
       }
     }, 500); // 500ms long press
-    
+
     setLongPressTimer(timer);
   };
 
   const handleTouchEnd = (event: React.TouchEvent): void => {
     const messageElement = event.currentTarget as HTMLElement;
     messageElement.classList.remove('long-press-active');
-    
+
     if (longPressTimer) {
       clearTimeout(longPressTimer);
       setLongPressTimer(null);
@@ -846,7 +847,7 @@ await addDoc(collection(db, 'messages'), {
 
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('touchstart', handleClickOutside as EventListener);
-    
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside as EventListener);
@@ -856,12 +857,12 @@ await addDoc(collection(db, 'messages'), {
   // Fetch users that current user is following
   const fetchFollowedUsers = (): (() => void) | undefined => {
     if (!currentUser) return;
-    
+
     const q = query(
       collection(db, 'follows'),
       where('followerId', '==', currentUser.uid)
     );
-    
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const followed: string[] = [];
       snapshot.forEach((doc) => {
@@ -883,10 +884,10 @@ await addDoc(collection(db, 'messages'), {
     if (!currentUser) return;
 
     setFollowingUser(userId);
-    
+
     try {
       const isFollowing = followedUsers.includes(userId);
-      
+
       if (isFollowing) {
         // Unfollow: remove from follows collection
         const q = query(
@@ -894,12 +895,12 @@ await addDoc(collection(db, 'messages'), {
           where('followerId', '==', currentUser.uid),
           where('followingId', '==', userId)
         );
-        
+
         const snapshot = await getDocs(q);
         snapshot.forEach(async (docSnapshot) => {
           await deleteDoc(doc(db, 'follows', docSnapshot.id));
         });
-} else {
+      } else {
         // Follow: add to follows collection
         await addDoc(collection(db, 'follows'), {
           followerId: currentUser.uid,
@@ -917,15 +918,15 @@ await addDoc(collection(db, 'messages'), {
             currentUser.photoURL || '',
             userId
           );
-} catch (notificationError) {
+        } catch (notificationError) {
           console.error('Error sending follow notification:', notificationError);
         }
-}
+      }
     } catch (error: any) {
       console.error('❌ Error updating follow status:', error);
       alert('Failed to update follow status: ' + error.message);
     }
-    
+
     setFollowingUser(null);
   };
 
@@ -947,7 +948,7 @@ await addDoc(collection(db, 'messages'), {
               <h2>Messages & Friend Requests</h2>
               <p>🔒 Guest accounts cannot access messaging features</p>
               <p>Sign up to connect with friends and send messages!</p>
-              <button 
+              <button
                 className="sign-up-btn"
                 onClick={() => navigate('/login')}
               >
@@ -956,7 +957,7 @@ await addDoc(collection(db, 'messages'), {
             </div>
           </div>
         </div>
-        
+
         <FooterNav />
       </div>
     );
@@ -1004,8 +1005,20 @@ await addDoc(collection(db, 'messages'), {
             <UserPlus size={20} />
             {t('requests')} ({friendRequests.length})
           </button>
-          {/* Notifications moved to NavigationBar */}
+          <button
+            className={`tab-btn ${activeTab === 'groups' ? 'active' : ''}`}
+            onClick={() => setActiveTab('groups')}
+          >
+            <Users size={20} />
+            Groups
+          </button>
         </div>
+
+        {activeTab === 'groups' && (
+          <div className="groups-tab-content h-full overflow-y-auto pb-20">
+            <GroupList />
+          </div>
+        )}
 
         {activeTab === 'friends' && (
           <div className="friends-list">
@@ -1026,141 +1039,141 @@ await addDoc(collection(db, 'messages'), {
                   }}
                 />
 
-                    <div className="chat-messages-container">
-                      <div className="chat-messages" id="chat-messages">
-                        {messages
-                          .filter(msg => 
-                            (msg.senderId === currentUser?.uid && msg.receiverId === selectedChat.id) ||
-                            (msg.senderId === selectedChat.id && msg.receiverId === currentUser?.uid)
-                          )
-                          .filter(msg => !msg.deletedFor.includes(currentUser!.uid))
-                          .map((message) => (
-                            <div 
-                              key={message.id} 
-                              className={`message ${message.senderId === currentUser?.uid ? 'sent' : 'received'}`}
-                              data-message-id={message.id}
-                              onMouseDown={(e) => handleMouseDown(message, e)}
-                              onMouseUp={handleMouseUp}
-                              onTouchStart={(e) => handleTouchStart(message, e)}
-                              onTouchEnd={handleTouchEnd}
-                            >
-                              {editingMessage === message.id ? (
-                                <div className="edit-message-form">
-                                  <div className="edit-input-container">
-                                    <input
-                                      type="text"
-                                      value={editText}
-                                      onChange={(e) => setEditText(e.target.value)}
-                                      className="edit-input"
-                                      autoFocus
-                                    />
-                                    <div className="edit-actions">
-                                      <button className="save-btn" onClick={() => handleEditMessage(message.id)}>
-                                        <Save size={16} />
-                                      </button>
-                                      <button className="cancel-btn" onClick={cancelEdit}>
-                                        <XCircle size={16} />
-                                      </button>
-                                    </div>
-                                  </div>
+                <div className="chat-messages-container">
+                  <div className="chat-messages" id="chat-messages">
+                    {messages
+                      .filter(msg =>
+                        (msg.senderId === currentUser?.uid && msg.receiverId === selectedChat.id) ||
+                        (msg.senderId === selectedChat.id && msg.receiverId === currentUser?.uid)
+                      )
+                      .filter(msg => !msg.deletedFor.includes(currentUser!.uid))
+                      .map((message) => (
+                        <div
+                          key={message.id}
+                          className={`message ${message.senderId === currentUser?.uid ? 'sent' : 'received'}`}
+                          data-message-id={message.id}
+                          onMouseDown={(e) => handleMouseDown(message, e)}
+                          onMouseUp={handleMouseUp}
+                          onTouchStart={(e) => handleTouchStart(message, e)}
+                          onTouchEnd={handleTouchEnd}
+                        >
+                          {editingMessage === message.id ? (
+                            <div className="edit-message-form">
+                              <div className="edit-input-container">
+                                <input
+                                  type="text"
+                                  value={editText}
+                                  onChange={(e) => setEditText(e.target.value)}
+                                  className="edit-input"
+                                  autoFocus
+                                />
+                                <div className="edit-actions">
+                                  <button className="save-btn" onClick={() => handleEditMessage(message.id)}>
+                                    <Save size={16} />
+                                  </button>
+                                  <button className="cancel-btn" onClick={cancelEdit}>
+                                    <XCircle size={16} />
+                                  </button>
                                 </div>
-                              ) : (
-                                <div className="message-content">
-                                  <div className="message-text">
-                                    <p>{message.message}</p>
-                                    {message.edited && <span className="edited-indicator">(edited)</span>}
-                                  </div>
-                                  <span className="message-time">
-                                    {message.timestamp?.toDate?.().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="message-content">
+                              <div className="message-text">
+                                <p>{message.message}</p>
+                                {message.edited && <span className="edited-indicator">(edited)</span>}
+                              </div>
+                              <span className="message-time">
+                                {message.timestamp?.toDate?.().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
 
-                                  {showMessageOptions === message.id && message.senderId === currentUser?.uid && (
-                                    <div className="options-menu">
-                                      <button className="option-item edit-option" onClick={() => startEdit(message)}>
-                                        <Edit3 size={16} />
-                                        Edit
-                                      </button>
-                                      <button className="option-item delete-option" onClick={() => handleDeleteMessage(message.id, 'me')}>
-                                        <Trash2 size={16} />
-                                        Delete for me
-                                      </button>
-                                      <button className="option-item delete-everyone-option" onClick={() => handleDeleteMessage(message.id, 'everyone')}>
-                                        <Trash2 size={16} />
-                                        Delete for everyone
-                                      </button>
-                                    </div>
-                                  )}
+                              {showMessageOptions === message.id && message.senderId === currentUser?.uid && (
+                                <div className="options-menu">
+                                  <button className="option-item edit-option" onClick={() => startEdit(message)}>
+                                    <Edit3 size={16} />
+                                    Edit
+                                  </button>
+                                  <button className="option-item delete-option" onClick={() => handleDeleteMessage(message.id, 'me')}>
+                                    <Trash2 size={16} />
+                                    Delete for me
+                                  </button>
+                                  <button className="option-item delete-everyone-option" onClick={() => handleDeleteMessage(message.id, 'everyone')}>
+                                    <Trash2 size={16} />
+                                    Delete for everyone
+                                  </button>
                                 </div>
                               )}
                             </div>
-                          ))}
-                      </div>
-                      
-                      {/* Scroll to bottom button */}
-                      {showScrollToBottom && (
-                        <button
-                          className="scroll-to-bottom-btn"
-                          onClick={() => scrollToBottom(true)}
-                          aria-label="Scroll to bottom"
-                          title="Scroll to bottom"
-                        >
-                          ↓
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="message-input-area">
-                      {showMessageWarning && messageViolation && (
-                        <div 
-                          className="message-violation-warning" 
-                          id="message-warning"
-                          role="alert"
-                          aria-live="polite"
-                        >
-                          <div className="warning-header">
-                            <AlertTriangle size={16} aria-hidden="true" />
-                            {inputValidationState === 'error' ? 'Content Blocked' : 'Content Warning'}
-                          </div>
-                          <div className="warning-message">
-                            {inputValidationState === 'error' 
-                              ? 'This message contains inappropriate content and cannot be sent.'
-                              : 'This message may contain inappropriate content. Please review before sending.'
-                            }
-                          </div>
-                          {messageViolation.violations && messageViolation.violations.length > 0 && (
-                            <div className="warning-suggestion">
-                              Issues detected: {messageViolation.violations.join(', ')}
-                            </div>
                           )}
                         </div>
-                      )}
-                      
-                      <form className="message-input-form" onSubmit={handleSendMessage}>
-                        <input
-                          type="text"
-                          placeholder="Type a message..."
-                          value={newMessage}
-                          onChange={handleMessageChange}
-                          disabled={sendingMessage}
-                          className={`${inputValidationState === 'warning' || inputValidationState === 'error' ? 'content-warning' : ''} ${inputValidationState === 'success' ? 'content-success' : ''}`}
-                          aria-label="Message input"
-                          aria-describedby={showMessageWarning ? 'message-warning' : undefined}
-                          aria-invalid={inputValidationState === 'error'}
-                          autoComplete="off"
-                          autoCorrect="off"
-                          autoCapitalize="sentences"
-                          spellCheck={true}
-                        />
-                        <SendButton
-                          disabled={sendingMessage || !newMessage.trim()}
-                          loading={sendingMessage}
-                          error={sendButtonError}
-                          type="submit"
-                        />
-                      </form>
-                    </div>
+                      ))}
                   </div>
-                )}
+
+                  {/* Scroll to bottom button */}
+                  {showScrollToBottom && (
+                    <button
+                      className="scroll-to-bottom-btn"
+                      onClick={() => scrollToBottom(true)}
+                      aria-label="Scroll to bottom"
+                      title="Scroll to bottom"
+                    >
+                      ↓
+                    </button>
+                  )}
+                </div>
+
+                <div className="message-input-area">
+                  {showMessageWarning && messageViolation && (
+                    <div
+                      className="message-violation-warning"
+                      id="message-warning"
+                      role="alert"
+                      aria-live="polite"
+                    >
+                      <div className="warning-header">
+                        <AlertTriangle size={16} aria-hidden="true" />
+                        {inputValidationState === 'error' ? 'Content Blocked' : 'Content Warning'}
+                      </div>
+                      <div className="warning-message">
+                        {inputValidationState === 'error'
+                          ? 'This message contains inappropriate content and cannot be sent.'
+                          : 'This message may contain inappropriate content. Please review before sending.'
+                        }
+                      </div>
+                      {messageViolation.violations && messageViolation.violations.length > 0 && (
+                        <div className="warning-suggestion">
+                          Issues detected: {messageViolation.violations.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <form className="message-input-form" onSubmit={handleSendMessage}>
+                    <input
+                      type="text"
+                      placeholder="Type a message..."
+                      value={newMessage}
+                      onChange={handleMessageChange}
+                      disabled={sendingMessage}
+                      className={`${inputValidationState === 'warning' || inputValidationState === 'error' ? 'content-warning' : ''} ${inputValidationState === 'success' ? 'content-success' : ''}`}
+                      aria-label="Message input"
+                      aria-describedby={showMessageWarning ? 'message-warning' : undefined}
+                      aria-invalid={inputValidationState === 'error'}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="sentences"
+                      spellCheck={true}
+                    />
+                    <SendButton
+                      disabled={sendingMessage || !newMessage.trim()}
+                      loading={sendingMessage}
+                      error={sendButtonError}
+                      type="submit"
+                    />
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1212,7 +1225,7 @@ await addDoc(collection(db, 'messages'), {
 
         {/* Notifications tab content moved to NavigationBar */}
       </div>
-      
+
       <FooterNav />
     </div>
   );

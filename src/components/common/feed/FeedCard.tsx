@@ -101,6 +101,7 @@ const FeedCard: React.FC<FeedCardProps> = memo(({
 
   // Handle like state changes from the LikeButton component
   const handleLikeChange = useCallback((liked: boolean, count: number) => {
+    console.log('👍 FeedCard handleLikeChange:', { itemId: item.id, liked, count });
     // Notify parent component if needed
     if (onLike) {
       onLike(item.id, liked);

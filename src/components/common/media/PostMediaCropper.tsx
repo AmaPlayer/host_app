@@ -12,12 +12,12 @@ export interface VideoCropData {
   y: number;        // Normalized 0-1
   width: number;    // Normalized 0-1
   height: number;   // Normalized 0-1
-  aspectRatio: 1;   // Always 1:1 for posts
+  aspectRatio: number;
 }
 
 export interface CropResult {
   type: 'image' | 'video';
-  blob?: Blob;              // For images: cropped 1080x1080 JPEG
+  blob?: Blob;              // For images: cropped JPEG
   cropData?: VideoCropData;  // For videos: crop coordinates
 }
 
@@ -25,6 +25,9 @@ interface PostMediaCropperProps {
   file: File;
   onCrop: (result: CropResult) => void;
   onCancel: () => void;
+  aspectRatio?: number;
+  outputWidth?: number;
+  outputHeight?: number;
 }
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
@@ -49,7 +52,7 @@ async function getCroppedImg(
     throw new Error('No 2d context');
   }
 
-  // Set canvas size to desired output size (1080x1080 for Instagram-style posts)
+  // Set canvas size to desired output size
   canvas.width = outputWidth;
   canvas.height = outputHeight;
 
@@ -73,14 +76,17 @@ async function getCroppedImg(
       } else {
         reject(new Error('Canvas is empty'));
       }
-    }, 'image/jpeg', 0.92); // Slightly lower quality than profile pics to reduce file size
+    }, 'image/jpeg', 0.92);
   });
 }
 
 const PostMediaCropper: React.FC<PostMediaCropperProps> = ({
   file,
   onCrop,
-  onCancel
+  onCancel,
+  aspectRatio = 1,
+  outputWidth = 1080,
+  outputHeight = 1080
 }) => {
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -154,8 +160,8 @@ const PostMediaCropper: React.FC<PostMediaCropperProps> = ({
         const croppedBlob = await getCroppedImg(
           mediaSrc,
           croppedAreaPixels,
-          1080,
-          1080
+          outputWidth,
+          outputHeight
         );
         onCrop({
           type: 'image',
@@ -168,7 +174,7 @@ const PostMediaCropper: React.FC<PostMediaCropperProps> = ({
           y: croppedArea.y / 100,
           width: croppedArea.width / 100,
           height: croppedArea.height / 100,
-          aspectRatio: 1
+          aspectRatio: aspectRatio
         };
         onCrop({
           type: 'video',
@@ -224,7 +230,7 @@ const PostMediaCropper: React.FC<PostMediaCropperProps> = ({
                   image={mediaSrc}
                   crop={crop}
                   zoom={zoom}
-                  aspect={1} // Always 1:1 square for posts
+                  aspect={aspectRatio}
                   onCropChange={setCrop}
                   onCropComplete={onCropComplete}
                   onZoomChange={setZoom}
@@ -250,7 +256,7 @@ const PostMediaCropper: React.FC<PostMediaCropperProps> = ({
                 <p className="crop-instruction">
                   {isImage
                     ? 'Drag to reposition • Pinch or use slider to zoom'
-                    : 'Position the frame area you want to show • Video will be cropped to 1:1 square'
+                    : `Position the frame area you want to show • Video will be cropped to ${aspectRatio === 1 ? '1:1 square' : 'selected aspect ratio'}`
                   }
                 </p>
               </div>

@@ -1,8 +1,8 @@
 import { memo, useState, useEffect, useCallback } from 'react';
-import { 
-  History, 
-  Share2, 
-  Users, 
+import {
+  History,
+  Share2,
+  Users,
   MessageSquare,
   Trash2,
   Search,
@@ -12,7 +12,7 @@ import {
   Clock,
   AlertCircle
 } from 'lucide-react';
-import shareService from '../../../services/api/shareService';
+import shareService from '../../../services/api/ShareService';
 import { SHARE_TYPES, SUCCESS_MESSAGES, ERROR_MESSAGES } from '../../../constants/sharing';
 import './ShareHistory.css';
 
@@ -50,8 +50,8 @@ type SortOrder = 'asc' | 'desc';
  * ShareHistory component for viewing and managing user's share history
  * Provides interface for share deletion, modification, and activity tracking
  */
-const ShareHistory: React.FC<ShareHistoryProps> = memo(({ 
-  userId, 
+const ShareHistory: React.FC<ShareHistoryProps> = memo(({
+  userId,
   className = '',
   compact = false,
   showFilters = true,
@@ -62,14 +62,14 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  
+
   // Filter and search states
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterType, setFilterType] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortField>('timestamp');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  
+
   // Management states
   const [deletingShares, setDeletingShares] = useState<Set<string>>(new Set());
   const [selectedShares, setSelectedShares] = useState<Set<string>>(new Set());
@@ -120,7 +120,7 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
 
     // Apply search filter
     if (searchTerm) {
-      filtered = filtered.filter(share => 
+      filtered = filtered.filter(share =>
         share.message?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         share.postId.includes(searchTerm)
       );
@@ -135,7 +135,7 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
     filtered.sort((a, b) => {
       let aValue: string | number | Date;
       let bValue: string | number | Date;
-      
+
       switch (sortBy) {
         case 'timestamp':
           aValue = new Date(a.timestamp);
@@ -168,9 +168,9 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
   const handleDeleteShare = useCallback(async (shareId: string) => {
     try {
       setDeletingShares(prev => new Set([...prev, shareId]));
-      
+
       await shareService.removeShare(shareId, userId);
-      
+
       // Remove from local state
       setShareHistory(prev => prev.filter(share => share.shareId !== shareId));
       setSelectedShares(prev => {
@@ -178,8 +178,9 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
         newSet.delete(shareId);
         return newSet;
       });
-      
-      // Show success message (you might want to use a toast notification here)} catch (err) {
+
+      // Show success message (you might want to use a toast notification here)
+    } catch (err) {
       console.error('Error deleting share:', err);
       const errorMessage = err instanceof Error ? err.message : ERROR_MESSAGES.SHARE_FAILED;
       setError(errorMessage);
@@ -198,20 +199,20 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
 
     try {
       setLoading(true);
-      
-      const deletePromises = Array.from(selectedShares).map(shareId => 
+
+      const deletePromises = Array.from(selectedShares).map(shareId =>
         shareService.removeShare(shareId, userId)
       );
-      
+
       await Promise.all(deletePromises);
-      
+
       // Remove from local state
-      setShareHistory(prev => 
+      setShareHistory(prev =>
         prev.filter(share => !selectedShares.has(share.shareId))
       );
       setSelectedShares(new Set());
       setShowDeleteConfirm(false);
-      
+
     } catch (err) {
       console.error('Error bulk deleting shares:', err);
       const errorMessage = err instanceof Error ? err.message : ERROR_MESSAGES.SHARE_FAILED;
@@ -253,20 +254,20 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) {
-      return date.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       });
     } else if (diffDays === 1) {
       return 'Yesterday';
     } else if (diffDays < 7) {
       return `${diffDays} days ago`;
     } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
         day: 'numeric',
         year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
       });
@@ -339,7 +340,7 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
             <span>Share History</span>
             <span className="error-text">Failed to load</span>
           </div>
-          <button 
+          <button
             className="refresh-btn"
             onClick={handleRefresh}
             disabled={refreshing}
@@ -369,7 +370,7 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
           </span>
         </div>
         <div className="header-controls">
-          <button 
+          <button
             className="refresh-btn"
             onClick={handleRefresh}
             disabled={refreshing}
@@ -415,9 +416,9 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
-            <select 
-              value={filterType} 
+
+            <select
+              value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
               className="filter-select"
             >
@@ -426,9 +427,9 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
               <option value={SHARE_TYPES.FEED}>Feed</option>
               <option value={SHARE_TYPES.GROUPS}>Groups</option>
             </select>
-            
-            <select 
-              value={sortBy} 
+
+            <select
+              value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortField)}
               className="sort-select"
             >
@@ -436,8 +437,8 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
               <option value="shareType">Type</option>
               <option value="targetCount">Recipients</option>
             </select>
-            
-            <button 
+
+            <button
               className="sort-order-btn"
               onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
               title={`Sort ${sortOrder === 'asc' ? 'descending' : 'ascending'}`}
@@ -445,13 +446,13 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
               {sortOrder === 'asc' ? '↑' : '↓'}
             </button>
           </div>
-          
+
           {selectedShares.size > 0 && (
             <div className="bulk-actions">
               <span className="selection-count">
                 {selectedShares.size} selected
               </span>
-              <button 
+              <button
                 className="bulk-delete-btn"
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={loading}
@@ -471,7 +472,7 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
             <History size={48} />
             <h3>No shares found</h3>
             <p>
-              {shareHistory.length === 0 
+              {shareHistory.length === 0
                 ? "You haven't shared any posts yet."
                 : "No shares match your current filters."
               }
@@ -483,10 +484,10 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
               const isExpanded = expandedItems.has(share.shareId);
               const isSelected = selectedShares.has(share.shareId);
               const isDeleting = deletingShares.has(share.shareId);
-              
+
               return (
-                <div 
-                  key={share.shareId} 
+                <div
+                  key={share.shareId}
                   className={`share-item ${isSelected ? 'selected' : ''} ${isDeleting ? 'deleting' : ''}`}
                 >
                   <div className="share-item-header">
@@ -499,11 +500,11 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
                         className="share-checkbox"
                       />
                     )}
-                    
+
                     <div className="share-type-icon">
                       {getShareTypeIcon(share.shareType)}
                     </div>
-                    
+
                     <div className="share-info">
                       <div className="share-primary">
                         <span className="share-type">
@@ -521,7 +522,7 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
                         <span className="post-id">Post: {share.postId.slice(-8)}</span>
                       </div>
                     </div>
-                    
+
                     <div className="share-actions">
                       <button
                         className="expand-btn"
@@ -530,7 +531,7 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
                       >
                         {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       </button>
-                      
+
                       <button
                         className="delete-btn"
                         onClick={() => handleDeleteShare(share.shareId)}
@@ -545,7 +546,7 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
                       </button>
                     </div>
                   </div>
-                  
+
                   {isExpanded && (
                     <div className="share-item-details">
                       {share.message && (
@@ -554,7 +555,7 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
                           <span>"{share.message}"</span>
                         </div>
                       )}
-                      
+
                       <div className="share-metadata">
                         <div className="metadata-item">
                           <span className="metadata-label">Share ID:</span>
@@ -590,19 +591,19 @@ const ShareHistory: React.FC<ShareHistoryProps> = memo(({
             </div>
             <div className="modal-content">
               <p>
-                Are you sure you want to delete {selectedShares.size} share{selectedShares.size !== 1 ? 's' : ''}? 
+                Are you sure you want to delete {selectedShares.size} share{selectedShares.size !== 1 ? 's' : ''}?
                 This action cannot be undone.
               </p>
             </div>
             <div className="modal-actions">
-              <button 
+              <button
                 className="cancel-btn"
                 onClick={() => setShowDeleteConfirm(false)}
                 disabled={loading}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 className="confirm-btn"
                 onClick={handleBulkDelete}
                 disabled={loading}

@@ -1,767 +1,678 @@
-// Posts service with business logic and enhanced engagement data fetching
-import { BaseService, FirestoreFilter } from './baseService';
-import { COLLECTIONS } from '../../constants/firebase';
-import { storage, db } from '../../lib/firebase';
+import { supabase } from '../../lib/supabase';
+import type { Post, CreatePostData, Like, Comment as PostComment, MediaType } from '../../types/models/post';
+import { storage } from '../../lib/firebase'; // Keep using Firebase Storage for Phase 1
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import {
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  collection,
-  where,
-  orderBy,
-  limit as firestoreLimit,
-  startAfter,
-  DocumentSnapshot,
-  Timestamp,
-  arrayUnion,
-  increment,
-  updateDoc
-} from 'firebase/firestore';
-import { Post, CreatePostData, Like, Comment as PostComment, MediaType } from '../../types/models/post';
-import { 
-  sanitizeEngagementData, 
-  hasUserLikedPost, 
-  hasUserSharedPost,
-  validatePostEngagement 
-} from '../../utils/validation/engagementValidation';
 
-/**
- * Media upload result
- */
-interface MediaUploadResult {
-  url: string;
-  metadata: {
-    size: number;
-    type: string;
-    name: string;
-    uploadedAt: string;
-  };
-}
-
-/**
- * Like toggle result
- */
-interface LikeToggleResult {
-  liked: boolean;
-  likesCount: number;
-}
-
-/**
- * Comment data structure
- */
-interface CommentData {
-  text: string;
-  userId: string;
-  userDisplayName: string;
-  userPhotoURL: string | null;
-}
-
-/**
- * Comment with metadata
- */
-interface Comment extends CommentData {
-  id: string;
-  timestamp: string;
-  likes: unknown[];
-  replies: unknown[];
-}
-
-/**
- * User info for like operations
- */
-interface UserInfo {
-  displayName: string;
-  photoURL: string | null;
-}
-
-/**
- * Enhanced engagement metrics interface
- */
-interface EngagementMetrics {
-  likesCount: number;
-  commentsCount: number;
-  sharesCount: number;
-  isLiked?: boolean;
-  hasShared?: boolean;
-}
-
-/**
- * Posts query options for enhanced data fetching
- */
 interface PostsQueryOptions {
-  includeEngagementMetrics?: boolean;
-  currentUserId?: string;
   limit?: number;
-  startAfter?: DocumentSnapshot;
-  orderBy?: string;
-  orderDirection?: 'asc' | 'desc';
+  page?: number;
+  currentUserId?: string;
+  userId?: string;
+  startAfter?: any;
+  includeEngagementMetrics?: boolean;
 }
 
 /**
- * Paginated posts result with engagement data
+ * Supabase implementation of PostsService
  */
-interface PaginatedPostsResult {
-  posts: Post[];
-  lastDocument: DocumentSnapshot | null;
-  hasMore: boolean;
-  totalCount?: number;
-}
-
-/**
- * Posts service providing business logic for post operations with enhanced engagement data fetching
- */
-class PostsService extends BaseService<Post> {
-  constructor() {
-    super(COLLECTIONS.POSTS);
-  }
-
+class PostsService {
+  
   /**
-   * Enhance post data with accurate engagement metrics using validation utilities
+   * Get paginated posts with engagement status for current user
    */
-  private enhancePostWithEngagement(postData: any, currentUserId?: string): Post {
-    // Debug: Log raw post data comments
-    if (process.env.NODE_ENV === 'development' && postData.comments?.length > 0) {}
-
-    // First sanitize and validate the engagement data
-    const sanitizedPost = sanitizeEngagementData(postData);
-
-    // Debug: Log sanitized comments
-    if (process.env.NODE_ENV === 'development' && sanitizedPost.comments?.length > 0) {}
-
-    // Add user interaction states
-    const isLiked = currentUserId ? hasUserLikedPost(sanitizedPost.likes, currentUserId) : false;
-    const hasShared = currentUserId ? hasUserSharedPost(sanitizedPost.shares, currentUserId) : false;
-
-    // Return enhanced post with user interaction states
-    return {
-      ...sanitizedPost,
-      isLiked,
-      hasShared
-    } as Post;
-  }
-
-  /**
-   * Get posts with enhanced engagement data fetching
-   */
-  async getPostsWithEngagement(options: PostsQueryOptions = {}): Promise<PaginatedPostsResult> {
+  async getPosts(options: PostsQueryOptions = {}): Promise<{ posts: Post[]; hasMore: boolean; total?: number; lastDocument?: any }> {
     try {
-      const {
-        includeEngagementMetrics = true,
-        currentUserId,
-        limit = 20,
-        startAfter: startAfterDoc,
-        orderBy: orderByField = 'timestamp',
-        orderDirection = 'desc'
-      } = options;
+      const { limit = 20, page = 0, currentUserId, userId } = options;
+      const offset = page * limit;
 
-      let q;
-      if (startAfterDoc) {
-        q = query(
-          collection(db, this.collectionName),
-          orderBy(orderByField, orderDirection),
-          startAfter(startAfterDoc),
-          firestoreLimit(limit)
-        );
-      } else {
-        q = query(
-          collection(db, this.collectionName),
-          orderBy(orderByField, orderDirection),
-          firestoreLimit(limit)
-        );
-      }
-      
-      // Filter out inactive posts after fetching (if isActive field exists)
-      // This is more flexible than using a where clause
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          user:users!user_id (
+            uid, display_name, photo_url, role, is_verified
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
-      const querySnapshot = await getDocs(q);
-
-      const posts: Post[] = [];
-      let lastDocument: DocumentSnapshot | null = null;
-
-      for (const docSnapshot of querySnapshot.docs) {
-        const docData = docSnapshot.data() as Record<string, any>;
-        const postData = { id: docSnapshot.id, ...docData };
-        
-        // Skip inactive posts if isActive field exists and is false
-        if ('isActive' in docData && docData.isActive === false) {
-          continue;
-        }
-        
-        if (includeEngagementMetrics) {
-          const enhancedPost = this.enhancePostWithEngagement(postData, currentUserId);
-          posts.push(enhancedPost);
+      if (userId) {
+        // We need to resolve Firebase UID to Supabase ID if the passed userId is a UID
+        // Assuming userId passed is Firebase UID for consistency with the rest of the app
+        const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
+        if (user) {
+          query = query.eq('user_id', user.id);
         } else {
-          posts.push(postData as Post);
+          return { posts: [], hasMore: false, lastDocument: null };
         }
-        
-        lastDocument = docSnapshot;
       }
 
-      const hasMore = posts.length === limit;return {
+      const { data, error } = await query;
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        return { posts: [], hasMore: false, lastDocument: null };
+      }
+
+      // Batch fetch engagement status (isLiked)
+      let likedPostIds = new Set<string>();
+      if (currentUserId) {
+        const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
+        if (user) {
+          const postIds = data.map(p => p.id);
+          const { data: likes } = await supabase
+            .from('post_likes')
+            .select('post_id')
+            .eq('user_id', user.id)
+            .in('post_id', postIds);
+          
+          if (likes) {
+            likes.forEach(l => likedPostIds.add(l.post_id));
+          }
+        }
+      }
+
+      // Map posts
+      const posts = await Promise.all(data.map(async (row: any) => {
+        return this.mapSupabasePostToModel(row, likedPostIds.has(row.id));
+      }));
+
+      const lastDocument = posts.length > 0 ? posts[posts.length - 1] : null;
+
+      return {
         posts,
-        lastDocument,
-        hasMore
+        hasMore: data.length === limit,
+        lastDocument
       };
     } catch (error) {
-      console.error('❌ Error fetching posts with engagement:', error);
+      console.error('PostsService.getPosts error:', error);
       throw error;
     }
   }
 
   /**
-   * Extract video duration from video file
-   */
-  private async extractVideoDuration(file: File): Promise<number> {
-    return new Promise((resolve) => {
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-
-      video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
-        const duration = Math.round(video.duration);resolve(duration);
-      };
-
-      video.onerror = () => {
-        console.warn('⚠️ Could not extract video duration, defaulting to 0');
-        resolve(0);
-      };
-
-      video.src = URL.createObjectURL(file);
-    });
-  }
-
-  /**
-   * Create post with optional media upload
-   */
-  async createPost(postData: CreatePostData, mediaFile: File | null = null): Promise<Post> {
-    try {
-      let mediaUrl: string | null = null;
-      let mediaMetadata: MediaUploadResult['metadata'] | null = null;
-      let type: 'image' | 'video' | 'text' = 'text';
-      let duration = 0;
-
-      // Upload media if provided
-      if (mediaFile) {
-        const uploadResult = await this.uploadMedia(mediaFile);
-        mediaUrl = uploadResult.url;
-        mediaMetadata = uploadResult.metadata;
-
-        // Detect media type
-        if (mediaFile.type.startsWith('video/')) {
-          type = 'video';
-          // Extract video duration
-          duration = await this.extractVideoDuration(mediaFile);} else if (mediaFile.type.startsWith('image/')) {
-          type = 'image';}
-      }
-
-      // Override with user-provided type/duration if available
-      if (postData.type) {
-        type = postData.type;
-      }
-      if (postData.duration !== undefined) {
-        duration = postData.duration;
-      }
-
-      const postDoc = {
-        ...postData,
-        mediaUrl,
-        mediaMetadata,
-        // Add video-specific fields for moments feed compatibility
-        videoUrl: type === 'video' ? mediaUrl : null,
-        type,
-        duration,
-        videoDuration: duration,
-        mediaUrls: mediaUrl ? [mediaUrl] : [],
-        mediaType: type === 'video' ? 'video' as MediaType : (type === 'image' ? 'image' as MediaType : undefined),
-        likesCount: 0,
-        commentsCount: 0,
-        sharesCount: 0,
-        likes: [],
-        comments: [],
-        shares: [],
-        visibility: postData.visibility || 'public',
-        isActive: true,
-      };
-
-      const result = await this.create(postDoc as Omit<Post, 'id'>);return result;
-    } catch (error) {
-      console.error('❌ Error creating post:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Upload media file to Firebase Storage
-   */
-  async uploadMedia(file: File): Promise<MediaUploadResult> {
-    try {
-      const filename = `${Date.now()}_${file.name}`;
-      const storageRef = ref(storage, `posts/${filename}`);const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      const metadata: MediaUploadResult['metadata'] = {
-        size: file.size,
-        type: file.type,
-        name: file.name,
-        uploadedAt: new Date().toISOString(),
-      };return { url: downloadURL, metadata };
-    } catch (error) {
-      console.error('❌ Error uploading media:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get posts by user ID with enhanced engagement metrics
-   */
-  async getPostsByUser(userId: string, limit: number = 20, currentUserId?: string): Promise<Post[]> {
-    try {
-      const q = query(
-        collection(db, this.collectionName),
-        where('userId', '==', userId),
-        where('isActive', '==', true),
-        orderBy('timestamp', 'desc'),
-        firestoreLimit(limit)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const posts: Post[] = [];
-
-      querySnapshot.forEach((doc) => {
-        const postData = { id: doc.id, ...doc.data() };
-        const enhancedPost = this.enhancePostWithEngagement(postData, currentUserId);
-        posts.push(enhancedPost);
-      });return posts;
-    } catch (error) {
-      console.error('❌ Error getting user posts with engagement:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get feed posts for user (following + own posts) with enhanced engagement metrics
+   * Get feed posts (posts from following + friends + self)
    */
   async getFeedPosts(userId: string, followingList: string[] = [], limit: number = 20): Promise<Post[]> {
     try {
-      // Get user's own posts with engagement metrics
-      const userPosts = await this.getPostsByUser(userId, Math.ceil(limit / 2), userId);
+      // 1. Get current user's internal ID
+      const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
+      if (!user) return [];
+
+      // 2. Get list of users to fetch posts from
+      // Logic: Get IDs from 'followers' table (who I follow) and 'friendships'
+      // Note: followingList passed from arguments might be Firebase UIDs. 
+      // We should ideally resolve them or rely on Supabase relationships.
       
-      // Get posts from following users with engagement metrics
-      let followingPosts: Post[] = [];
-      if (followingList.length > 0) {
-        // Firestore 'in' query limitation - max 10 items
-        const chunks = this.chunkArray(followingList, 10);
+      // Fetch internal IDs of people I follow
+      const { data: following } = await supabase
+        .from('followers')
+        .select('following_id')
+        .eq('follower_id', user.id);
         
-        for (const chunk of chunks) {
-          const q = query(
-            collection(db, this.collectionName),
-            where('userId', 'in', chunk),
-            where('isActive', '==', true),
-            orderBy('timestamp', 'desc'),
-            firestoreLimit(Math.ceil(limit / 2))
-          );
-
-          const querySnapshot = await getDocs(q);
-          querySnapshot.forEach((doc) => {
-            const postData = { id: doc.id, ...doc.data() };
-            const enhancedPost = this.enhancePostWithEngagement(postData, userId);
-            followingPosts.push(enhancedPost);
-          });
-        }
-      }
-
-      // Combine and sort posts by timestamp
-      const allPosts = [...userPosts, ...followingPosts]
-        .sort((a, b) => {
-          const getTimestamp = (timestamp: any): number => {
-            if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
-              return timestamp.seconds;
-            }
-            if (timestamp instanceof Date) {
-              return timestamp.getTime() / 1000;
-            }
-            if (typeof timestamp === 'string') {
-              return new Date(timestamp).getTime() / 1000;
-            }
-            return 0;
-          };
-          
-          return getTimestamp(b.timestamp) - getTimestamp(a.timestamp);
-        })
-        .slice(0, limit);return allPosts;
-    } catch (error) {
-      console.error('❌ Error getting feed posts with engagement:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Toggle like on a post
-   */
-  async toggleLike(postId: string, userId: string, userInfo: UserInfo): Promise<LikeToggleResult> {
-    try {
-      const post = await this.getById(postId);
-      if (!post) {
-        throw new Error('Post not found');
-      }
-
-      const likes = (post.likes as unknown[]) || [];
-      const isLiked = likes.some((like: any) => like.userId === userId);
+      const followingIds = following?.map(f => f.following_id) || [];
       
-      let updatedLikes: unknown[];
-      let updatedLikesCount: number;
+      // Fetch internal IDs of friends
+      const { data: friends1 } = await supabase
+        .from('friendships')
+        .select('user2_id')
+        .eq('user1_id', user.id)
+        .eq('status', 'active');
+        
+      const { data: friends2 } = await supabase
+        .from('friendships')
+        .select('user1_id')
+        .eq('user2_id', user.id)
+        .eq('status', 'active');
+        
+      const friendIds = [
+        ...(friends1?.map(f => f.user2_id) || []),
+        ...(friends2?.map(f => f.user1_id) || [])
+      ];
 
-      if (isLiked) {
-        // Unlike
-        updatedLikes = likes.filter((like: any) => like.userId !== userId);
-        updatedLikesCount = (post.likesCount || 0) - 1;} else {
-        // Like
-        const likeData = {
-          userId,
-          userName: userInfo.displayName,
-          userPhotoURL: userInfo.photoURL,
-          timestamp: new Date().toISOString(),
-        };
-        updatedLikes = [...likes, likeData];
-        updatedLikesCount = (post.likesCount || 0) + 1;}
+      // Combine all IDs (Self + Following + Friends)
+      const targetUserIds = [...new Set([user.id, ...followingIds, ...friendIds])];
 
-      await this.update(postId, {
-        likes: updatedLikes,
-        likesCount: Math.max(0, updatedLikesCount),
-      } as Partial<Post>);
+      // 3. Query posts
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          user:users!user_id (
+            uid, display_name, photo_url, role, is_verified
+          )
+        `)
+        .in('user_id', targetUserIds)
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-      return { liked: !isLiked, likesCount: updatedLikesCount };
-    } catch (error) {
-      console.error('❌ Error toggling like:', error);
-      throw error;
-    }
-  }
+      if (error) throw error;
 
-  /**
-   * Add comment to post using atomic arrayUnion operation
-   * This ensures real-time listeners fire when comments are added
-   */
-  async addComment(postId: string, commentData: CommentData): Promise<PostComment> {
-    try {
-      const comment: PostComment = {
-        id: `comment_${Date.now()}`,
-        text: commentData.text,
-        userId: commentData.userId,
-        userDisplayName: commentData.userDisplayName,
-        userPhotoURL: commentData.userPhotoURL,
-        timestamp: new Date().toISOString(),
-        likes: [],
-        replies: [],
-      };// Use atomic arrayUnion operation to append comment
-      // This triggers onSnapshot listeners automatically
-      const postRef = doc(db, COLLECTIONS.POSTS, postId);await updateDoc(postRef, {
-        comments: arrayUnion(comment),
-        commentsCount: increment(1),
-      });console.log('✅ Comment data:', comment);
-      return comment;
-    } catch (error) {
-      console.error('❌ Error adding comment to post:', postId);
-      console.error('❌ Error details:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete comment from post
-   */
-  async deleteComment(postId: string, commentIndex: number, userId: string): Promise<void> {
-    try {
-      const post = await this.getById(postId);
-      if (!post) {
-        throw new Error('Post not found');
-      }
-
-      const comments = (post.comments as unknown[]) || [];
-
-      if (commentIndex < 0 || commentIndex >= comments.length) {
-        throw new Error('Comment not found');
-      }
-
-      const comment = comments[commentIndex] as PostComment;
-
-      // Check if user owns the comment or owns the post
-      if (comment.userId !== userId && post.userId !== userId) {
-        throw new Error('Unauthorized to delete this comment');
-      }
-
-      // Remove comment from array
-      const updatedComments = comments.filter((_, index) => index !== commentIndex);
-
-      // Ensure engagement metadata is accurate
-      await this.update(postId, {
-        comments: updatedComments as unknown,
-        commentsCount: updatedComments.length,
-        likesCount: (post.likes as unknown[] || []).length,
-      } as Partial<Post>);} catch (error) {
-      console.error('❌ Error deleting comment:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Edit comment in post
-   */
-  async editComment(postId: string, commentIndex: number, userId: string, newText: string): Promise<void> {
-    try {
-      const post = await this.getById(postId);
-      if (!post) {
-        throw new Error('Post not found');
-      }
-
-      const comments = (post.comments as unknown[]) || [];
-
-      if (commentIndex < 0 || commentIndex >= comments.length) {
-        throw new Error('Comment not found');
-      }
-
-      const comment = comments[commentIndex] as PostComment;
-
-      // Check if user owns the comment
-      if (comment.userId !== userId) {
-        throw new Error('Unauthorized to edit this comment');
-      }
-
-      // Update comment text
-      const updatedComments = comments.map((c: any, index: number) => {
-        if (index === commentIndex) {
-          return {
-            ...(c as object),
-            text: newText.trim(),
-            edited: true,
-            editedAt: new Date().toISOString()
-          };
+      // 4. Batch fetch liked status
+      let likedPostIds = new Set<string>();
+      if (data && data.length > 0) {
+        const postIds = data.map(p => p.id);
+        const { data: likes } = await supabase
+          .from('post_likes')
+          .select('post_id')
+          .eq('user_id', user.id)
+          .in('post_id', postIds);
+        
+        if (likes) {
+          likes.forEach(l => likedPostIds.add(l.post_id));
         }
-        return c;
-      });
+      }
 
-      // Ensure engagement metadata is accurate
-      await this.update(postId, {
-        comments: updatedComments as unknown,
-        commentsCount: updatedComments.length,
-        likesCount: (post.likes as unknown[] || []).length,
-      } as Partial<Post>);} catch (error) {
-      console.error('❌ Error editing comment:', error);
-      throw error;
+      return Promise.all((data || []).map(row => this.mapSupabasePostToModel(row, likedPostIds.has(row.id))));
+
+    } catch (error) {
+      console.error('PostsService.getFeedPosts error:', error);
+      return []; // Return empty on error to handle gracefully
     }
   }
 
   /**
-   * Toggle like on a comment
+   * Update share count and metadata
    */
-  async toggleCommentLike(postId: string, commentIndex: number, userId: string): Promise<void> {
-    try {const post = await this.getById(postId);
-      if (!post) {
-        throw new Error('Post not found');
-      }const comments = (post.comments as unknown[]) || [];
+  async updateShare(postId: string, userId: string, shareType: 'friends' | 'feeds' | 'groups', isAdding: boolean): Promise<void> {
+    try {
+      const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
+      if (!user) throw new Error('User not found');
 
-      if (commentIndex < 0 || commentIndex >= comments.length) {
-        throw new Error(`Comment not found at index ${commentIndex}. Total comments: ${comments.length}`);
+      const { data: post, error: fetchError } = await supabase
+        .from('posts')
+        .select('metadata')
+        .eq('id', postId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const currentMetadata = post.metadata || {};
+      const shareBreakdown = currentMetadata.shareBreakdown || { friends: 0, feeds: 0, groups: 0 };
+
+      if (isAdding) {
+        const { error: insertError } = await supabase
+          .from('post_shares')
+          .insert({ post_id: postId, user_id: user.id });
+
+        if (insertError && insertError.code !== '23505') throw insertError;
+        shareBreakdown[shareType] = (shareBreakdown[shareType] || 0) + 1;
+      } else {
+        const { error: deleteError } = await supabase
+          .from('post_shares')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', user.id);
+
+        if (deleteError) throw deleteError;
+        shareBreakdown[shareType] = Math.max(0, (shareBreakdown[shareType] || 0) - 1);
       }
 
-      const comment = comments[commentIndex] as any;// Handle both string[] and object[] formats for likes
-      const likes = (comment.likes || []) as any[];
-
-      // Check if user has liked - support both formats
-      const hasLiked = likes.some((like: any) =>
-        typeof like === 'string'
-          ? like === userId
-          : like?.userId === userId
-      );// Toggle like
-      const updatedComments = comments.map((c: any, index: number) => {
-        if (index === commentIndex) {
-          const newLikes = hasLiked
-            ? likes.filter((like: any) =>
-                typeof like === 'string'
-                  ? like !== userId
-                  : like?.userId !== userId
-              )
-            : [...likes, userId];
-
-          const updatedComment = {
-            ...(c as object),
-            likes: newLikes,
-            likesCount: newLikes.length
-          };return updatedComment;
-        }
-        return c;
-      });
-
-      // Ensure engagement metadata is accurate
-      const updatePayload = {
-        comments: updatedComments as unknown,
-        commentsCount: updatedComments.length,
-        likesCount: (post.likes as unknown[] || []).length,
+      const newMetadata = {
+        ...currentMetadata,
+        shareBreakdown,
+        lastSharedAt: isAdding ? new Date().toISOString() : currentMetadata.lastSharedAt
       };
 
-      // Debug: Log what we're savingconsole.log('📤 Full update payload being sent to Firestore:', JSON.stringify(updatePayload, null, 2));
+      const { error: updateError } = await supabase
+        .from('posts')
+        .update({ metadata: newMetadata })
+        .eq('id', postId);
 
-      await this.update(postId, updatePayload as Partial<Post>);// Verify the update by re-fetching
-      const verifyPost = await this.getById(postId);
-      const verifyComment = (verifyPost?.comments as unknown[])?.[commentIndex] as any;} catch (error) {
-      console.error('❌ Error toggling comment like:', error);
+      if (updateError) throw updateError;
+    } catch (error) {
+      console.error('PostsService.updateShare error:', error);
       throw error;
     }
   }
 
   /**
-   * Delete post (soft delete)
+   * Create a new post
+   */
+  async createPost(postData: CreatePostData, currentUserId?: string): Promise<Post> {
+    try {
+      const uid = currentUserId || postData.userId;
+      let mediaUrl = null;
+      let mediaMetadata = null;
+      let mediaType = 'text';
+
+      if (postData.mediaFile) {
+        const file = postData.mediaFile;
+        const filename = `${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, `posts/${filename}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        mediaUrl = await getDownloadURL(snapshot.ref);
+        
+        mediaMetadata = {
+          size: file.size,
+          type: file.type,
+          name: file.name,
+          uploadedAt: new Date().toISOString(),
+        };
+        
+        if (file.type.startsWith('video/')) mediaType = 'video';
+        else if (file.type.startsWith('image/')) mediaType = 'image';
+      }
+
+      const { data: user } = await supabase.from('users').select('id').eq('uid', uid).single();
+      if (!user) throw new Error('User not found');
+
+      const { data: post, error } = await supabase
+        .from('posts')
+        .insert({
+          user_id: user.id,
+          caption: postData.caption,
+          media_url: mediaUrl,
+          media_type: mediaType,
+          location: postData.location,
+          visibility: postData.visibility || 'public',
+          tags: postData.tags || [],
+          metadata: {
+            mediaMetadata,
+            type: mediaType,
+            duration: postData.duration
+          }
+        })
+        .select(`
+          *,
+          user:users!user_id (uid, display_name, photo_url)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      return this.mapSupabasePostToModel(post, false);
+    } catch (error) {
+      console.error('PostsService.createPost error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update post
+   */
+  async updatePost(
+    postId: string,
+    updates: { caption?: string; visibility?: 'public' | 'friends' | 'private' },
+    currentUserId: string
+  ): Promise<Post> {
+    try {
+      const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
+      if (!user) throw new Error('User not found');
+
+      const { data: post, error } = await supabase
+        .from('posts')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', postId)
+        .eq('user_id', user.id)
+        .select(`
+          *,
+          user:users!user_id (uid, display_name, photo_url)
+        `)
+        .single();
+
+      if (error) throw error;
+      if (!post) throw new Error('Post not found or unauthorized');
+
+      // Check like status
+      const { data: like } = await supabase
+        .from('post_likes')
+        .select('id')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      return this.mapSupabasePostToModel(post, !!like);
+    } catch (error) {
+      console.error('PostsService.updatePost error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete post
    */
   async deletePost(postId: string, userId: string): Promise<boolean> {
     try {
-      const post = await this.getById(postId);
-      if (!post) {
-        throw new Error('Post not found');
-      }
+      const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
+      if (!user) throw new Error('User not found');
 
-      if (post.userId !== userId) {
-        throw new Error('Unauthorized to delete this post');
-      }
+      // Check ownership
+      const { data: post } = await supabase
+        .from('posts')
+        .select('user_id, media_url')
+        .eq('id', postId)
+        .single();
 
-      // Delete associated media from storage
-      if (post.mediaUrl) {
+      if (!post) throw new Error('Post not found');
+      if (post.user_id !== user.id) throw new Error('Unauthorized to delete this post');
+
+      // Delete media from storage if exists
+      if (post.media_url) {
         try {
-          const mediaRef = ref(storage, post.mediaUrl);
-          await deleteObject(mediaRef);} catch (error) {
-          console.warn('⚠️ Could not delete media from storage:', error);
+          const mediaRef = ref(storage, post.media_url);
+          await deleteObject(mediaRef);
+        } catch (e) {
+          console.warn('Failed to delete media from storage', e);
         }
       }
 
-      // Soft delete - mark as inactive
-      await this.update(postId, {
-        isActive: false,
-        deletedAt: new Date().toISOString(),
-      } as Partial<Post>);return true;
+      // Delete from DB
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+      if (error) throw error;
+      return true;
     } catch (error) {
-      console.error('❌ Error deleting post:', error);
+      console.error('PostsService.deletePost error:', error);
       throw error;
     }
   }
 
   /**
-   * Utility method to chunk arrays for Firestore 'in' queries
+   * Toggle Like
    */
-  private chunkArray<T>(array: T[], chunkSize: number): T[][] {
-    const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += chunkSize) {
-      chunks.push(array.slice(i, i + chunkSize));
+  async toggleLike(
+    postId: string,
+    currentUserId: string,
+    userInfo?: { displayName?: string; photoURL?: string | null }
+  ): Promise<{ liked: boolean; likesCount: number }> {
+    try {
+      const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
+      if (!user) throw new Error('User not found');
+
+      const { data: existing } = await supabase
+        .from('post_likes')
+        .select('id')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      let liked: boolean;
+      if (existing) {
+        await supabase.from('post_likes').delete().eq('id', existing.id);
+        liked = false;
+      } else {
+        await supabase.from('post_likes').insert({ post_id: postId, user_id: user.id });
+        liked = true;
+      }
+
+      const { data: post } = await supabase
+        .from('posts')
+        .select('likes_count')
+        .eq('id', postId)
+        .single();
+
+      return {
+        liked,
+        likesCount: post?.likes_count || 0
+      };
+    } catch (error) {
+      console.error('PostsService.toggleLike error:', error);
+      throw error;
     }
-    return chunks;
   }
 
   /**
-   * Get posts by user ID (alias for getPostsByUser for consistency with hook expectations)
+   * Add Comment
    */
-  async getUserPosts(userId: string, limit: number = 20, currentUserId?: string): Promise<Post[]> {
-    return this.getPostsByUser(userId, limit, currentUserId);
+  async addComment(
+    postId: string,
+    textOrCommentData: string | { text: string; userId: string; userDisplayName?: string; userPhotoURL?: string },
+    currentUserId?: string
+  ): Promise<PostComment> {
+    try {
+      let text: string;
+      let userId: string;
+      let userDisplayName: string | undefined;
+      let userPhotoURL: string | null | undefined;
+
+      if (typeof textOrCommentData === 'string') {
+        text = textOrCommentData;
+        userId = currentUserId!;
+      } else {
+        text = textOrCommentData.text;
+        userId = textOrCommentData.userId;
+        userDisplayName = textOrCommentData.userDisplayName;
+        userPhotoURL = textOrCommentData.userPhotoURL;
+      }
+
+      const { data: user } = await supabase.from('users').select('id, display_name, photo_url').eq('uid', userId).single();
+      if (!user) throw new Error('User not found');
+
+      const { data: comment, error } = await supabase
+        .from('post_comments')
+        .insert({
+          post_id: postId,
+          user_id: user.id,
+          text
+        })
+        .select(`
+          *,
+          user:users!user_id (uid, display_name, photo_url)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      return {
+        id: comment.id,
+        text: comment.text,
+        userId: comment.user.uid,
+        userDisplayName: comment.user.display_name || userDisplayName || 'Unknown',
+        userPhotoURL: comment.user.photo_url || userPhotoURL || null,
+        timestamp: comment.created_at,
+        likes: [],
+        replies: []
+      };
+    } catch (error) {
+      console.error('PostsService.addComment error:', error);
+      throw error;
+    }
   }
 
   /**
-   * Get posts with pagination and enhanced engagement metrics
+   * Delete comment
    */
-  async getPosts(options: PostsQueryOptions = {}): Promise<PaginatedPostsResult> {
-    return this.getPostsWithEngagement(options);
+  async deleteComment(postId: string, commentId: string, userId: string): Promise<void> {
+    try {
+      const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
+      if (!user) throw new Error('User not found');
+
+      // Note: We ignore postId in the delete query because ID is unique, 
+      // but we could enforce it if needed.
+      const { error } = await supabase
+        .from('post_comments')
+        .delete()
+        .eq('id', commentId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('PostsService.deleteComment error:', error);
+      throw error;
+    }
   }
 
   /**
-   * Get single post by ID with enhanced engagement metrics
+   * Edit comment
+   */
+  async editComment(postId: string, commentId: string, userId: string, newText: string): Promise<void> {
+    try {
+      const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
+      if (!user) throw new Error('User not found');
+
+      const { error } = await supabase
+        .from('post_comments')
+        .update({ text: newText })
+        .eq('id', commentId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('PostsService.editComment error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Toggle comment like
+   */
+  async toggleCommentLike(postId: string, commentId: string, userId: string): Promise<void> {
+    console.warn('Like comment not implemented yet in Supabase schema');
+    // Placeholder to prevent crash, but does nothing
+    return Promise.resolve();
+  }
+
+  /**
+   * Get single post by ID
    */
   async getPostById(postId: string, currentUserId?: string): Promise<Post | null> {
     try {
-      const docRef = doc(db, this.collectionName, postId);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const postData = { id: docSnap.id, ...docSnap.data() };
-        const enhancedPost = this.enhancePostWithEngagement(postData, currentUserId);return enhancedPost;
-      } else {
-        console.warn(`⚠️ Post not found: ${postId}`);
-        return null;
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          user:users!user_id (uid, display_name, photo_url, role, is_verified)
+        `)
+        .eq('id', postId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw error;
       }
+
+      let isLiked = false;
+      if (currentUserId) {
+         const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
+         if (user) {
+           const { data: like } = await supabase.from('post_likes').select('id').eq('post_id', postId).eq('user_id', user.id).maybeSingle();
+           isLiked = !!like;
+         }
+      }
+
+      return this.mapSupabasePostToModel(data, isLiked);
     } catch (error) {
-      console.error(`❌ Error getting post ${postId} with engagement:`, error);
-      throw error;
+      console.error('PostsService.getPostById error:', error);
+      return null;
     }
   }
 
-
   /**
-   * Search posts by caption with enhanced engagement metrics
+   * Get posts by specific user
    */
-  async searchPosts(searchTerm: string, limit: number = 20, currentUserId?: string): Promise<Post[]> {
-    try {
-      const q = query(
-        collection(db, this.collectionName),
-        where('caption', '>=', searchTerm),
-        where('caption', '<=', searchTerm + '\uf8ff'),
-        where('isActive', '==', true),
-        orderBy('caption'),
-        orderBy('timestamp', 'desc'),
-        firestoreLimit(limit)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const posts: Post[] = [];
-
-      querySnapshot.forEach((doc) => {
-        const postData = { id: doc.id, ...doc.data() };
-        const enhancedPost = this.enhancePostWithEngagement(postData, currentUserId);
-        posts.push(enhancedPost);
-      });return posts;
-    } catch (error) {
-      console.error('❌ Error searching posts with engagement:', error);
-      throw error;
-    }
+  async getUserPosts(userId: string, limit: number = 20, currentUserId?: string): Promise<Post[]> {
+    return this.getPosts({ userId, limit, currentUserId }).then(res => res.posts);
   }
 
   /**
-   * Get trending posts (high engagement in last 24h) with enhanced engagement metrics
+   * Get trending posts
    */
   async getTrendingPosts(limit: number = 20, currentUserId?: string): Promise<Post[]> {
     try {
-      // Simple trending algorithm - posts with high engagement in last 24h
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const oneDayAgoTimestamp = Timestamp.fromDate(oneDayAgo);
-      
-      const q = query(
-        collection(db, this.collectionName),
-        where('timestamp', '>=', oneDayAgoTimestamp),
-        where('isActive', '==', true),
-        orderBy('timestamp', 'desc'),
-        firestoreLimit(limit * 2) // Get more to filter by engagement
-      );
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      const querySnapshot = await getDocs(q);
-      const posts: Post[] = [];
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          user:users!user_id (uid, display_name, photo_url, role, is_verified)
+        `)
+        .gte('created_at', sevenDaysAgo.toISOString())
+        .order('likes_count', { ascending: false })
+        .limit(limit);
 
-      querySnapshot.forEach((doc) => {
-        const postData = { id: doc.id, ...doc.data() };
-        const enhancedPost = this.enhancePostWithEngagement(postData, currentUserId);
-        
-        // Only include posts with some engagement
-        if (enhancedPost.likesCount > 0 || enhancedPost.commentsCount > 0 || enhancedPost.sharesCount > 0) {
-          posts.push(enhancedPost);
-        }
-      });
+      if (error) throw error;
 
-      // Sort by total engagement score
-      const trendingPosts = posts
-        .sort((a, b) => {
-          const scoreA = (a.likesCount * 1) + (a.commentsCount * 2) + (a.sharesCount * 3);
-          const scoreB = (b.likesCount * 1) + (b.commentsCount * 2) + (b.sharesCount * 3);
-          return scoreB - scoreA;
-        })
-        .slice(0, limit);return trendingPosts;
+      let likedPostIds = new Set<string>();
+      if (currentUserId && data && data.length > 0) {
+         const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
+         if (user) {
+           const postIds = data.map(p => p.id);
+           const { data: likes } = await supabase.from('post_likes').select('post_id').eq('user_id', user.id).in('post_id', postIds);
+           likes?.forEach(l => likedPostIds.add(l.post_id));
+         }
+      }
+
+      return Promise.all((data || []).map(row => this.mapSupabasePostToModel(row, likedPostIds.has(row.id))));
     } catch (error) {
-      console.error('❌ Error getting trending posts with engagement:', error);
-      throw error;
+      console.error('PostsService.getTrendingPosts error:', error);
+      return [];
     }
+  }
+
+  /**
+   * Alias for getPosts
+   */
+  async getPostsWithEngagement(options: PostsQueryOptions = {}): Promise<{ posts: Post[]; hasMore: boolean; total?: number; lastDocument?: any }> {
+    return this.getPosts(options);
+  }
+
+  /**
+   * Search Posts
+   */
+  async searchPosts(queryStr: string, limit: number = 20, currentUserId?: string): Promise<Post[]> {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+           *,
+           user:users!user_id (uid, display_name, photo_url)
+        `)
+        .textSearch('caption', queryStr)
+        .limit(limit);
+
+      if (error) throw error;
+
+      // Simplification: Not checking likes for search results to save bandwidth/logic complexity
+      // unless strictly needed.
+      return Promise.all((data || []).map(row => this.mapSupabasePostToModel(row, false)));
+    } catch (error) {
+      console.error('PostsService.searchPosts error:', error);
+      return [];
+    }
+  }
+
+  // ==========================================
+  // HELPER METHODS
+  // ==========================================
+
+  private async mapSupabasePostToModel(row: any, isLiked: boolean): Promise<Post> {
+    // Get users who shared this post (Optional: load lazily if performance issues arise)
+    // For now, returning empty or limited shares
+    const shares: string[] = []; // Implementing full share fetching might be heavy for lists
+
+    return {
+      id: row.id,
+      userId: row.user?.uid || '',
+      userDisplayName: row.user?.display_name || 'Unknown',
+      userPhotoURL: row.user?.photo_url || null,
+      caption: row.caption,
+      mediaUrl: row.media_url,
+      mediaType: row.media_type as MediaType,
+      timestamp: row.created_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      likesCount: row.likes_count || 0,
+      commentsCount: row.comments_count || 0,
+      sharesCount: row.shares_count || 0,
+      likes: [], // We don't load full like list for feed
+      comments: [], // We don't load comments for feed
+      shares: shares,
+      visibility: row.visibility,
+      location: row.location,
+      tags: row.tags || [],
+      isActive: true,
+      isLiked,
+      metadata: row.metadata
+    } as Post;
   }
 }
 

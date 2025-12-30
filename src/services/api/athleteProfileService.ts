@@ -1,9 +1,6 @@
 // Athlete profile service for managing athlete onboarding data
-import { COLLECTIONS } from '../../constants/firebase';
-import { db } from '../../lib/firebase';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from '../../lib/supabase';
 import { Sport, Position, Subcategory, AthleteProfile } from '../../features/athlete-onboarding/store/onboardingStore';
-import { retryFirebaseOperation } from '../../utils/network/retryUtils';
 
 /**
  * Athlete profile data for creation
@@ -23,12 +20,11 @@ type UpdateAthleteProfileData = Partial<Omit<AthleteProfile, 'completedOnboardin
 
 /**
  * Athlete profile service providing business logic for athlete profile operations
- * Note: This service doesn't extend BaseService since AthleteProfile is embedded within User documents
  */
 class AthleteProfileService {
 
   /**
-   * Create or update athlete profile data within user document
+   * Create or update athlete profile data in Supabase
    */
   async createAthleteProfile(data: CreateAthleteProfileData): Promise<AthleteProfile> {
     const { userId, sports, position, subcategory, specializations } = data;
@@ -47,154 +43,159 @@ class AthleteProfileService {
       onboardingCompletedAt: new Date()
     };
 
-    // Use retry mechanism for Firebase operation
-    return await retryFirebaseOperation(async () => {
-      // Extract denormalized fields for efficient querying
-      const sportIds = sports.map(sport => sport.id);
-      const sportDetails = sports.map(sport => ({
-        id: sport.id,
-        name: sport.name,
-        icon: sport.icon
-      }));
+    try {
+      // 1. Get the Supabase UUID from Firebase UID (if userId is Firebase UID)
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('uid', userId)
+        .single();
 
-      // Extract event types from specializations and subcategory
-      const eventTypes: string[] = [];
-      if (subcategory && subcategory.id) {
-        eventTypes.push(subcategory.id);
-      }
-      Object.values(specializations).forEach(value => {
-        if (value && !eventTypes.includes(value)) {
-          eventTypes.push(value);
-        }
-      });
+      if (userError || !userData) throw new Error('User not found in Supabase');
+      const supabaseUuid = userData.id;
 
-      const specializationValues = Object.values(specializations).filter(v => v);
+      // 2. Insert/Update into athletes table
+      const { error: athleteError } = await supabase
+        .from('athletes')
+        .upsert({
+          user_id: supabaseUuid,
+          sports: sports.map(s => s.id),
+          position: position.id,
+          position_name: position.name,
+          player_type: subcategory.name,
+          stats: {
+            subcategory,
+            specializations,
+            onboardingCompletedAt: athleteProfile.onboardingCompletedAt
+          }
+        });
 
-      // Update user document with both nested profile and denormalized fields
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      await updateDoc(userRef, {
-        // Nested athlete profile (kept for compatibility)
-        athleteProfile,
+      if (athleteError) throw athleteError;
 
-        // Denormalized fields for efficient querying
-        role: 'athlete',
-        sports: sportIds,
-        sportDetails: sportDetails,
-        eventTypes: eventTypes,
-        position: position.id,
-        positionName: position.name,
-        subcategory: subcategory?.id || null,
-        subcategoryName: subcategory?.name || null,
-        playerType: subcategory?.name || null, // Save subcategory as playerType for profile display
-        specializations: specializationValues,
-
-        updatedAt: serverTimestamp(),
-      });console.log('📊 Indexed fields:', {
-        sports: sportIds,
-        eventTypes,
-        position: position.id,
-        subcategory: subcategory?.id
-      });
+      // 3. Update users table with role
+      await supabase
+        .from('users')
+        .update({ role: 'athlete', updated_at: new Date().toISOString() })
+        .eq('id', supabaseUuid);
 
       return athleteProfile;
-    }, 'Create athlete profile');
+    } catch (error) {
+      console.error('❌ Error creating athlete profile:', error);
+      throw error;
+    }
   }
 
   /**
-   * Get athlete profile by user ID
+   * Get athlete profile by user ID (Firebase UID)
    */
   async getAthleteProfile(userId: string): Promise<AthleteProfile | null> {
-    return await retryFirebaseOperation(async () => {
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      const userDoc = await getDoc(userRef);
-      
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const athleteProfile = userData.athleteProfile as AthleteProfile;
-        
-        if (athleteProfile) {return athleteProfile;
-        } else {
-          console.warn('⚠️ No athlete profile found for user:', userId);
-          return null;
-        }
-      } else {
-        console.warn('⚠️ User document not found:', userId);
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          id,
+          athletes (*)
+        `)
+        .eq('uid', userId)
+        .single();
+
+      if (error || !data || !data.athletes) {
+        console.warn('⚠️ No athlete profile found for user:', userId);
         return null;
       }
-    }, 'Get athlete profile');
+
+      // Handle potential array response for joined table
+      const athleteRecord = Array.isArray(data.athletes) ? data.athletes[0] : data.athletes;
+      
+      if (!athleteRecord) return null;
+
+      const stats = athleteRecord.stats || {};
+
+      return {
+        sports: (athleteRecord.sports || []).map((id: string) => ({ 
+          id, 
+          name: '', // We don't have sport names stored in basic column, ideally fetch from separate sports table or config
+          icon: '',
+          image: '',
+          description: ''
+        })), 
+        position: { 
+          id: athleteRecord.position, 
+          name: athleteRecord.position_name,
+          description: '' 
+        },
+        subcategory: stats.subcategory || { id: '', name: athleteRecord.player_type },
+        specializations: stats.specializations || {},
+        completedOnboarding: true,
+        onboardingCompletedAt: stats.onboardingCompletedAt ? new Date(stats.onboardingCompletedAt) : null
+      } as AthleteProfile;
+    } catch (error) {
+      console.error('❌ Error getting athlete profile:', error);
+      return null;
+    }
   }
 
   /**
    * Update athlete profile data
    */
   async updateAthleteProfile(userId: string, updateData: UpdateAthleteProfileData): Promise<AthleteProfile> {
-    // Get current athlete profile first (this already has retry logic)
     const currentProfile = await this.getAthleteProfile(userId);
     if (!currentProfile) {
       throw new Error('Athlete profile not found for user: ' + userId);
     }
 
-    // Merge update data with current profile
-    const updatedProfile: AthleteProfile = {
-      ...currentProfile,
-      ...updateData,
-      // Preserve completion status and timestamp
-      completedOnboarding: currentProfile.completedOnboarding,
-      onboardingCompletedAt: currentProfile.onboardingCompletedAt
-    };
+    try {
+      const { data: userData } = await supabase.from('users').select('id').eq('uid', userId).single();
+      if (!userData) throw new Error('User not found');
 
-    // Use retry mechanism for the update operation
-    return await retryFirebaseOperation(async () => {
-      // Prepare denormalized fields
-      const denormalizedUpdate: any = {
-        athleteProfile: updatedProfile,
-        updatedAt: serverTimestamp(),
+      const dbUpdate: any = {};
+      const statsUpdate: any = {};
+
+      if (updateData.sports) {
+        dbUpdate.sports = updateData.sports.map(s => s.id);
+      }
+      if (updateData.position) {
+        dbUpdate.position = updateData.position.id;
+        dbUpdate.position_name = updateData.position.name;
+      }
+      if (updateData.subcategory) {
+        dbUpdate.player_type = updateData.subcategory.name;
+        statsUpdate.subcategory = updateData.subcategory;
+      }
+      if (updateData.specializations) {
+        statsUpdate.specializations = updateData.specializations;
+      }
+
+      if (Object.keys(statsUpdate).length > 0) {
+        const { data: currentAthleteData } = await supabase
+          .from('athletes')
+          .select('stats')
+          .eq('user_id', userData.id)
+          .single();
+        
+        const currentStats = currentAthleteData?.stats || {};
+        dbUpdate.stats = { ...currentStats, ...statsUpdate };
+      }
+
+      if (Object.keys(dbUpdate).length > 0) {
+        const { error } = await supabase
+          .from('athletes')
+          .update(dbUpdate)
+          .eq('user_id', userData.id);
+
+        if (error) throw error;
+      }
+
+      const updatedProfile: AthleteProfile = {
+        ...currentProfile,
+        ...updateData,
       };
 
-      // Update denormalized fields if sports were updated
-      if (updatedProfile.sports && updatedProfile.sports.length > 0) {
-        denormalizedUpdate.sports = updatedProfile.sports.map(sport => sport.id);
-        denormalizedUpdate.sportDetails = updatedProfile.sports.map(sport => ({
-          id: sport.id,
-          name: sport.name,
-          icon: sport.icon
-        }));
-      }
-
-      // Update position fields
-      if (updatedProfile.position) {
-        denormalizedUpdate.position = updatedProfile.position.id;
-        denormalizedUpdate.positionName = updatedProfile.position.name;
-      }
-
-      // Update subcategory fields
-      if (updatedProfile.subcategory) {
-        denormalizedUpdate.subcategory = updatedProfile.subcategory.id;
-        denormalizedUpdate.subcategoryName = updatedProfile.subcategory.name;
-        denormalizedUpdate.playerType = updatedProfile.subcategory.name; // Save subcategory as playerType for profile display
-      }
-
-      // Update event types and specializations
-      if (updatedProfile.specializations || updatedProfile.subcategory) {
-        const eventTypes: string[] = [];
-        if (updatedProfile.subcategory?.id) {
-          eventTypes.push(updatedProfile.subcategory.id);
-        }
-        if (updatedProfile.specializations) {
-          Object.values(updatedProfile.specializations).forEach(value => {
-            if (value && !eventTypes.includes(value)) {
-              eventTypes.push(value);
-            }
-          });
-        }
-        denormalizedUpdate.eventTypes = eventTypes;
-        denormalizedUpdate.specializations = Object.values(updatedProfile.specializations || {}).filter(v => v);
-      }
-
-      // Update user document
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      await updateDoc(userRef, denormalizedUpdate);return updatedProfile;
-    }, 'Update athlete profile');
+      return updatedProfile;
+    } catch (error) {
+      console.error('❌ Error updating athlete profile:', error);
+      throw error;
+    }
   }
 
   /**
@@ -202,8 +203,8 @@ class AthleteProfileService {
    */
   async hasCompletedOnboarding(userId: string): Promise<boolean> {
     try {
-      const athleteProfile = await this.getAthleteProfile(userId);
-      return athleteProfile?.completedOnboarding || false;
+      const profile = await this.getAthleteProfile(userId);
+      return !!profile;
     } catch (error) {
       console.error('❌ Error checking onboarding completion:', error);
       return false;
@@ -216,38 +217,16 @@ class AthleteProfileService {
   validateAthleteProfile(profile: Partial<AthleteProfile>): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    // Validate sports
     if (!profile.sports || profile.sports.length === 0) {
       errors.push('At least one sport is required');
-    } else {
-      profile.sports.forEach((sport, index) => {
-        if (!sport.id || !sport.name) {
-          errors.push(`Sport ${index + 1} must have valid id and name`);
-        }
-      });
     }
 
-    // Validate position
     if (!profile.position) {
       errors.push('Position is required');
-    } else {
-      if (!profile.position.id || !profile.position.name) {
-        errors.push('Position must have valid id and name');
-      }
     }
 
-    // Validate subcategory
     if (!profile.subcategory) {
       errors.push('Subcategory is required');
-    } else {
-      if (!profile.subcategory.id || !profile.subcategory.name) {
-        errors.push('Subcategory must have valid id and name');
-      }
-    }
-
-    // Validate specializations (optional but should be object if present)
-    if (profile.specializations && typeof profile.specializations !== 'object') {
-      errors.push('Specializations must be an object');
     }
 
     return {
@@ -257,28 +236,36 @@ class AthleteProfileService {
   }
 
   /**
-   * Get athlete profiles by sport (for analytics/matching)
-   * Now uses efficient indexed queries on denormalized fields
+   * Get athlete profiles by sport
    */
   async getAthletesBySport(sportId: string, limitCount: number = 50): Promise<AthleteProfile[]> {
-    try {const { query, where, collection, getDocs, limit: firestoreLimit } = await import('firebase/firestore');
+    try {
+      const { data, error } = await supabase
+        .from('athletes')
+        .select('*')
+        .contains('sports', [sportId])
+        .limit(limitCount);
 
-      const q = query(
-        collection(db, COLLECTIONS.USERS),
-        where('role', '==', 'athlete'),
-        where('sports', 'array-contains', sportId),
-        firestoreLimit(limitCount)
-      );
+      if (error) throw error;
 
-      const snapshot = await getDocs(q);
-      const profiles: AthleteProfile[] = [];
-
-      snapshot.forEach((doc) => {
-        const userData = doc.data();
-        if (userData.athleteProfile) {
-          profiles.push(userData.athleteProfile as AthleteProfile);
-        }
-      });return profiles;
+      return (data || []).map(athlete => ({
+        sports: (athlete.sports || []).map((id: string) => ({ 
+          id, 
+          name: '',
+          icon: '',
+          image: '',
+          description: ''
+        })),
+        position: { 
+          id: athlete.position, 
+          name: athlete.position_name,
+          description: '' 
+        },
+        subcategory: athlete.stats?.subcategory || { id: '', name: athlete.player_type },
+        specializations: athlete.stats?.specializations || {},
+        completedOnboarding: true,
+        onboardingCompletedAt: athlete.stats?.onboardingCompletedAt ? new Date(athlete.stats.onboardingCompletedAt) : null
+      }));
     } catch (error) {
       console.error('❌ Error getting athletes by sport:', error);
       throw error;
@@ -286,8 +273,7 @@ class AthleteProfileService {
   }
 
   /**
-   * Advanced athlete search with multiple filters
-   * Uses denormalized fields for efficient querying
+   * Search athletes with filters
    */
   async searchAthletes(filters: {
     sportId?: string;
@@ -295,54 +281,41 @@ class AthleteProfileService {
     position?: string;
     subcategory?: string;
     limit?: number;
-  }): Promise<Array<{ userId: string; profile: AthleteProfile; user: any }>> {
-    try {const { query, where, collection, getDocs, limit: firestoreLimit } = await import('firebase/firestore');
+  }): Promise<any[]> {
+    try {
+      let query = supabase.from('athletes').select('*, users(*)');
 
-      // Build query constraints
-      const constraints: any[] = [where('role', '==', 'athlete')];
+      if (filters.sportId) query = query.contains('sports', [filters.sportId]);
+      if (filters.position) query = query.eq('position', filters.position);
+      if (filters.limit) query = query.limit(filters.limit);
 
-      if (filters.sportId) {
-        constraints.push(where('sports', 'array-contains', filters.sportId));
-      }
+      const { data, error } = await query;
+      if (error) throw error;
 
-      if (filters.eventType) {
-        constraints.push(where('eventTypes', 'array-contains', filters.eventType));
-      }
-
-      if (filters.position) {
-        constraints.push(where('position', '==', filters.position));
-      }
-
-      if (filters.subcategory) {
-        constraints.push(where('subcategory', '==', filters.subcategory));
-      }
-
-      constraints.push(firestoreLimit(filters.limit || 50));
-
-      const q = query(collection(db, COLLECTIONS.USERS), ...constraints);
-      const snapshot = await getDocs(q);
-
-      const results: Array<{ userId: string; profile: AthleteProfile; user: any }> = [];
-
-      snapshot.forEach((doc) => {
-        const userData = doc.data();
-        if (userData.athleteProfile) {
-          results.push({
-            userId: doc.id,
-            profile: userData.athleteProfile as AthleteProfile,
-            user: userData
-          });
-        }
-      });return results;
-    } catch (error: any) {
+      return (data || []).map(item => ({
+        userId: (item.users as any).uid,
+        profile: {
+          sports: item.sports.map((id: string) => ({ 
+            id, 
+            name: '',
+            icon: '',
+            image: '',
+            description: ''
+          })),
+          position: { 
+            id: item.position, 
+            name: item.position_name,
+            description: '' 
+          },
+          subcategory: item.stats?.subcategory || { id: '', name: item.player_type },
+          specializations: item.stats?.specializations || {},
+          completedOnboarding: true,
+          onboardingCompletedAt: item.stats?.onboardingCompletedAt ? new Date(item.stats.onboardingCompletedAt) : null
+        },
+        user: item.users
+      }));
+    } catch (error) {
       console.error('❌ Error searching athletes:', error);
-
-      // Check if it's an index error
-      if (error.code === 'failed-precondition' || error.message?.includes('index')) {
-        console.error('🚨 Missing Firestore index! Please create the required indexes.');
-        console.error('📝 Run: firebase deploy --only firestore:indexes');
-      }
-
       throw error;
     }
   }
@@ -352,11 +325,16 @@ class AthleteProfileService {
    */
   async deleteAthleteProfile(userId: string): Promise<boolean> {
     try {
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      await updateDoc(userRef, {
-        athleteProfile: null,
-        updatedAt: serverTimestamp(),
-      });return true;
+      const { data: userData } = await supabase.from('users').select('id').eq('uid', userId).single();
+      if (!userData) return false;
+
+      const { error } = await supabase
+        .from('athletes')
+        .delete()
+        .eq('user_id', userData.id);
+
+      if (error) throw error;
+      return true;
     } catch (error) {
       console.error('❌ Error deleting athlete profile:', error);
       throw error;

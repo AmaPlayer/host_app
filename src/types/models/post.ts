@@ -67,6 +67,7 @@ export interface Post {
   sharesCount: number;
   shareCount?: number;
   shareMetadata?: ShareMetadata;
+  metadata?: any;
   visibility: PostVisibility;
   location?: string;
   tags?: string[];

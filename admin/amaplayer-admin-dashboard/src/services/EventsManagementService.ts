@@ -1,8 +1,4 @@
-/**
- * Events Management Service
- * Handles event-related operations for admin dashboard
- */
-
+import { supabase } from '../lib/supabase';
 import { Event } from '../types/models';
 
 export interface BulkEventOperationResult {
@@ -17,8 +13,16 @@ export class EventsManagementService {
    */
   async activateEvent(eventId: string, reason?: string): Promise<void> {
     try {
-      console.log(`Activating event ${eventId} with reason: ${reason}`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { error } = await supabase
+        .from('events')
+        .update({
+          is_active: true,
+          status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', eventId);
+
+      if (error) throw error;
     } catch (error) {
       throw new Error(`Failed to activate event: ${error}`);
     }
@@ -28,25 +32,19 @@ export class EventsManagementService {
    * Bulk activate events
    */
   async bulkActivateEvents(eventIds: string[], reason?: string): Promise<BulkEventOperationResult> {
-    const result: BulkEventOperationResult = {
-      processedCount: 0,
-      failedCount: 0,
-      errors: []
-    };
-
-    for (const eventId of eventIds) {
-      try {
-        await this.activateEvent(eventId, reason);
-        result.processedCount++;
-      } catch (error) {
-        result.failedCount++;
-        result.errors.push({
-          eventId,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
+    const result: BulkEventOperationResult = { processedCount: 0, failedCount: 0, errors: [] };
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({ is_active: true, status: 'active' })
+        .in('id', eventIds);
+      
+      if (error) throw error;
+      result.processedCount = eventIds.length;
+    } catch (error: any) {
+      result.failedCount = eventIds.length;
+      result.errors.push({ eventId: 'batch', error: error.message });
     }
-
     return result;
   }
 
@@ -55,8 +53,16 @@ export class EventsManagementService {
    */
   async deactivateEvent(eventId: string, reason?: string): Promise<void> {
     try {
-      console.log(`Deactivating event ${eventId} with reason: ${reason}`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { error } = await supabase
+        .from('events')
+        .update({
+          is_active: false,
+          status: 'inactive',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', eventId);
+
+      if (error) throw error;
     } catch (error) {
       throw new Error(`Failed to deactivate event: ${error}`);
     }
@@ -66,25 +72,19 @@ export class EventsManagementService {
    * Bulk deactivate events
    */
   async bulkDeactivateEvents(eventIds: string[], reason?: string): Promise<BulkEventOperationResult> {
-    const result: BulkEventOperationResult = {
-      processedCount: 0,
-      failedCount: 0,
-      errors: []
-    };
-
-    for (const eventId of eventIds) {
-      try {
-        await this.deactivateEvent(eventId, reason);
-        result.processedCount++;
-      } catch (error) {
-        result.failedCount++;
-        result.errors.push({
-          eventId,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
+    const result: BulkEventOperationResult = { processedCount: 0, failedCount: 0, errors: [] };
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({ is_active: false, status: 'inactive' })
+        .in('id', eventIds);
+      
+      if (error) throw error;
+      result.processedCount = eventIds.length;
+    } catch (error: any) {
+      result.failedCount = eventIds.length;
+      result.errors.push({ eventId: 'batch', error: error.message });
     }
-
     return result;
   }
 
@@ -93,9 +93,14 @@ export class EventsManagementService {
    */
   async getEventById(eventId: string): Promise<Event | null> {
     try {
-      console.log(`Fetching event ${eventId}`);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return null; // Placeholder
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+
+      if (error) return null;
+      return this.mapToModel(data);
     } catch (error) {
       throw new Error(`Failed to fetch event: ${error}`);
     }
@@ -106,9 +111,18 @@ export class EventsManagementService {
    */
   async updateEvent(eventId: string, updates: Partial<Event>): Promise<Event> {
     try {
-      console.log(`Updating event ${eventId}`, updates);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      throw new Error('Not implemented');
+      const { data, error } = await supabase
+        .from('events')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', eventId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return this.mapToModel(data);
     } catch (error) {
       throw new Error(`Failed to update event: ${error}`);
     }
@@ -119,41 +133,34 @@ export class EventsManagementService {
    */
   async getAllEvents(): Promise<Event[]> {
     try {
-      // Mock events data
-      return [
-        {
-          id: '1',
-          title: 'Basketball Tournament',
-          description: 'Annual basketball tournament',
-          date: new Date(),
-          location: 'Sports Center',
-          category: 'Tournament',
-          status: 'upcoming',
-          priority: 'high',
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          id: '2',
-          title: 'Soccer Championship',
-          description: 'Regional soccer championship',
-          date: new Date(),
-          location: 'Stadium',
-          category: 'Tournament',
-          status: 'upcoming',
-          priority: 'high',
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ];
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return (data || []).map(this.mapToModel);
     } catch (error) {
       throw new Error(`Failed to get all events: ${error}`);
     }
   }
+
+  private mapToModel(data: any): Event {
+    return {
+      id: data.id,
+      title: data.title,
+      description: data.description,
+      date: new Date(data.date),
+      location: data.location,
+      category: data.category,
+      status: data.status,
+      priority: data.priority || 'medium',
+      isActive: data.is_active,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    };
+  }
 }
 
-// Create singleton instance
 export const eventsManagementService = new EventsManagementService();
 export default eventsManagementService;

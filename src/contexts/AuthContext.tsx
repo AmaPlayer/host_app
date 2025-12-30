@@ -53,23 +53,11 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
   const [loading, setLoading] = useState<boolean>(true);
   const redirectCheckRef = useRef(false);
 
-  // Test Firebase connection
-  async function testFirebaseConnection(): Promise<boolean> {
-    try {// Test anonymous sign-in to verify Firebase is working
-      const result = await signInAnonymously(auth);// Sign out the anonymous user immediately
-      await signOut(auth);return true;
-    } catch (error: any) {
-      console.error('❌ Firebase connection test failed:', error);
-      return false;
-    }
-  }
 
   async function signup(email: string, password: string, displayName: string): Promise<void> {
-    try {// Test Firebase connection firstconst connectionTest = await testFirebaseConnection();
-      if (!connectionTest) {
-        // Run full diagnostics if connection test failsawait runFirebaseDiagnostics();
-        throw new Error('Unable to connect to Firebase. Please check your internet connection and try again.');
-      }console.log('📝 Display name:', displayName);// Validate inputs before sending to Firebase
+    try {
+      console.log('📝 Display name:', displayName);
+      // Validate inputs before sending to Firebase
       if (!email || !email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
@@ -82,10 +70,13 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
         throw new Error('Display name must be at least 2 characters long');
       }
       
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);await updateProfile(userCredential.user, { displayName: displayName.trim() });// Initialize language preference for new user (async, non-blocking)
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+await updateProfile(userCredential.user, { displayName: displayName.trim() });
+// Initialize language preference for new user (async, non-blocking)
       try {
         const browserDefault = languagePersistenceService.getBrowserDefaultLanguage();
-        await languagePersistenceService.saveLanguagePreference(userCredential.user.uid, browserDefault);} catch (langError) {
+        await languagePersistenceService.saveLanguagePreference(userCredential.user.uid, browserDefault);
+} catch (langError) {
         console.warn('⚠️ Could not initialize language preference for new user:', langError);
         // Don't throw - this shouldn't block signup
       }
@@ -138,7 +129,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
       // Attempt to sign in with email and password
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
-      // Log successful login for debugging// Sync language preference from Firestore (async, non-blocking)
+      // Log successful login for debugging
+// Sync language preference from Firestore (async, non-blocking)
       // This allows the user to be logged in immediately while language syncs in background
       try {
         const storedLanguage = languagePersistenceService.getLocalStorageLanguage();
@@ -148,7 +140,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
         if (firestoreLanguage && firestoreLanguage !== storedLanguage) {
           localStorage.setItem('selectedLanguage', firestoreLanguage);
           // Dispatch custom event so LanguageContext can listen for sync
-          window.dispatchEvent(new CustomEvent('languageSynced', { detail: { language: firestoreLanguage } }));}
+          window.dispatchEvent(new CustomEvent('languageSynced', { detail: { language: firestoreLanguage } }));
+}
       } catch (langError) {
         console.warn('⚠️ Could not sync language preference from Firestore:', langError);
         // Non-critical error - don't throw
@@ -178,14 +171,17 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
     provider.addScope('profile');
     provider.setCustomParameters({
       prompt: 'select_account'
-    });try {
+    });
+try {
       // Use popup method - simpler, no redirect issues
-      const result = await signInWithPopup(auth, provider);return result;
+      const result = await signInWithPopup(auth, provider);
+return result;
     } catch (error: any) {
       console.error('❌ Error with Google popup:', error);
 
       // Check if the error is due to account already existing with different credential
-      if (error.code === 'auth/account-exists-with-different-credential') {// Attach the credential and email to the error so UI can handle it
+      if (error.code === 'auth/account-exists-with-different-credential') {
+// Attach the credential and email to the error so UI can handle it
         error.credential = GoogleAuthProvider.credentialFromError(error);
         error.email = error.customData?.email;
       }
@@ -209,9 +205,11 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
     provider.addScope('profile');
     provider.setCustomParameters({
       prompt: 'select_account'
-    });try {
+    });
+try {
       // Sign in with Google popup (not linking, just reauthentication)
-      const result = await signInWithPopup(auth, provider);return currentUser; // Return the current authenticated user
+      const result = await signInWithPopup(auth, provider);
+return currentUser; // Return the current authenticated user
     } catch (error: any) {
       console.error('❌ Google reauthentication failed:', error);
 
@@ -259,7 +257,9 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
       throw new Error('No user is currently signed in');
     }
 
-    try {const result = await linkWithCredential(currentUser, credential);return result;
+    try {
+const result = await linkWithCredential(currentUser, credential);
+return result;
     } catch (error) {
       console.error('❌ Error linking Google account:', error);
       throw error;
@@ -271,8 +271,12 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
    * Used when user tries Google login but already has email/password account
    */
   async function signInAndLinkGoogle(email: string, password: string, googleCredential: AuthCredential): Promise<UserCredential> {
-    try {// First, sign in with email/password
-      const userCred = await signInWithEmailAndPassword(auth, email, password);// Then link the Google credentialconst result = await linkWithCredential(userCred.user, googleCredential);return result;
+    try {
+// First, sign in with email/password
+      const userCred = await signInWithEmailAndPassword(auth, email, password);
+// Then link the Google credential
+const result = await linkWithCredential(userCred.user, googleCredential);
+return result;
     } catch (error) {
       console.error('❌ Error signing in and linking Google:', error);
       throw error;
@@ -299,9 +303,11 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
 
     const provider = new OAuthProvider('apple.com');
     provider.addScope('email');
-    provider.addScope('name');try {
+    provider.addScope('name');
+try {
       // Sign in with Apple popup (not linking, just reauthentication)
-      const result = await signInWithPopup(auth, provider);return currentUser; // Return the current authenticated user
+      const result = await signInWithPopup(auth, provider);
+return currentUser; // Return the current authenticated user
     } catch (error: any) {
       console.error('❌ Apple reauthentication failed:', error);
 
@@ -331,7 +337,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
     // Clear ALL redirect flags on logout, but PRESERVE language preference
     localStorage.removeItem('googleRedirectPending');
     localStorage.removeItem('googleRedirectStartedAt');
-    localStorage.removeItem('googleRedirectCheckDone');// Note: language preference in localStorage is preserved intentionally
+    localStorage.removeItem('googleRedirectCheckDone');
+// Note: language preference in localStorage is preserved intentionally
     // so user maintains their language choice after logout
     return signOut(auth);
   }
@@ -344,18 +351,22 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
     await updateProfile(currentUser, profileData);
     // Force refresh the current user to get updated profile
     await currentUser.reload();
-    setCurrentUser({ ...currentUser });return currentUser;
+    setCurrentUser({ ...currentUser });
+return currentUser;
   }
 
   function refreshAuth(): void {
     if (currentUser) {
       currentUser.reload().then(() => {
-        setCurrentUser({ ...currentUser });});
+        setCurrentUser({ ...currentUser });
+});
     }
   }
 
   useEffect(() => {
-    // Using popup method now, no need to check for redirect resultsconst unsubscribe = onAuthStateChanged(auth, async (user) => {setCurrentUser(user);
+    // Using popup method now, no need to check for redirect results
+const unsubscribe = onAuthStateChanged(auth, async (user) => {
+setCurrentUser(user);
       setLoading(false);
 
       // Load user profile from role-specific collections and store role
@@ -387,7 +398,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
 
         if (isAuthenticatedPage) {
           try {
-            await notificationService.initialize(user.uid);} catch (error: unknown) {
+            await notificationService.initialize(user.uid);
+} catch (error: unknown) {
             const err = error instanceof Error ? error : new Error(String(error));
             errorHandler.logError(err, 'Auth-NotificationInit', 'warning', {
               userId: user.uid,
@@ -434,7 +446,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
         throw new Error('No authenticated user');
       }
       
-      await currentUser.getIdToken(true);} catch (error) {
+      await currentUser.getIdToken(true);
+} catch (error) {
       authErrorHandler.logAuthError(error, 'AuthContext-RefreshToken');
       throw error;
     }
@@ -488,7 +501,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
         }
 
         try {
-          await updatePassword(currentUser, newPassword);return {
+          await updatePassword(currentUser, newPassword);
+return {
             success: true,
             suggestedAction: hasEmailProvider ?
               'Password updated successfully' :
@@ -556,7 +570,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
           await reauthenticateWithCredential(currentUser, credential);
 
           // Step 2: Update to new password
-          await updatePassword(currentUser, newPassword);return {
+          await updatePassword(currentUser, newPassword);
+return {
             success: true,
             suggestedAction: 'Password updated successfully'
           };
@@ -621,7 +636,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
 
   async function resetPassword(email: string): Promise<void> {
     try {
-      await sendPasswordResetEmail(auth, email);} catch (error: unknown) {
+      await sendPasswordResetEmail(auth, email);
+} catch (error: unknown) {
       authErrorHandler.logAuthError(error, 'AuthContext-ResetPassword', { email });
       throw error;
     }
@@ -665,7 +681,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
 
       // Handle OAuth-based verification (Google or Apple)
       if (oauthProvider) {
-        try {// Reauthenticate with appropriate OAuth provider
+        try {
+// Reauthenticate with appropriate OAuth provider
           if (oauthProvider === 'google.com') {
             await reauthenticateWithGoogle();
           } else if (oauthProvider === 'apple.com') {
@@ -679,7 +696,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
           }
 
           // After successful OAuth reauthentication, update password
-          await updatePassword(currentUser, newPassword);return {
+          await updatePassword(currentUser, newPassword);
+return {
             success: true,
             suggestedAction: 'Password updated successfully. You can now use your new password to log in.'
           };

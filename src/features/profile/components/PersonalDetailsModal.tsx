@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Save, User } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
@@ -61,8 +61,8 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
     roleConfig.editableFields.forEach(field => {
       const value = formData[field as keyof PersonalDetails];
 
-      if (field === 'name' && (!value || String(value).trim() === '')) {
-        newErrors[field] = 'Name is required';
+      if (field === 'username' && (!value || String(value).trim() === '')) {
+        newErrors[field] = 'Username is required';
       }
 
       if ((field === 'email' || field === 'contactEmail') && value && String(value).trim() !== '') {
@@ -81,52 +81,70 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Function to check if name is unique
-  const checkNameUnique = async (name: string): Promise<boolean> => {
+  // Function to check if username is unique
+  const checkUsernameUnique = async (username: string): Promise<boolean> => {
     try {
       setIsCheckingName(true);
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('name', '==', name.trim()));
+      const q = query(usersRef, where('username', '==', username.trim().toLowerCase()));
       const querySnapshot = await getDocs(q);
 
-      // If no results, name is unique
+      // If no results, username is unique
       if (querySnapshot.empty) {
         return true;
       }
 
-      // If results exist, check if it's the current user's own name
+      // If results exist, check if it's the current user's own username
       for (const docSnap of querySnapshot.docs) {
         if (docSnap.id !== currentUser?.uid) {
-          return false; // Name is taken by another user
+          return false; // Username is taken by another user
         }
       }
 
-      return true; // It's the user's own current name
+      return true; // It's the user's own current username
     } catch (error) {
-      console.error('Error checking name uniqueness:', error);
+      console.error('Error checking username uniqueness:', error);
       return false;
     } finally {
       setIsCheckingName(false);
     }
   };
 
+  // Function to validate that name and username are different
+  const validateNameAndUsername = useCallback((): boolean => {
+    if (formData.name && formData.username &&
+        formData.name.toLowerCase().trim() === formData.username.toLowerCase().trim()) {
+      setErrors(prev => ({
+        ...prev,
+        name: 'Display name should be different from username'
+      }));
+      return false;
+    }
+    return true;
+  }, [formData.name, formData.username]);
+
   const handleSave = async () => {
     if (!validateForm()) {
       return;
     }
 
-    // Check if name has changed
-    const newName = formData.name?.trim() || '';
-    const currentName = personalDetails.name?.trim() || '';
-    const nameHasChanged = newName !== currentName;
+    // Validate that name and username are different
+    if (!validateNameAndUsername()) {
+      return;
+    }
 
-    // If name has changed, check if it's unique
-    if (nameHasChanged && newName) {
-      const isUnique = await checkNameUnique(newName);
+    // Check if username has changed
+    const newUsername = formData.username?.trim().toLowerCase() || '';
+    const currentUsername = personalDetails.username?.trim().toLowerCase() || '';
+    const usernameHasChanged = newUsername !== currentUsername;
+
+    // If username has changed, check if it's unique
+    if (usernameHasChanged && newUsername) {
+      const isUnique = await checkUsernameUnique(newUsername);
       if (!isUnique) {
         setErrors(prev => ({
           ...prev,
-          name: 'This name is already taken by another user. Please choose a different name.'
+          username: 'This username is already taken by another user. Please choose a different username.'
         }));
         return;
       }
@@ -150,7 +168,8 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
 
   const getFieldLabel = (field: string): string => {
     const labels: Record<string, string> = {
-      name: 'Name',
+      name: 'Full Name',
+      username: 'Username',
       dateOfBirth: 'Date of Birth',
       gender: 'Gender',
       mobile: 'Mobile',
@@ -179,6 +198,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
   const getFieldPlaceholder = (field: string): string => {
     const placeholders: Record<string, string> = {
       name: 'Enter your full name',
+      username: 'Enter your username',
       dateOfBirth: 'YYYY-MM-DD',
       mobile: 'Enter your mobile number',
       email: 'Enter your email address',
@@ -369,7 +389,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
                   <div key={field} className="form-field">
                     <label htmlFor={field} className="form-label">
                       {getFieldLabel(field)}
-                      {field === 'name' && <span className="required">*</span>}
+                      {field === 'username' && <span className="required">*</span>}
                     </label>
                     
                     {renderFormInput(field, value, error)}

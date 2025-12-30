@@ -115,31 +115,6 @@ const CoachingInfoSection: React.FC<CoachingInfoSectionProps> = ({
           </div>
         )}
       </div>
-
-      {hasCoachingInfo && (
-        <div className="coaching-summary">
-          <div className="summary-stats">
-            <div className="stat-item">
-              <span className="stat-number">
-                {personalDetails.yearsExperience || 0}
-              </span>
-              <span className="stat-label">Years Experience</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-number">
-                {specializations.length}
-              </span>
-              <span className="stat-label">Specializations</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-number">
-                {personalDetails.coachingLevel ? '1' : '0'}
-              </span>
-              <span className="stat-label">Certification Level</span>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 };

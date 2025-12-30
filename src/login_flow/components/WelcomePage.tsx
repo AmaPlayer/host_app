@@ -35,22 +35,7 @@ const WelcomePage: React.FC = () => {
   }, [lastScrollY]);
 
   const handleLetsPlayClick = (): void => {
-    navigate('/athlete-onboarding/sport');
-  };
-
-  const handleLoginClick = (): void => {
-    navigate('/login');
-  };
-
-  // Handle role-specific navigation
-  const handleRoleClick = (roleId: string): void => {
-    if (roleId === 'athlete') {
-      // Athletes go to onboarding flow
-      navigate('/athlete-onboarding/sport');
-    } else {
-      // Other roles (coach, organization, parent) go to about page first
-      navigate(`/about/${roleId}`);
-    }
+    navigate('/role-selection');
   };
 
   return (
@@ -79,32 +64,9 @@ const WelcomePage: React.FC = () => {
           <button className="login-btn" onClick={handleLetsPlayClick}>
             {t('letsPlay')}
           </button>
-          <button className="secondary-btn" onClick={handleLoginClick}>
-            Login
+          <button className="secondary-btn" onClick={() => navigate('/login')}>
+            {t('login')}
           </button>
-        </div>
-
-        {/* Join for Free Section */}
-        <div className="join-free-section">
-          <h2 className="join-free-title">{t('joinForFree')}</h2>
-          <div className="role-options">
-            <div className="role-option" onClick={() => handleRoleClick('athlete')} style={{ cursor: 'pointer' }}>
-              <div className="role-icon">🏃</div>
-              <h4>{t('athlete')}</h4>
-            </div>
-            <div className="role-option" onClick={() => handleRoleClick('coach')} style={{ cursor: 'pointer' }}>
-              <div className="role-icon">🎯</div>
-              <h4>{t('coach')}</h4>
-            </div>
-            <div className="role-option" onClick={() => handleRoleClick('organization')} style={{ cursor: 'pointer' }}>
-              <div className="role-icon">🏢</div>
-              <h4>{t('organization')}</h4>
-            </div>
-            <div className="role-option" onClick={() => handleRoleClick('parent')} style={{ cursor: 'pointer' }}>
-              <div className="role-icon">👨‍👩‍👧</div>
-              <h4>{t('parent')}</h4>
-            </div>
-          </div>
         </div>
 
         {/* Vision and Mission Section */}

@@ -304,10 +304,22 @@
   letter-spacing: -0.5px;
 }
 
+.profile-handle {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 4px 0 0 0;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
 @media (min-width: 768px) {
   .profile-username {
     font-size: 28px;
     letter-spacing: -0.7px;
+  }
+
+  .profile-handle {
+    font-size: 18px;
   }
 }
 

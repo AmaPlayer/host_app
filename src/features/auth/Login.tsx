@@ -46,6 +46,7 @@ export default function Login() {
     if (role) {
       localStorage.setItem('selectedUserRole', role);
     }
+    // We no longer redirect if role is not present, making login generic
   }, [role]);
 
   // No longer need to check for redirect since we're using popup method
@@ -160,6 +161,7 @@ export default function Login() {
           // Build profile data object, only including fields with values
           const profileData: any = {
             displayName: details.fullName,
+            username: details.username,
             dateOfBirth: details.dateOfBirth,
             gender: details.gender,
             country: details.country,
@@ -409,7 +411,7 @@ export default function Login() {
 
   const handleGoBack = (): void => {
     if (role) {
-      navigate(`/about/${role}`);
+      navigate(`/auth-choice/${role}`);
     } else {
       navigate('/');
     }

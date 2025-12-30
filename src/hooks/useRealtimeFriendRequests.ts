@@ -1,14 +1,6 @@
-// Real-time friend requests hook using Firebase onSnapshot listener
+// Real-time friend requests hook using Supabase and React Query
 import { useEffect, useState, useCallback } from 'react';
-import { db } from '../lib/firebase';
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  Unsubscribe
-} from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { FriendRequest } from '../types/models/friend';
 
 interface UseRealtimeFriendRequestsReturn {
@@ -20,10 +12,10 @@ interface UseRealtimeFriendRequestsReturn {
 }
 
 /**
- * Hook for real-time friend request updates using Firebase listener
- * Automatically syncs when requests are added/accepted/rejected
+ * Hook for fetching friend requests from Supabase
+ * Polling/Subscription replacement for Friend Requests
  *
- * @param userId - Current user's ID
+ * @param userId - Current user's UID (Supabase user.uid column)
  * @returns Object containing incoming/outgoing requests, loading state, error, and refresh function
  */
 export const useRealtimeFriendRequests = (
@@ -34,8 +26,8 @@ export const useRealtimeFriendRequests = (
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Setup listeners for both incoming and outgoing requests
-  useEffect(() => {
+  // Fetch requests
+  const fetchRequests = useCallback(async () => {
     if (!userId) {
       setIncomingRequests([]);
       setOutgoingRequests([]);
@@ -43,124 +35,112 @@ export const useRealtimeFriendRequests = (
       return;
     }
 
-    let unsubscribeIncoming: Unsubscribe | null = null;
-    let unsubscribeOutgoing: Unsubscribe | null = null;
-    let incomingLoaded = false;
-    let outgoingLoaded = false;
-
-    const checkBothLoaded = () => {
-      if (incomingLoaded && outgoingLoaded) {
-        setLoading(false);
-      }
-    };
-
     try {
       setLoading(true);
       setError(null);
 
-      // LISTENER 1: Incoming requests (where I am the recipient)
-      const incomingQuery = query(
-        collection(db, 'friendRequests'),
-        where('recipientId', '==', userId),
-        where('status', '==', 'pending'),
-        orderBy('timestamp', 'desc')
-      );
+      // 1. Get my UUID from my UID
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('uid', userId)
+        .single();
 
-      unsubscribeIncoming = onSnapshot(
-        incomingQuery,
-        (snapshot) => {
-          try {
-            const requests: FriendRequest[] = [];
-            snapshot.forEach((doc) => {
-              requests.push({
-                id: doc.id,
-                ...doc.data()
-              } as FriendRequest);
-            });
-            setIncomingRequests(requests);
-            incomingLoaded = true;
-            checkBothLoaded();
-          } catch (err) {
-            console.error('Error processing incoming requests snapshot:', err);
-            setError('Failed to load incoming friend requests');
-          }
-        },
-        (err) => {
-          console.error('❌ Incoming requests listener error:', err);
-          setError('Failed to load friend requests. Please try again.');
-          incomingLoaded = true;
-          checkBothLoaded();
-        }
-      );
+      if (userError || !userData) throw new Error('User not found');
 
-      // LISTENER 2: Outgoing requests (where I am the requester)
-      const outgoingQuery = query(
-        collection(db, 'friendRequests'),
-        where('requesterId', '==', userId),
-        where('status', '==', 'pending'),
-        orderBy('timestamp', 'desc')
-      );
+      const myUuid = userData.id;
 
-      unsubscribeOutgoing = onSnapshot(
-        outgoingQuery,
-        (snapshot) => {
-          try {
-            const requests: FriendRequest[] = [];
-            snapshot.forEach((doc) => {
-              requests.push({
-                id: doc.id,
-                ...doc.data()
-              } as FriendRequest);
-            });
-            setOutgoingRequests(requests);
-            outgoingLoaded = true;
-            checkBothLoaded();
-          } catch (err) {
-            console.error('Error processing outgoing requests snapshot:', err);
-            setError('Failed to load sent friend requests');
-          }
-        },
-        (err) => {
-          console.error('❌ Outgoing requests listener error:', err);
-          setError('Failed to load sent requests. Please try again.');
-          outgoingLoaded = true;
-          checkBothLoaded();
-        }
-      );
+      // 2. Fetch Incoming Requests (I am receiver)
+      const { data: incoming, error: incomingError } = await supabase
+        .from('friend_requests')
+        .select(`
+          id,
+          created_at,
+          status,
+          sender:sender_id (
+             uid,
+             display_name,
+             photo_url,
+             username
+          )
+        `)
+        .eq('receiver_id', myUuid)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (incomingError) throw incomingError;
+
+      // 3. Fetch Outgoing Requests (I am sender)
+      const { data: outgoing, error: outgoingError } = await supabase
+        .from('friend_requests')
+        .select(`
+          id,
+          created_at,
+          status,
+          receiver:receiver_id (
+             uid,
+             display_name,
+             photo_url,
+             username
+          )
+        `)
+        .eq('sender_id', myUuid)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (outgoingError) throw outgoingError;
+
+      // Map to FriendRequest type
+      const mappedIncoming: FriendRequest[] = (incoming || []).map((req: any) => ({
+        id: req.id,
+        requesterId: req.sender?.uid,
+        requesterName: req.sender?.display_name || req.sender?.username || 'Unknown',
+        requesterPhotoURL: req.sender?.photo_url,
+        recipientId: userId, // me
+        status: req.status,
+        timestamp: req.created_at, // Use created_at as timestamp
+        createdAt: req.created_at
+      } as any));
+
+      const mappedOutgoing: FriendRequest[] = (outgoing || []).map((req: any) => ({
+        id: req.id,
+        requesterId: userId, // me
+        recipientId: req.receiver?.uid,
+        recipientName: req.receiver?.display_name || req.receiver?.username || 'Unknown',
+        recipientPhotoURL: req.receiver?.photo_url,
+        status: req.status,
+        timestamp: req.created_at,
+        createdAt: req.created_at
+      } as any));
+
+      setIncomingRequests(mappedIncoming);
+      setOutgoingRequests(mappedOutgoing);
 
     } catch (err: any) {
-      console.error('❌ Error setting up friend request listeners:', err);
-      setError(err.message || 'Failed to load friend requests');
+      console.error('Error fetching friend requests:', err);
+      setError('Failed to load friend requests');
+    } finally {
       setLoading(false);
     }
-
-    // Cleanup listeners on unmount
-    return () => {
-      if (unsubscribeIncoming) {
-        unsubscribeIncoming();
-      }
-      if (unsubscribeOutgoing) {
-        unsubscribeOutgoing();
-      }
-    };
   }, [userId]);
 
-  // Manual refresh function
-  const refresh = useCallback(() => {
-    setError(null);
-    setLoading(true);
-    // Listeners will automatically re-fetch
-    setTimeout(() => {
-      setLoading(false);
-    }, 500);
-  }, []);
+  // Initial fetch
+  useEffect(() => {
+    fetchRequests();
+
+    // Optional: Setup interval polling or Refetch on focus
+    // For now, fetch once on mount/userId change. 
+    // Realtime subscriptions could be added here later.
+    const interval = setInterval(fetchRequests, 10000); // Poll every 10s
+    return () => clearInterval(interval);
+  }, [fetchRequests]);
 
   return {
     incomingRequests,
     outgoingRequests,
     loading,
     error,
-    refresh
+    refresh: fetchRequests
   };
 };
 

@@ -226,7 +226,7 @@ const RealTimePreview: React.FC<RealTimePreviewProps> = ({
               <h5 className="preview-section-title">Personal Details</h5>
               <div className="preview-details-grid">
                 {roleConfig.editableFields.map(field => {
-                  if (field === 'name') return null; // Skip name as it's in header
+                  if (field === 'username') return null; // Skip username as it's in header
                   
                   const value = personalDetails[field as keyof PersonalDetails];
                   const displayValue = formatFieldValue(field, value);

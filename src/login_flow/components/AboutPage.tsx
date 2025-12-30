@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLanguage } from '@hooks/useLanguage';
 import { TranslationKey } from '../../types/contexts/language';
 import ThemeToggle from '../../components/common/ui/ThemeToggle';
 import LanguageSelector from '../../components/common/forms/LanguageSelector';
 import { SPORTS_CONFIG } from '../../features/athlete-onboarding/data/sportsConfig';
+import { indianStates, getCitiesByState } from '../../features/athlete-onboarding/data/indianLocations';
+import { usernameValidationService } from '../../services/username/usernameValidationService';
 import OrganizationRegistrationForm from './OrganizationRegistrationForm';
 import ParentRegistrationForm from './ParentRegistrationForm';
 import './AboutPage.css';
@@ -26,14 +28,40 @@ const AboutPage: React.FC = () => {
   // Coach professional details form state
   const [coachDetails, setCoachDetails] = useState({
     fullName: '',
+    username: '',
     sport: '',
     yearsOfExperience: '',
     coachingLevel: '',
     certifications: '',
     bio: '',
     phone: '',
-    email: ''
+    email: '',
+    dateOfBirth: '',
+    gender: '',
+    city: '',
+    state: '',
+    country: 'India'
   });
+
+  const [cities, setCities] = useState<string[]>([]);
+
+  // Username validation state (for coach form)
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState<string>('');
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (coachDetails.state) {
+      const stateCities = getCitiesByState(coachDetails.state);
+      setCities(stateCities);
+      if (!stateCities.includes(coachDetails.city)) {
+        setCoachDetails(prev => ({ ...prev, city: '' }));
+      }
+    } else {
+      setCities([]);
+    }
+  }, [coachDetails.state, coachDetails.city]);
 
   const roleInfo: RoleInfoMap = {
     athlete: { 
@@ -67,6 +95,72 @@ const AboutPage: React.FC = () => {
     }));
   };
 
+  // Username validation for coach
+  const checkUsernameAvailability = useCallback(async (username: string) => {
+    if (!username || username.trim().length === 0) {
+      setUsernameAvailable(null);
+      setUsernameError('');
+      setUsernameSuggestions([]);
+      return;
+    }
+
+    setUsernameLoading(true);
+    setUsernameSuggestions([]);
+
+    try {
+      const available = await usernameValidationService.checkUsernameAvailability(username);
+
+      if (!available) {
+        setUsernameError('Username is already taken');
+        const suggestions = await usernameValidationService.suggestAlternativeUsernames(username);
+        setUsernameSuggestions(suggestions);
+      } else {
+        setUsernameError('');
+        setUsernameSuggestions([]);
+      }
+
+      setUsernameAvailable(available);
+    } catch (error) {
+      console.error('Error checking username:', error);
+      setUsernameError('Error checking availability');
+      setUsernameAvailable(false);
+    } finally {
+      setUsernameLoading(false);
+    }
+  }, []);
+
+  const handleUsernameChange = (value: string) => {
+    handleCoachDetailsChange('username', value);
+
+    // Format validation (instant)
+    const formatResult = usernameValidationService.validateUsername(value);
+    if (!formatResult.valid && value.length > 0) {
+      setUsernameError(formatResult.error || '');
+      setUsernameAvailable(false);
+      return;
+    }
+
+    // Clear error and check availability (debounced)
+    setUsernameError('');
+    const timeoutId = setTimeout(() => checkUsernameAvailability(value), 500);
+    return () => clearTimeout(timeoutId);
+  };
+
+  const handleUsernameBlur = () => {
+    if (!coachDetails.username && coachDetails.fullName) {
+      const generated = usernameValidationService.generateUsernameFromDisplayName(coachDetails.fullName);
+      handleCoachDetailsChange('username', generated);
+      checkUsernameAvailability(generated);
+    }
+  };
+
+  const handleSelectSuggestion = (suggestion: string) => {
+    handleCoachDetailsChange('username', suggestion);
+    setUsernameSuggestions([]);
+    setUsernameError('');
+    setUsernameAvailable(true);
+  };
+
   const handleContinue = (): void => {
     // For coaches, validate and store their professional details
     if (role === 'coach') {
@@ -74,12 +168,9 @@ const AboutPage: React.FC = () => {
       localStorage.setItem('coachProfessionalDetails', JSON.stringify(coachDetails));
       // Store the role for signup page
       localStorage.setItem('selectedUserRole', role);
-      // Navigate to signup page instead of login
-      navigate('/signup');
-    } else {
-      // Other roles go to login
-      navigate(`/login/${role}`);
     }
+    // Navigate to auth choice page for all roles
+    navigate(`/auth-choice/${role}`);
   };
 
   const handleOrganizationContinue = (organizationData: any): void => {
@@ -87,8 +178,8 @@ const AboutPage: React.FC = () => {
     localStorage.setItem('organizationDetails', JSON.stringify(organizationData));
     // Store the role for signup page
     localStorage.setItem('selectedUserRole', 'organization');
-    // Navigate to signup page
-    navigate('/signup');
+    // Navigate to auth choice page
+    navigate('/auth-choice/organization');
   };
 
   const handleParentContinue = (parentData: any): void => {
@@ -96,8 +187,8 @@ const AboutPage: React.FC = () => {
     localStorage.setItem('parentDetails', JSON.stringify(parentData));
     // Store the role for signup page
     localStorage.setItem('selectedUserRole', 'parent');
-    // Navigate to signup page
-    navigate('/signup');
+    // Navigate to auth choice page
+    navigate('/auth-choice/parent');
   };
 
   const handleBack = (): void => {
@@ -186,6 +277,44 @@ const AboutPage: React.FC = () => {
               </div>
 
               <div className="form-group">
+                <label htmlFor="username" className="form-label">
+                  Username <span className="required">*</span>
+                </label>
+                <div className="username-input-wrapper">
+                  <span className="username-prefix">@</span>
+                  <input
+                    type="text"
+                    id="username"
+                    className={`form-input ${usernameAvailable === true ? 'valid' : usernameAvailable === false ? 'error' : ''}`}
+                    value={coachDetails.username}
+                    onChange={(e) => handleUsernameChange(e.target.value)}
+                    onBlur={handleUsernameBlur}
+                    placeholder="john_coach"
+                    style={{ paddingLeft: '2.5rem' }}
+                  />
+                </div>
+                {usernameLoading && <span className="loading-text">Checking availability...</span>}
+                {usernameError && <span className="error-message">{usernameError}</span>}
+                {usernameSuggestions.length > 0 && (
+                  <div className="suggestions-box">
+                    <p className="suggestions-label">Try these instead:</p>
+                    <div className="suggestions-list">
+                      {usernameSuggestions.map(suggestion => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          className="suggestion-button"
+                          onClick={() => handleSelectSuggestion(suggestion)}
+                        >
+                          @{suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
                 <label htmlFor="email" className="form-label">
                   {t('email', 'Email')} <span className="required">*</span>
                 </label>
@@ -210,6 +339,89 @@ const AboutPage: React.FC = () => {
                   value={coachDetails.phone}
                   onChange={(e) => handleCoachDetailsChange('phone', e.target.value)}
                   placeholder={t('enterPhone', 'Enter your phone number')}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="dateOfBirth" className="form-label">
+                  {t('dateOfBirth', 'Date of Birth')} <span className="required">*</span>
+                </label>
+                <input
+                  type="date"
+                  id="dateOfBirth"
+                  className="form-input"
+                  value={coachDetails.dateOfBirth}
+                  onChange={(e) => handleCoachDetailsChange('dateOfBirth', e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="gender" className="form-label">
+                  {t('gender', 'Gender')} <span className="required">*</span>
+                </label>
+                <select
+                  id="gender"
+                  className="form-input"
+                  value={coachDetails.gender}
+                  onChange={(e) => handleCoachDetailsChange('gender', e.target.value)}
+                >
+                  <option value="">{t('selectGender', 'Select Gender')}</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="state" className="form-label">
+                  {t('state', 'State')} <span className="required">*</span>
+                </label>
+                <select
+                  id="state"
+                  className="form-input"
+                  value={coachDetails.state}
+                  onChange={(e) => handleCoachDetailsChange('state', e.target.value)}
+                >
+                  <option value="">{t('selectState', 'Select State')}</option>
+                  {indianStates.map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="city" className="form-label">
+                  {t('city', 'City')} <span className="required">*</span>
+                </label>
+                <select
+                  id="city"
+                  className="form-input"
+                  value={coachDetails.city}
+                  onChange={(e) => handleCoachDetailsChange('city', e.target.value)}
+                  disabled={!coachDetails.state}
+                >
+                  <option value="">{coachDetails.state ? t('selectCity', 'Select City') : t('selectStateFirst', 'Select State First')}</option>
+                  {cities.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="country" className="form-label">
+                  {t('country', 'Country')}
+                </label>
+                <input
+                  type="text"
+                  id="country"
+                  className="form-input disabled"
+                  value={coachDetails.country}
+                  disabled
                 />
               </div>
 

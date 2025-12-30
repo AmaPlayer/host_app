@@ -12,6 +12,11 @@ export interface CoachProfile {
   fullName: string;
   phone: string;
   photoURL?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  dateOfBirth?: string;
+  gender?: string;
   sport: string;
   yearsOfExperience: number;
   coachingLevel: string;
@@ -74,6 +79,11 @@ export interface CreateCoachData {
 
   fullName: string;
   phone: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  dateOfBirth?: string;
+  gender?: string;
   sport: string;
   yearsOfExperience: number;
   coachingLevel: string;

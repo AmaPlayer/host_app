@@ -1,274 +1,291 @@
-/**
- * Groups Service with Caching
- * Manages group memberships with cache support
- */
-
-import { db } from '../../lib/firebase';
-import { COLLECTIONS, GROUP_PRIVACY } from '../../constants/sharing';
+import { supabase } from '../../lib/supabase';
+import { Group, GroupDetails, GroupPrivacy } from '../../types/models/group';
 import { groupsCache } from '../cache/shareCacheService';
-import { Group, GroupDetails, GroupPrivacy, GroupPostingPermissions } from '../../types/models/group';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs,
-  doc,
-  getDoc,
-  Timestamp
-} from 'firebase/firestore';
 
 interface GetGroupsListOptions {
   skipCache?: boolean;
   includePrivate?: boolean;
 }
 
-interface GetGroupDetailsOptions {
-  skipCache?: boolean;
-}
-
 class GroupsService {
   /**
-   * Get user's groups list with caching
+   * Helper to resolve Firebase UID to Supabase Internal User ID (UUID)
+   */
+  private async _getInternalUserId(uid: string): Promise<string> {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('uid', uid)
+      .single();
+
+    if (error || !data) throw new Error('User not found');
+    return data.id;
+  }
+
+  /**
+   * Get user's groups list
    */
   async getGroupsList(userId: string, options: GetGroupsListOptions = {}): Promise<Group[]> {
     const { skipCache = false, includePrivate = true } = options;
 
     try {
-      // Check cache first
       if (!skipCache) {
         const cached = groupsCache.get(userId);
-        if (cached) {return cached;
-        }
+        if (cached) return cached;
       }
 
-      // Query groups where user is a member
-      const groupsRef = collection(db, COLLECTIONS.GROUPS);
-      const q = query(
-        groupsRef,
-        where('members', 'array-contains', userId)
-      );
+      // 1. Get user internal ID
+      const internalUserId = await this._getInternalUserId(userId);
+      if (!internalUserId) return [];
 
-      const snapshot = await getDocs(q);
-      const groups: Group[] = [];
+      // 2. Fetch groups where user is a member
+      const { data, error } = await supabase
+        .from('group_members')
+        .select(`
+          group:groups (
+            id, name, description, member_count, created_at, creator_id, privacy
+          ),
+          role
+        `)
+        .eq('user_id', internalUserId);
 
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        
-        // Filter by privacy if needed
-        if (!includePrivate && data.privacy === GROUP_PRIVACY.PRIVATE) {
-          return;
-        }
+      if (error) throw error;
 
-        groups.push({
-          id: doc.id,
-          name: data.name || 'Unnamed Group',
-          description: data.description || '',
-          photoURL: data.photoURL || '',
-          privacy: data.privacy || GROUP_PRIVACY.PUBLIC,
-          memberCount: data.members?.length || 0,
-          admins: data.admins || [],
-          isAdmin: data.admins?.includes(userId) || false,
-          postingPermissions: data.postingPermissions || 'all',
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt
-        });
-      });
+      const groups: Group[] = (data || []).map((m: any) => ({
+        id: m.group.id,
+        name: m.group.name,
+        description: m.group.description || '',
+        photoURL: '',
+        privacy: m.group.privacy || 'public',
+        memberCount: m.group.member_count || 0,
+        admins: m.role === 'admin' ? [userId] : [],
+        isAdmin: m.role === 'admin',
+        postingPermissions: 'all',
+        createdAt: m.group.created_at,
+        updatedAt: m.group.created_at
+      }));
 
-      // Sort by name
-      groups.sort((a, b) => a.name.localeCompare(b.name));
+      const filteredGroups = includePrivate ? groups : groups.filter(g => g.privacy === 'public');
 
-      // Cache the result
-      groupsCache.set(userId, groups);return groups;
-
+      filteredGroups.sort((a, b) => a.name.localeCompare(b.name));
+      groupsCache.set(userId, filteredGroups);
+      return filteredGroups;
     } catch (error) {
       console.error('❌ Error getting groups list:', error);
       throw error;
     }
   }
 
-  /**
-   * Get group details with caching
-   */
-  async getGroupDetails(groupId: string, options: GetGroupDetailsOptions = {}): Promise<GroupDetails | null> {
-    const { skipCache = false } = options;
-
+  async getGroupDetails(groupId: string): Promise<GroupDetails | null> {
     try {
-      // Check cache first
-      if (!skipCache) {
-        const cached = groupsCache.getGroupDetails(groupId);
-        if (cached) {return cached;
-        }
-      }
+      const { data, error } = await supabase
+        .from('groups')
+        .select('*')
+        .eq('id', groupId)
+        .single();
 
-      const groupRef = doc(db, COLLECTIONS.GROUPS, groupId);
-      const groupDoc = await getDoc(groupRef);
+      if (error) throw error;
 
-      if (!groupDoc.exists()) {
-        return null;
-      }
-
-      const data = groupDoc.data();
-      const groupDetails: GroupDetails = {
-        id: groupDoc.id,
-        name: data.name || 'Unnamed Group',
-        description: data.description || '',
-        photoURL: data.photoURL || '',
-        privacy: data.privacy || GROUP_PRIVACY.PUBLIC,
-        members: data.members || [],
-        memberCount: data.members?.length || 0,
-        admins: data.admins || [],
-        isAdmin: false, // Will be set by caller if needed
-        postingPermissions: data.postingPermissions || 'all',
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        photoURL: '',
+        privacy: 'public' as GroupPrivacy,
+        members: [], // Lazy load members
+        memberCount: data.member_count || 0,
+        admins: [],
+        isAdmin: false,
+        postingPermissions: 'all',
+        createdAt: data.created_at,
+        updatedAt: data.created_at
       };
-
-      // Cache the result
-      groupsCache.setGroupDetails(groupId, groupDetails);
-
-      return groupDetails;
-
     } catch (error) {
-      console.error('❌ Error getting group details:', error);
       return null;
     }
   }
 
-  /**
-   * Check if user is member of a group
-   */
   async isMember(userId: string, groupId: string): Promise<boolean> {
+    const groups = await this.getGroupsList(userId);
+    return groups.some(g => g.id === groupId);
+  }
+
+  /**
+   * Create a new group
+   */
+  async createGroup(userId: string, groupData: any): Promise<string> {
     try {
-      const groups = await this.getGroupsList(userId);
-      return groups.some(g => g.id === groupId);
+      const internalUserId = await this._getInternalUserId(userId);
+
+      const { data, error } = await supabase
+        .from('groups')
+        .insert({
+          name: groupData.name,
+          description: groupData.description,
+          privacy: groupData.privacy,
+          photo_url: groupData.photoURL || null,
+          creator_id: internalUserId, // Use UUID
+          member_count: 1
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      // Add creator as admin
+      await supabase.from('group_members').insert({
+        group_id: data.id,
+        user_id: internalUserId, // Use UUID
+        role: 'admin'
+      });
+
+      groupsCache.delete(userId);
+      return data.id;
     } catch (error) {
-      console.error('❌ Error checking group membership:', error);
-      return false;
+      console.error('Error creating group:', error);
+      throw error;
     }
   }
 
   /**
-   * Check if user is admin of a group
+   * Update group details
    */
-  async isAdmin(userId: string, groupId: string): Promise<boolean> {
+  async updateGroup(groupId: string, updates: any): Promise<void> {
     try {
-      const groupDetails = await this.getGroupDetails(groupId);
-      return groupDetails?.admins?.includes(userId) || false;
+      // Filter distinct fields to update
+      const dbUpdates: any = { updated_at: new Date().toISOString() };
+      if (updates.name) dbUpdates.name = updates.name;
+      if (updates.description) dbUpdates.description = updates.description;
+      if (updates.privacy) dbUpdates.privacy = updates.privacy;
+      if (updates.photoURL !== undefined) dbUpdates.photo_url = updates.photoURL;
+
+      const { error } = await supabase
+        .from('groups')
+        .update(dbUpdates)
+        .eq('id', groupId);
+
+      if (error) throw error;
+      groupsCache.clear(); // Clear all caches as names/details changed
     } catch (error) {
-      console.error('❌ Error checking admin status:', error);
-      return false;
+      console.error('Error updating group:', error);
+      throw error;
     }
   }
 
   /**
-   * Check if user can post to a group
+   * Delete group
    */
-  async canPost(userId: string, groupId: string): Promise<boolean> {
+  async deleteGroup(groupId: string): Promise<void> {
     try {
-      const groupDetails = await this.getGroupDetails(groupId);
-      
-      if (!groupDetails) {
-        return false;
-      }
+      const { error } = await supabase
+        .from('groups')
+        .delete()
+        .eq('id', groupId);
 
-      // Check if user is a member
-      if (!groupDetails.members.includes(userId)) {
-        return false;
-      }
-
-      // Check posting permissions
-      const { postingPermissions, admins } = groupDetails;
-
-      if (postingPermissions === 'all') {
-        return true;
-      }
-
-      if (postingPermissions === 'admins') {
-        return admins.includes(userId);
-      }
-
-      // For 'approved' permission, would need additional logic
-      return false;
-
+      if (error) throw error;
+      groupsCache.clear();
     } catch (error) {
-      console.error('❌ Error checking posting permissions:', error);
-      return false;
+      console.error('Error deleting group:', error);
+      throw error;
     }
   }
 
   /**
-   * Invalidate groups cache for a user
+   * Join group
    */
-  invalidateCache(userId: string): void {
-    groupsCache.invalidate(userId);
+  async joinGroup(userId: string, groupId: string): Promise<void> {
+    try {
+      // Check if already member (isMember uses getGroupsList which handles mapping)
+      const isMember = await this.isMember(userId, groupId);
+      if (isMember) return;
+
+      const internalUserId = await this._getInternalUserId(userId);
+
+      const { error } = await supabase
+        .from('group_members')
+        .insert({
+          group_id: groupId,
+          user_id: internalUserId,
+          role: 'member'
+        });
+
+      if (error) throw error;
+
+      // Increment member count
+      await this._incrementMemberCount(groupId, 1);
+      groupsCache.delete(userId);
+    } catch (error) {
+      console.error('Error joining group:', error);
+      throw error;
+    }
   }
 
   /**
-   * Invalidate group details cache
+   * Leave group
    */
-  invalidateGroupDetailsCache(groupId: string): void {
-    groupsCache.invalidateGroupDetails(groupId);
+  async leaveGroup(userId: string, groupId: string): Promise<void> {
+    try {
+      const internalUserId = await this._getInternalUserId(userId);
+
+      const { error } = await supabase
+        .from('group_members')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', internalUserId);
+
+      if (error) throw error;
+
+      await this._incrementMemberCount(groupId, -1);
+      groupsCache.delete(userId);
+    } catch (error) {
+      console.error('Error leaving group:', error);
+      throw error;
+    }
   }
 
   /**
-   * Invalidate all groups caches
+   * Get group members
    */
-  invalidateAllCaches(): void {
-    groupsCache.invalidateAll();
+  async getGroupMembers(groupId: string): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('group_members')
+        .select(`
+          user:users (uid, display_name, photo_url),
+          role,
+          created_at
+        `)
+        .eq('group_id', groupId);
+
+      if (error) throw error;
+
+      return (data || []).map((m: any) => ({
+        userId: m.user.uid,
+        displayName: m.user.display_name,
+        photoURL: m.user.photo_url,
+        isAdmin: m.role === 'admin',
+        joinedAt: m.created_at
+      }));
+    } catch (error) {
+      console.error('Error getting group members:', error);
+      return [];
+    }
   }
 
-  /**
-   * Search groups by name
-   */
+  private async _incrementMemberCount(groupId: string, amount: number) {
+    // Minimal RPC or atomic update best, but simple update for MVP
+    // Suppose we have an rpc 'increment_group_count', else fetch-update
+    const { data } = await supabase.from('groups').select('member_count').eq('id', groupId).single();
+    const newCount = (data?.member_count || 0) + amount;
+    await supabase.from('groups').update({ member_count: newCount }).eq('id', groupId);
+  }
+
   async searchGroups(userId: string, searchTerm: string): Promise<Group[]> {
-    try {
-      const groups = await this.getGroupsList(userId);
-      
-      if (!searchTerm || searchTerm.trim() === '') {
-        return groups;
-      }
-
-      const term = searchTerm.toLowerCase().trim();
-      return groups.filter(group => 
-        group.name.toLowerCase().includes(term) ||
-        group.description.toLowerCase().includes(term)
-      );
-    } catch (error) {
-      console.error('❌ Error searching groups:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get groups count
-   */
-  async getGroupsCount(userId: string): Promise<number> {
-    try {
-      const groups = await this.getGroupsList(userId);
-      return groups.length;
-    } catch (error) {
-      console.error('❌ Error getting groups count:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Get admin groups for a user
-   */
-  async getAdminGroups(userId: string): Promise<Group[]> {
-    try {
-      const groups = await this.getGroupsList(userId);
-      return groups.filter(g => g.isAdmin);
-    } catch (error) {
-      console.error('❌ Error getting admin groups:', error);
-      return [];
-    }
+    const groups = await this.getGroupsList(userId);
+    if (!searchTerm) return groups;
+    const term = searchTerm.toLowerCase();
+    return groups.filter(g => g.name.toLowerCase().includes(term));
   }
 }
 
-// Create singleton instance
-const groupsService = new GroupsService();
-
-export default groupsService;
-export { groupsService };
-export type { Group, GroupDetails, GetGroupsListOptions, GetGroupDetailsOptions };
+export default new GroupsService();

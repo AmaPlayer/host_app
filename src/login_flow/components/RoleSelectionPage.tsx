@@ -18,33 +18,27 @@ const RoleSelectionPage: React.FC = () => {
   const { t } = useLanguage();
 
   const roles: Role[] = [
-    { 
-      id: 'athlete', 
-      title: 'athlete', 
+    {
+      id: 'athlete',
+      title: 'athlete',
       image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
       description: 'athleteDescription'
     },
-    { 
-      id: 'coach', 
-      title: 'coach', 
+    {
+      id: 'coach',
+      title: 'coach',
       image: 'https://images.unsplash.com/photo-1544717297-fa95b6ee9643?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
       description: 'coachDescription'
     },
-    { 
-      id: 'organization', 
-      title: 'organization', 
+    {
+      id: 'organization',
+      title: 'organization',
       image: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
       description: 'organizationDescription'
     },
-    { 
-      id: 'spouse', 
-      title: 'spouse', 
-      image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-      description: 'spouseDescription'
-    },
-    { 
-      id: 'parent', 
-      title: 'parent', 
+    {
+      id: 'parent',
+      title: 'parent',
       image: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
       description: 'parentDescription'
     }

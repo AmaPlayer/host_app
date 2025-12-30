@@ -1,11 +1,11 @@
 import { useReducer, useCallback, useEffect, useRef, useMemo } from 'react';
-import { 
-  createThrottledScrollHandler, 
-  PERFORMANCE_DELAYS 
+import {
+  createThrottledScrollHandler,
+  PERFORMANCE_DELAYS
 } from '../utils/performance/debounceThrottle';
-import { 
-  useLoadingStateManager, 
-  LoadingState 
+import {
+  useLoadingStateManager,
+  LoadingState
 } from '../utils/performance/loadingStateManager';
 
 interface ProgressiveLoadingConfig {
@@ -35,7 +35,7 @@ interface ProgressiveLoadingState<T> {
   error: string | null;
 }
 
-type ProgressiveLoadingAction<T> = 
+type ProgressiveLoadingAction<T> =
   | { type: 'INITIALIZE'; payload: { items: T[]; initialBatchSize: number } }
   | { type: 'START_LOADING' }
   | { type: 'LOAD_MORE_SUCCESS'; payload: { newItems: T[]; hasMore: boolean } }
@@ -61,29 +61,41 @@ function progressiveLoadingReducer<T>(
         error: null,
       };
     }
-    
+
     // New case to handle updates without resetting scroll/batch
     case 'UPDATE_ITEMS': {
       const { items } = action.payload;
-      // Preserve the current number of visible items
-      const currentVisibleCount = state.visibleItems.length;
-      const updatedVisibleItems = items.slice(0, Math.max(currentVisibleCount, 1));
-      
+
+      // Check if we were previously showing all items
+      // If so, we should continue showing all items (expand to fit new ones)
+      const isShowingAll = !state.hasMoreToLoad;
+
+      let updatedVisibleItems;
+      if (isShowingAll) {
+        // If we were showing everything, show the new full list
+        updatedVisibleItems = items;
+      } else {
+        // If we were paginating, preserve the count (or slightly adjust if needed)
+        // For now, preserving count is safer to prevent scroll jumps in long lists
+        const currentVisibleCount = state.visibleItems.length;
+        updatedVisibleItems = items.slice(0, Math.max(currentVisibleCount, 1));
+      }
+
       return {
         ...state,
         visibleItems: updatedVisibleItems,
-        // Keep currentBatch and loading state as is
+        // Recalculate hasMore based on new full list vs new visible list
         hasMoreToLoad: items.length > updatedVisibleItems.length,
       };
     }
-    
+
     case 'START_LOADING':
       return {
         ...state,
         isLoadingMore: true,
         error: null,
       };
-    
+
     case 'LOAD_MORE_SUCCESS':
       return {
         ...state,
@@ -93,14 +105,14 @@ function progressiveLoadingReducer<T>(
         isLoadingMore: false,
         error: null,
       };
-    
+
     case 'LOAD_MORE_ERROR':
       return {
         ...state,
         isLoadingMore: false,
         error: action.payload.error,
       };
-    
+
     case 'RESET':
       return {
         visibleItems: [],
@@ -109,7 +121,7 @@ function progressiveLoadingReducer<T>(
         hasMoreToLoad: false,
         error: null,
       };
-    
+
     case 'REFRESH': {
       const refreshItems = action.payload.items.slice(0, action.payload.initialBatchSize);
       return {
@@ -120,7 +132,7 @@ function progressiveLoadingReducer<T>(
         error: null,
       };
     }
-    
+
     default:
       return state;
   }
@@ -140,8 +152,8 @@ function progressiveLoadingReducer<T>(
  * - Proper cleanup for event listeners and observers
  */
 export const useProgressiveLoading = <T,>(
-  allPosts: T[] = [], 
-  initialBatchSize: number = 5, 
+  allPosts: T[] = [],
+  initialBatchSize: number = 5,
   batchSize: number = 5,
   config: ProgressiveLoadingConfig = {}
 ): UseProgressiveLoadingReturn<T> => {
@@ -197,9 +209,9 @@ export const useProgressiveLoading = <T,>(
       } else {
         // Initial load or reset
         startInitialLoad();
-        dispatch({ 
-          type: 'INITIALIZE', 
-          payload: { items: allPosts, initialBatchSize } 
+        dispatch({
+          type: 'INITIALIZE',
+          payload: { items: allPosts, initialBatchSize }
         });
         // Mark as success after initialization
         setTimeout(() => markLoadSuccess(), 100);
@@ -221,16 +233,16 @@ export const useProgressiveLoading = <T,>(
 
     const currentPosts = allPostsRef.current;
     const config = configRef.current;
-    
+
     // Calculate what posts we would load
     const startIndex = state.currentBatch * config.initialBatchSize;
     const endIndex = startIndex + config.batchSize;
-    
+
     // Don't start loading if there are no more posts to load
     if (startIndex >= currentPosts.length) {
-      dispatch({ 
-        type: 'LOAD_MORE_SUCCESS', 
-        payload: { newItems: [], hasMore: false } 
+      dispatch({
+        type: 'LOAD_MORE_SUCCESS',
+        payload: { newItems: [], hasMore: false }
       });
       return;
     }
@@ -247,25 +259,25 @@ export const useProgressiveLoading = <T,>(
       if (newPosts.length > 0) {
         const totalAfterLoad = state.visibleItems.length + newPosts.length;
         const hasMore = totalAfterLoad < currentPosts.length;
-        
-        dispatch({ 
-          type: 'LOAD_MORE_SUCCESS', 
-          payload: { newItems: newPosts, hasMore } 
+
+        dispatch({
+          type: 'LOAD_MORE_SUCCESS',
+          payload: { newItems: newPosts, hasMore }
         });
         markLoadSuccess();
       } else {
         // No more posts available
-        dispatch({ 
-          type: 'LOAD_MORE_SUCCESS', 
-          payload: { newItems: [], hasMore: false } 
+        dispatch({
+          type: 'LOAD_MORE_SUCCESS',
+          payload: { newItems: [], hasMore: false }
         });
         markLoadSuccess();
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load more posts';
-      dispatch({ 
-        type: 'LOAD_MORE_ERROR', 
-        payload: { error: errorMessage } 
+      dispatch({
+        type: 'LOAD_MORE_ERROR',
+        payload: { error: errorMessage }
       });
       markLoadError(errorMessage);
     }
@@ -280,14 +292,14 @@ export const useProgressiveLoading = <T,>(
     const documentHeight = document.documentElement.scrollHeight;
 
     const scrollPercentage = (scrollTop + windowHeight) / documentHeight;
-    
+
     // Only trigger loading if we've scrolled past the threshold and have sufficient content height
     if (scrollPercentage > scrollThreshold && documentHeight > windowHeight * 1.5) {
       // Debounce the loading call to prevent excessive triggers
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
       }
-      
+
       loadingTimeoutRef.current = setTimeout(() => {
         loadMore();
       }, PERFORMANCE_DELAYS.LOADING_CHECK);
@@ -302,19 +314,19 @@ export const useProgressiveLoading = <T,>(
   // Intersection Observer callback with stable loading state management
   const handleIntersection = useCallback((entries: IntersectionObserverEntry[]) => {
     const [entry] = entries;
-    
+
     if (entry.isIntersecting && state.hasMoreToLoad && canLoadMore && !state.isLoadingMore) {
       const currentPosts = allPostsRef.current;
       const config = configRef.current;
       const startIndex = state.currentBatch * config.initialBatchSize;
-      
+
       // Only trigger if there are actually more posts to load
       if (startIndex < currentPosts.length) {
         // Debounce the loading call
         if (loadingTimeoutRef.current) {
           clearTimeout(loadingTimeoutRef.current);
         }
-        
+
         loadingTimeoutRef.current = setTimeout(() => {
           loadMore();
         }, PERFORMANCE_DELAYS.LOADING_CHECK);
@@ -350,7 +362,7 @@ export const useProgressiveLoading = <T,>(
       // Fallback to scroll listener for older browsers
       scrollHandlerRef.current = throttledScrollHandler;
       window.addEventListener('scroll', throttledScrollHandler, { passive: true });
-      
+
       return () => {
         if (scrollHandlerRef.current) {
           window.removeEventListener('scroll', scrollHandlerRef.current);
@@ -368,12 +380,12 @@ export const useProgressiveLoading = <T,>(
   const refresh = useCallback((): Promise<void> => {
     const currentPosts = allPostsRef.current;
     const config = configRef.current;
-    
+
     if (currentPosts.length > 0) {
       startInitialLoad();
-      dispatch({ 
-        type: 'REFRESH', 
-        payload: { items: currentPosts, initialBatchSize: config.initialBatchSize } 
+      dispatch({
+        type: 'REFRESH',
+        payload: { items: currentPosts, initialBatchSize: config.initialBatchSize }
       });
       // Mark as success after refresh
       setTimeout(() => markLoadSuccess(), 100);
@@ -381,7 +393,7 @@ export const useProgressiveLoading = <T,>(
       dispatch({ type: 'RESET' });
       resetLoadingState();
     }
-    
+
     return Promise.resolve();
   }, [startInitialLoad, markLoadSuccess, resetLoadingState]);
 

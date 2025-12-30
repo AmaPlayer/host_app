@@ -1,10 +1,10 @@
 import { memo, useState, useEffect, useCallback } from 'react';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Users, 
-  Share2, 
-  Clock, 
+import {
+  BarChart3,
+  TrendingUp,
+  Users,
+  Share2,
+  Clock,
   Target,
   RefreshCw,
   ChevronDown,
@@ -12,7 +12,7 @@ import {
   MessageSquare,
   Activity
 } from 'lucide-react';
-import shareService from '../../../services/api/shareService';
+import shareService from '../../../services/api/ShareService';
 import { SHARE_TYPES } from '../../../constants/sharing';
 import './ShareAnalytics.css';
 
@@ -43,7 +43,7 @@ interface ShareAnalyticsProps {
  * ShareAnalytics component displays comprehensive share statistics for post authors
  * Shows share breakdown, timeline analysis, and performance metrics
  */
-const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({ 
+const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
   postId,
   className = '',
   compact = false,
@@ -167,7 +167,7 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
             <span>Share Analytics</span>
             <span className="error-text">Failed to load</span>
           </div>
-          <button 
+          <button
             className="refresh-btn"
             onClick={handleRefresh}
             disabled={refreshing}
@@ -187,7 +187,7 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
     return null;
   }
 
-  const { 
+  const {
     successfulShares,
     failedShares,
     successRate,
@@ -215,8 +215,8 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
         </div>
         <div className="header-controls">
           {/* Time range selector */}
-          <select 
-            value={timeRange} 
+          <select
+            value={timeRange}
             onChange={(e) => handleTimeRangeChange(Number(e.target.value))}
             className="time-range-select"
           >
@@ -224,9 +224,9 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
             <option value={30}>30 days</option>
             <option value={90}>90 days</option>
           </select>
-          
+
           {/* Refresh button */}
-          <button 
+          <button
             className="refresh-btn"
             onClick={handleRefresh}
             disabled={refreshing}
@@ -234,10 +234,10 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
           >
             <RefreshCw size={16} className={refreshing ? 'spinning' : ''} />
           </button>
-          
+
           {/* Expand/collapse button */}
           {compact && (
-            <button 
+            <button
               className="expand-btn"
               onClick={toggleExpanded}
               title={expanded ? 'Collapse' : 'Expand'}
@@ -261,7 +261,7 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
               Total Shares
             </div>
           </div>
-          
+
           <div className="metric-card">
             <div className="metric-value">
               {successRate}%
@@ -271,7 +271,7 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
               Success Rate
             </div>
           </div>
-          
+
           <div className="metric-card">
             <div className="metric-value">
               {formatNumber(uniqueSharers)}
@@ -281,7 +281,7 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
               Unique Sharers
             </div>
           </div>
-          
+
           <div className="metric-card">
             <div className="metric-value">
               {averageTargetsPerShare}
@@ -303,51 +303,51 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
                   <div className="breakdown-header">
                     <span className="breakdown-type">Friends</span>
                     <span className="breakdown-count">
-                      {shareBreakdown[SHARE_TYPES.FRIENDS]} 
+                      {shareBreakdown[SHARE_TYPES.FRIENDS]}
                       ({calculatePercentage(shareBreakdown[SHARE_TYPES.FRIENDS], successfulShares)}%)
                     </span>
                   </div>
                   <div className="breakdown-bar">
-                    <div 
+                    <div
                       className="breakdown-fill friends"
-                      style={{ 
-                        width: `${calculatePercentage(shareBreakdown[SHARE_TYPES.FRIENDS], successfulShares)}%` 
+                      style={{
+                        width: `${calculatePercentage(shareBreakdown[SHARE_TYPES.FRIENDS], successfulShares)}%`
                       }}
                     />
                   </div>
                 </div>
-                
+
                 <div className="breakdown-item">
                   <div className="breakdown-header">
                     <span className="breakdown-type">Feed</span>
                     <span className="breakdown-count">
-                      {shareBreakdown[SHARE_TYPES.FEED]} 
+                      {shareBreakdown[SHARE_TYPES.FEED]}
                       ({calculatePercentage(shareBreakdown[SHARE_TYPES.FEED], successfulShares)}%)
                     </span>
                   </div>
                   <div className="breakdown-bar">
-                    <div 
+                    <div
                       className="breakdown-fill feed"
-                      style={{ 
-                        width: `${calculatePercentage(shareBreakdown[SHARE_TYPES.FEED], successfulShares)}%` 
+                      style={{
+                        width: `${calculatePercentage(shareBreakdown[SHARE_TYPES.FEED], successfulShares)}%`
                       }}
                     />
                   </div>
                 </div>
-                
+
                 <div className="breakdown-item">
                   <div className="breakdown-header">
                     <span className="breakdown-type">Groups</span>
                     <span className="breakdown-count">
-                      {shareBreakdown[SHARE_TYPES.GROUPS]} 
+                      {shareBreakdown[SHARE_TYPES.GROUPS]}
                       ({calculatePercentage(shareBreakdown[SHARE_TYPES.GROUPS], successfulShares)}%)
                     </span>
                   </div>
                   <div className="breakdown-bar">
-                    <div 
+                    <div
                       className="breakdown-fill groups"
-                      style={{ 
-                        width: `${calculatePercentage(shareBreakdown[SHARE_TYPES.GROUPS], successfulShares)}%` 
+                      style={{
+                        width: `${calculatePercentage(shareBreakdown[SHARE_TYPES.GROUPS], successfulShares)}%`
                       }}
                     />
                   </div>
@@ -368,7 +368,7 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
                     <div className="performance-label">Include Messages</div>
                   </div>
                 </div>
-                
+
                 <div className="performance-item">
                   <div className="performance-icon">
                     <Activity size={16} />
@@ -378,7 +378,7 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
                     <div className="performance-label">Share Velocity</div>
                   </div>
                 </div>
-                
+
                 {failedShares > 0 && (
                   <div className="performance-item error">
                     <div className="performance-icon">
@@ -421,16 +421,16 @@ const ShareAnalytics: React.FC<ShareAnalyticsProps> = memo(({
                   {shareTimeline.slice(0, 7).map((day) => (
                     <div key={day.date} className="timeline-day">
                       <div className="timeline-date">
-                        {new Date(day.date).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric' 
+                        {new Date(day.date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric'
                         })}
                       </div>
                       <div className="timeline-bar">
-                        <div 
+                        <div
                           className="timeline-fill"
-                          style={{ 
-                            height: `${Math.max(5, (day.shares / Math.max(...shareTimeline.map(d => d.shares))) * 100)}%` 
+                          style={{
+                            height: `${Math.max(5, (day.shares / Math.max(...shareTimeline.map(d => d.shares))) * 100)}%`
                           }}
                           title={`${day.shares} shares`}
                         />

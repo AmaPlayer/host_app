@@ -9,7 +9,7 @@ import '../styles/MultiSportPositionFlow.css';
 
 const MultiSportPositionFlow: React.FC = () => {
   const navigate = useNavigate();
-  const { selectedSports, setError, error } = useOnboardingStore();
+  const { selectedSports, setPosition, setError, error } = useOnboardingStore();
   
   const [currentSportIndex, setCurrentSportIndex] = useState(0);
   const [sportPositions, setSportPositions] = useState<SportPositionPair[]>([]);
@@ -70,7 +70,12 @@ const MultiSportPositionFlow: React.FC = () => {
 
     if (isLastSport) {
       // All sports completed, save to store and continue to subcategory
-      // We'll need to update the store to handle multiple sport-position pairs
+      // Save primary position to store (or first one) to ensure it appears in the profile banner
+      const primary = sportPositions.find(sp => sp.isPrimary) || sportPositions[0];
+      if (primary) {
+        setPosition(primary.position);
+      }
+
       navigate('/athlete-onboarding/subcategory');
     } else {
       // Move to next sport

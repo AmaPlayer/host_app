@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tansta
 import { Post, Comment } from '../types/models';
 
 // Import the enhanced posts service
-import postsService from '../services/api/postsService';
+import postsService from '../services/supabase/postsService';
 
 const queryKeys = {
   posts: () => ['posts'],

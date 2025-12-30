@@ -232,6 +232,7 @@ export interface MomentsQueryOptions {
   includeEngagementMetrics?: boolean;
   currentUserId?: string;
   limit?: number;
+  page?: number;
   startAfter?: any; // DocumentSnapshot
   orderBy?: string;
   orderDirection?: 'asc' | 'desc';

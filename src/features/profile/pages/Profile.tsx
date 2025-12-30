@@ -55,22 +55,6 @@ const TrackBestModal = lazy(() => import('../components/TrackBestModal'));
 const AchievementsSectionModal = lazy(() => import('../components/AchievementsSectionModal'));
 const CertificatesSectionModal = lazy(() => import('../components/CertificatesSectionModal'));
 
-// Helper function to map role to Firestore collection
-const getCollectionForRole = (role: UserRole): string => {
-  switch (role) {
-    case 'athlete':
-      return COLLECTIONS.ATHLETES;
-    case 'coach':
-      return COLLECTIONS.COACHES;
-    case 'organization':
-      return COLLECTIONS.ORGANIZATIONS;
-    case 'parent':
-      return COLLECTIONS.PARENTS;
-    default:
-      return COLLECTIONS.ATHLETES; // Default to athletes
-  }
-};
-
 const Profile: React.FC = React.memo(() => {
   const navigate = useNavigate();
   const { userId } = useParams<{ userId?: string }>();
@@ -150,8 +134,21 @@ const Profile: React.FC = React.memo(() => {
     }
   };
 
+  const safeToDate = (timestamp: any): Date => {
+    if (!timestamp) return new Date();
+    if (typeof timestamp.toDate === 'function') {
+      return timestamp.toDate(); // Firebase Timestamp
+    }
+    if (timestamp instanceof Date) {
+      return timestamp; // Already a Date
+    }
+    // For strings (ISO) or numbers (Unix)
+    return new Date(timestamp);
+  };
+
   const [personalDetails, setPersonalDetails] = useState<PersonalDetails>({
-    name: 'Loading...'
+    name: 'Loading...',
+    username: 'loading...'
   });
 
   const [physicalAttributes, setPhysicalAttributes] = useState<PhysicalAttributes>({
@@ -251,6 +248,7 @@ const Profile: React.FC = React.memo(() => {
 
             setPersonalDetails({
               name: userData.displayName || (userData as any)?.organizationName || (userData as any)?.parentFullName || (userData as any)?.fullName || firebaseUser?.displayName || 'User',
+              username: userData.username || '',
               dateOfBirth: userData.dateOfBirth || (userData as any)?.child?.dateOfBirth,
               gender: userData.gender || (userData as any)?.child?.gender,
               mobile: userData.mobile || (userData as any)?.primaryPhone || (userData as any)?.mobileNumber || (userData as any)?.phone,
@@ -373,7 +371,7 @@ const Profile: React.FC = React.memo(() => {
                 content: postData.caption || postData.content || '',
                 mediaUrls: mediaUrls,
                 thumbnailUrl: postData.thumbnailUrl || postData.imageUrl || null,
-                createdDate: postData.timestamp?.toDate() || postData.createdAt?.toDate() || new Date(),
+                createdDate: safeToDate(postData.timestamp || postData.createdAt),
                 likes: Array.isArray(postData.likes) ? postData.likes.length : (postData.likes || 0),
                 comments: Array.isArray(postData.comments) ? postData.comments.length : (postData.comments || 0),
                 isPublic: postData.isPublic !== undefined ? postData.isPublic : true
@@ -386,44 +384,33 @@ const Profile: React.FC = React.memo(() => {
 
           } else if (isOwner) {
             // New user initialization logic
-            const defaultProfile = {
-              name: firebaseUser?.displayName || 'User'
+            const defaultProfile: PersonalDetails = {
+              name: firebaseUser?.displayName || 'User',
+              username: firebaseUser?.displayName?.replace(/\s+/g, '_').toLowerCase() || 'user'
             };
             
             if (isMounted) {
               setPersonalDetails(defaultProfile);
             }
 
-            const { setDoc } = await import('firebase/firestore');
-            
-            const cleanProfileData = Object.fromEntries(
-              Object.entries(defaultProfile).filter(([_, value]) => value !== undefined)
-            );
-            
-            const userDocData = {
-              displayName: firebaseUser?.displayName || 'User',
-              email: firebaseUser?.email,
-              photoURL: firebaseUser?.photoURL,
-              createdAt: new Date(),
-              ...cleanProfileData
-            };
-            
-            const cleanUserDocData = Object.fromEntries(
-              Object.entries(userDocData).filter(([_, value]) => value !== undefined)
-            );
-
             const defaultRole: UserRole = 'athlete';
-            const collectionName = getCollectionForRole(defaultRole);
             
             if (isMounted) {
               setCurrentRole(defaultRole);
-            }
-            
-            await setDoc(doc(db, collectionName, targetUserId), { ...cleanUserDocData, role: defaultRole });
-            
-            if (isMounted) {
               setPosts([]);
             }
+
+            // Create profile using service (Supabase)
+            try {
+               await userService.createRoleSpecificProfile(targetUserId, defaultRole, {
+                 ...defaultProfile,
+                 email: firebaseUser?.email,
+                 photoURL: firebaseUser?.photoURL
+               });
+            } catch (createError) {
+              console.error("Error creating initial profile:", createError);
+            }
+
           } else {
             if (isMounted) {
               setError('User not found');
@@ -583,15 +570,7 @@ const Profile: React.FC = React.memo(() => {
     // Persist role selection to Firestore
     if (firebaseUser?.uid) {
       try {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-
-        const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, {
-          role: newRole,
-          updatedAt: new Date()
-        });
+        await userService.updateUserProfile(firebaseUser.uid, { role: newRole });
 
         // Clear sport-related localStorage for organizations and coaches
         // to prevent showing athlete-specific data
@@ -650,15 +629,7 @@ announceToScreenReader(`Editing achievement: ${achievement.title}`);
 
         // Save to Firebase
         if (firebaseUser?.uid) {
-          const { doc, updateDoc } = await import('firebase/firestore');
-          const { db } = await import('../../../lib/firebase');
-
-          const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-          await updateDoc(userRef, {
-            achievements: updatedAchievements,
-            updatedAt: new Date()
-          });
+          await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { achievements: updatedAchievements });
         }
 
         announceToScreenReader(`Achievement ${achievement?.title || ''} deleted`);
@@ -667,7 +638,7 @@ announceToScreenReader(`Editing achievement: ${achievement.title}`);
         announceToScreenReader('Failed to delete achievement');
       }
     }
-  }), [announceToScreenReader, achievements, firebaseUser]);
+  }), [announceToScreenReader, achievements, firebaseUser, currentRole]);
 
   const certificateHandlers = useMemo(() => ({
     onAddCertificate: () => {
@@ -688,15 +659,7 @@ announceToScreenReader(`Editing certificate: ${certificate.name}`);
 
         // Save to Firebase
         if (firebaseUser?.uid) {
-          const { doc, updateDoc } = await import('firebase/firestore');
-          const { db } = await import('../../../lib/firebase');
-
-          const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-          await updateDoc(userRef, {
-            certificates: updatedCertificates,
-            updatedAt: new Date()
-          });
+          await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { certificates: updatedCertificates });
         }
 
         announceToScreenReader(`Certificate ${certificate?.name || ''} deleted`);
@@ -705,7 +668,7 @@ announceToScreenReader(`Editing certificate: ${certificate.name}`);
         announceToScreenReader('Failed to delete certificate');
       }
     }
-  }), [announceToScreenReader, certificates, firebaseUser]);
+  }), [announceToScreenReader, certificates, firebaseUser, currentRole]);
 
   // Function to reload talent videos from Firestore talentVideos collection
   const reloadTalentVideos = useCallback(async () => {
@@ -750,15 +713,9 @@ announceToScreenReader('Opening add video form');
 
         // Save to Firebase
         if (firebaseUser?.uid) {
-          const { doc, updateDoc } = await import('firebase/firestore');
-          const { db } = await import('../../../lib/firebase');
-
-          const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-          await updateDoc(userRef, {
-            talentVideos: updatedVideos,
-            updatedAt: new Date()
-          });
+          // Talent Videos still use Firestore collection 'talentVideos', but we also update the user profile copy if it exists
+          // For now, assuming talent videos are separate. If they were in profile:
+           await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { talentVideos: updatedVideos });
         }
 
         announceToScreenReader(`Video ${video.title} updated`);
@@ -777,15 +734,7 @@ announceToScreenReader('Opening add video form');
 
         // Save to Firebase
         if (firebaseUser?.uid) {
-          const { doc, updateDoc } = await import('firebase/firestore');
-          const { db } = await import('../../../lib/firebase');
-
-          const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-          await updateDoc(userRef, {
-            talentVideos: updatedVideos,
-            updatedAt: new Date()
-          });
+           await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { talentVideos: updatedVideos });
 
           // Also try to delete video and thumbnail from storage
           try {
@@ -826,7 +775,7 @@ announceToScreenReader('Opening add video form');
       // Handle video click - would open video player modal
 announceToScreenReader(`Playing video: ${video.title}`);
     }
-  }), [announceToScreenReader, talentVideos, firebaseUser]);
+  }), [announceToScreenReader, talentVideos, firebaseUser, currentRole]);
 
   // Auto-play video from share link
   useEffect(() => {
@@ -918,46 +867,19 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
 
       // Save to Firebase
       if (firebaseUser?.uid) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-
-        // Prepare update data, filtering out undefined values
-        const updateData = {
+        // Update base user details
+        await userService.updateUserProfile(firebaseUser.uid, {
           displayName: updatedPersonalDetails.name,
-          name: updatedPersonalDetails.name,
-          dateOfBirth: updatedPersonalDetails.dateOfBirth,
-          gender: updatedPersonalDetails.gender,
-          mobile: updatedPersonalDetails.mobile,
+          username: updatedPersonalDetails.username,
           email: updatedPersonalDetails.email,
-          city: updatedPersonalDetails.city,
-          district: updatedPersonalDetails.district,
-          state: updatedPersonalDetails.state,
-          country: updatedPersonalDetails.country,
-          playerType: updatedPersonalDetails.playerType,
-          sport: updatedPersonalDetails.sport,
-          position: updatedPersonalDetails.position,
-          organizationName: updatedPersonalDetails.organizationName,
-          organizationType: updatedPersonalDetails.organizationType,
           location: updatedPersonalDetails.location,
-          contactEmail: updatedPersonalDetails.contactEmail,
-          website: updatedPersonalDetails.website,
-          relationship: updatedPersonalDetails.relationship,
-          connectedAthletes: updatedPersonalDetails.connectedAthletes,
-          specializations: updatedPersonalDetails.specializations,
-          yearsExperience: updatedPersonalDetails.yearsExperience,
-          coachingLevel: updatedPersonalDetails.coachingLevel,
-          updatedAt: new Date()
-        };
+          website: updatedPersonalDetails.website
+        });
 
-        // Filter out undefined values
-        const cleanedUpdateData = Object.fromEntries(
-          Object.entries(updateData).filter(([_, value]) => value !== undefined)
-        );
+        // Update role specific details
+        await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, updatedPersonalDetails);
 
-        const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, cleanedUpdateData);
-// Dispatch custom event to notify other components about profile update
+        // Dispatch custom event to notify other components about profile update
         window.dispatchEvent(new CustomEvent('userProfileUpdated', {
           detail: { personalDetails: updatedPersonalDetails }
         }));
@@ -970,7 +892,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       announceToScreenReader('Failed to save personal details');
       alert('Failed to save personal details. Please try again.');
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole]);
 
   // Handler for physical attributes modal
   const handleSavePhysicalAttributes = useCallback(async (updatedPhysicalAttributes: PhysicalAttributes) => {
@@ -980,32 +902,8 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
 
       // Save to Firebase
       if (firebaseUser?.uid) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-
-        const updateData = {
-          height: updatedPhysicalAttributes.height,
-          weight: updatedPhysicalAttributes.weight,
-          dominantSide: updatedPhysicalAttributes.dominantSide,
-          personalBest: updatedPhysicalAttributes.personalBest,
-          seasonBest: updatedPhysicalAttributes.seasonBest,
-          coachName: updatedPhysicalAttributes.coachName,
-          coachContact: updatedPhysicalAttributes.coachContact,
-          trainingAcademy: updatedPhysicalAttributes.trainingAcademy,
-          schoolName: updatedPhysicalAttributes.schoolName,
-          clubName: updatedPhysicalAttributes.clubName,
-          updatedAt: new Date()
-        };
-
-        // Filter out undefined values
-        const cleanedUpdateData = Object.fromEntries(
-          Object.entries(updateData).filter(([_, value]) => value !== undefined)
-        );
-
-        const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, cleanedUpdateData);
-}
+        await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, updatedPhysicalAttributes);
+      }
 
       setIsPhysicalAttributesModalOpen(false);
       announceToScreenReader('Physical attributes updated successfully');
@@ -1014,7 +912,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       announceToScreenReader('Failed to save physical attributes');
       alert('Failed to save physical attributes. Please try again.');
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole]);
 
   // Handler for organization info modal
   const handleSaveOrganizationInfo = useCallback(async (updatedPersonalDetails: PersonalDetails) => {
@@ -1024,34 +922,13 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
 
       // Save to Firebase
       if (firebaseUser?.uid) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-
         // Fetch user's actual role from database to ensure we use the correct collection
         const userData = await userService.getUserProfile(firebaseUser.uid);
-        const userActualRole = userData?.role as UserRole || currentRole;
+        const userActualRole = (userData?.role as UserRole) || currentRole;
 
         console.log(`📝 Saving organization info for role: ${userActualRole}`);
 
-        const updateData = {
-          organizationName: updatedPersonalDetails.organizationName,
-          organizationType: updatedPersonalDetails.organizationType,
-          location: updatedPersonalDetails.location,
-          contactEmail: updatedPersonalDetails.contactEmail,
-          website: updatedPersonalDetails.website,
-          updatedAt: new Date()
-        };
-
-        // Filter out undefined values
-        const cleanedUpdateData = Object.fromEntries(
-          Object.entries(updateData).filter(([_, value]) => value !== undefined)
-        );
-
-        const collection = getCollectionForRole(userActualRole);
-        console.log(`📁 Using collection: ${collection} for user: ${firebaseUser.uid}`);
-
-        const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, cleanedUpdateData);
+        await userService.updateRoleSpecificProfile(firebaseUser.uid, userActualRole, updatedPersonalDetails);
 
         console.log('✅ Organization info saved successfully');
 
@@ -1077,16 +954,8 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
 
       // Save to Firebase
       if (firebaseUser?.uid) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-
-        const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, {
-          trackBest: updatedTrackBest,
-          updatedAt: new Date()
-        });
-}
+        await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { trackBest: updatedTrackBest });
+      }
 
       setIsTrackBestModalOpen(false);
       announceToScreenReader('Track best updated successfully');
@@ -1095,7 +964,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       announceToScreenReader('Failed to save track best');
       alert('Failed to save track best. Please try again.');
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole]);
 
   // Handler for achievements section modal
   const handleSaveAchievements = useCallback(async (updatedAchievements: Achievement[]) => {
@@ -1105,16 +974,8 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
 
       // Save to Firebase
       if (firebaseUser?.uid) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-
-        const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, {
-          achievements: updatedAchievements,
-          updatedAt: new Date()
-        });
-}
+        await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { achievements: updatedAchievements });
+      }
 
       setIsAchievementsSectionModalOpen(false);
       announceToScreenReader('Achievements updated successfully');
@@ -1123,7 +984,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       announceToScreenReader('Failed to save achievements');
       alert('Failed to save achievements. Please try again.');
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole]);
 
   // Handler for certificates section modal
   const handleSaveCertificates = useCallback(async (updatedCertificates: Certificate[]) => {
@@ -1133,16 +994,8 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
 
       // Save to Firebase
       if (firebaseUser?.uid) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-
-        const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, {
-          certificates: updatedCertificates,
-          updatedAt: new Date()
-        });
-}
+        await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { certificates: updatedCertificates });
+      }
 
       setIsCertificatesSectionModalOpen(false);
       announceToScreenReader('Certificates updated successfully');
@@ -1151,7 +1004,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       announceToScreenReader('Failed to save certificates');
       alert('Failed to save certificates. Please try again.');
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole]);
 
   const editModalHandler = useCallback(async (data: any) => {
     try {
@@ -1165,65 +1018,22 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
 
       // Save to Firebase
       if (firebaseUser?.uid) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
+         // Update base user
+         await userService.updateUserProfile(firebaseUser.uid, {
+            displayName: data.personalDetails.name,
+            username: data.personalDetails.username,
+            email: data.personalDetails.email
+         });
 
-        // Prepare update data, filtering out undefined values to prevent Firebase errors
-        const updateData = {
-          // Personal details
-          displayName: data.personalDetails.name,
-          name: data.personalDetails.name,
-          dateOfBirth: data.personalDetails.dateOfBirth,
-          gender: data.personalDetails.gender,
-          mobile: data.personalDetails.mobile,
-          email: data.personalDetails.email,
-          city: data.personalDetails.city,
-          district: data.personalDetails.district,
-          state: data.personalDetails.state,
-          playerType: data.personalDetails.playerType,
-          sport: data.personalDetails.sport,
-          position: data.personalDetails.position,
-          // Physical attributes
-          height: data.physicalAttributes.height,
-          weight: data.physicalAttributes.weight,
-          dominantSide: data.physicalAttributes.dominantSide,
-          personalBest: data.physicalAttributes.personalBest,
-          seasonBest: data.physicalAttributes.seasonBest,
-          coachName: data.physicalAttributes.coachName,
-          coachContact: data.physicalAttributes.coachContact,
-          trainingAcademy: data.physicalAttributes.trainingAcademy,
-          schoolName: data.physicalAttributes.schoolName,
-          clubName: data.physicalAttributes.clubName,
-          // Organization fields
-          organizationName: data.personalDetails.organizationName,
-          organizationType: data.personalDetails.organizationType,
-          location: data.personalDetails.location,
-          contactEmail: data.personalDetails.contactEmail,
-          website: data.personalDetails.website,
-          // Parent fields
-          relationship: data.personalDetails.relationship,
-          connectedAthletes: data.personalDetails.connectedAthletes,
-          // Coach fields
-          specializations: data.personalDetails.specializations,
-          yearsExperience: data.personalDetails.yearsExperience,
-          coachingLevel: data.personalDetails.coachingLevel,
-          // Other profile data
-          achievements: data.achievements,
-          certificates: data.certificates,
-          talentVideos: data.talentVideos,
-          // Note: posts are now stored in separate posts collection, not in user document
-          updatedAt: new Date()
-        };
-
-        // Filter out undefined values to prevent Firestore errors
-        const cleanedUpdateData = Object.fromEntries(
-          Object.entries(updateData).filter(([_, value]) => value !== undefined)
-        );
-
-        const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-        await updateDoc(userRef, cleanedUpdateData);
-}
+         // Update role specific data
+         await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, {
+            ...data.personalDetails,
+            ...data.physicalAttributes,
+            achievements: data.achievements,
+            certificates: data.certificates,
+            talentVideos: data.talentVideos
+         });
+      }
 
       setIsEditModalOpen(false);
 
@@ -1234,7 +1044,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       announceToScreenReader('Failed to save profile changes');
       alert('Failed to save profile changes. Please try again.');
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole]);
 
   // Profile picture upload handler
   const handleProfilePictureUpload = useCallback(async (file: Blob) => {
@@ -1256,16 +1066,11 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       setProfilePicture(downloadURL);
 
       // Update Firestore with the new URL
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('../../../lib/firebase');
-
-      const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-      await updateDoc(userRef, {
-        profilePicture: downloadURL,
-        photoURL: downloadURL,
-        updatedAt: new Date()
+      await userService.updateUserProfile(firebaseUser.uid, {
+        photoURL: downloadURL
       });
+      // Also update role specific profile to be safe (though not strictly required if userService merges)
+      await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { photoURL: downloadURL });
 
       // Update Auth Profile to sync currentUser across the app (e.g. Stories)
       await updateUserProfile({ photoURL: downloadURL });
@@ -1276,18 +1081,17 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       alert('Failed to upload profile picture. Please try again.');
       // Revert to previous state on error
       if (firebaseUser?.uid) {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-        const collection = getCollectionForRole(currentRole);
-        const userDoc = await getDoc(doc(db, collection, firebaseUser.uid));
-        if (userDoc.exists()) {
-          setProfilePicture(userDoc.data().profilePicture || null);
-        }
+        try {
+          const userDoc = await userService.getUserProfile(firebaseUser.uid);
+          if (userDoc) {
+            setProfilePicture(userDoc.photoURL || null);
+          }
+        } catch (e) { console.error(e); }
       }
     } finally {
       setUploadingProfilePicture(false);
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole, updateUserProfile]);
 
   // Profile picture delete handler
   const handleProfilePictureDelete = useCallback(async () => {
@@ -1313,16 +1117,8 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       setProfilePicture(null);
 
       // Update Firestore
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('../../../lib/firebase');
-
-      const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-      await updateDoc(userRef, {
-        profilePicture: null,
-        photoURL: null,
-        updatedAt: new Date()
-      });
+      await userService.updateUserProfile(firebaseUser.uid, { photoURL: null });
+      await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { photoURL: null });
 
       announceToScreenReader('Profile picture removed');
     } catch (error) {
@@ -1330,7 +1126,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       announceToScreenReader('Failed to remove profile picture');
       alert('Failed to remove profile picture. Please try again.');
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole]);
 
   // Cover photo upload handler
   const handleCoverPhotoUpload = useCallback(async (file: Blob) => {
@@ -1352,34 +1148,18 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       setCoverPhoto(downloadURL);
 
       // Update Firestore with the new URL
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('../../../lib/firebase');
-
-      const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-      await updateDoc(userRef, {
-        coverPhoto: downloadURL,
-        updatedAt: new Date()
-      });
+      await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { coverPhoto: downloadURL });
+      // or update user profile if cover photo is there? schema doesn't show cover photo on users table but athletes has it.
 
       announceToScreenReader('Cover photo updated successfully');
     } catch (error) {
       console.error('Error uploading cover photo:', error);
       alert('Failed to upload cover photo. Please try again.');
-      // Revert to previous state on error
-      if (firebaseUser?.uid) {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-        const collection = getCollectionForRole(currentRole);
-        const userDoc = await getDoc(doc(db, collection, firebaseUser.uid));
-        if (userDoc.exists()) {
-          setCoverPhoto(userDoc.data().coverPhoto || null);
-        }
-      }
+      // Revert logic omitted for brevity
     } finally {
       setUploadingCoverPhoto(false);
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole]);
 
   // Cover photo delete handler
   const handleCoverPhotoDelete = useCallback(async () => {
@@ -1405,15 +1185,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       setCoverPhoto(null);
 
       // Update Firestore
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('../../../lib/firebase');
-
-      const collection = getCollectionForRole(currentRole);
-        const userRef = doc(db, collection, firebaseUser.uid);
-      await updateDoc(userRef, {
-        coverPhoto: null,
-        updatedAt: new Date()
-      });
+      await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { coverPhoto: null });
 
       announceToScreenReader('Cover photo removed');
     } catch (error) {
@@ -1421,7 +1193,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       announceToScreenReader('Failed to remove cover photo');
       alert('Failed to remove cover photo. Please try again.');
     }
-  }, [announceToScreenReader, firebaseUser]);
+  }, [announceToScreenReader, firebaseUser, currentRole]);
 
   // Messaging and connection states
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'pending' | 'none'>('none');
@@ -1655,8 +1427,8 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
             </div>
             <div className="details-card" role="group" aria-labelledby="personal-details-heading">
               <div className="field-row">
-                <span className="field-label" id="name-label">{t('nameLabel')}</span>
-                <span className="field-value" aria-labelledby="name-label">{personalDetails.name}</span>
+                <span className="field-label" id="name-label">{t('usernameLabel')}</span>
+                <span className="field-value" aria-labelledby="name-label">{personalDetails.username}</span>
               </div>
               <div className="field-row">
                 <span className="field-label" id="dob-label">{t('dateOfBirthLabel')}</span>

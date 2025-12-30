@@ -273,6 +273,15 @@
   white-space: nowrap;
 }
 
+.user-handle {
+  display: block;
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 400;
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+
 .user-info p {
   color: var(--text-secondary);
   margin: 0 0 4px 0;

@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '@hooks/useLanguage';
 import { indianStates, getCitiesByState } from '@features/athlete-onboarding/data/indianLocations';
 import { SPORTS_CONFIG } from '@features/athlete-onboarding/data/sportsConfig';
+import { usernameValidationService } from '../../services/username/usernameValidationService';
 import './ParentRegistrationForm.css';
 
 interface ParentFormData {
   // 1. Parent/Guardian Information
   parentFullName: string;
+  username: string;
   relationshipToChild: string;
   mobile: string;
   email: string;
@@ -51,8 +53,15 @@ const ParentRegistrationForm: React.FC<ParentRegistrationFormProps> = ({ onConti
   const [cities, setCities] = useState<string[]>([]);
   const [errors, setErrors] = useState<Partial<Record<keyof ParentFormData, string>>>({});
 
+  // Username validation state
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState<string>('');
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+
   const [formData, setFormData] = useState<ParentFormData>({
     parentFullName: '',
+    username: '',
     relationshipToChild: '',
     mobile: '',
     email: '',
@@ -95,6 +104,70 @@ const ParentRegistrationForm: React.FC<ParentRegistrationFormProps> = ({ onConti
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
+  };
+
+  // Username validation logic
+  const checkUsernameAvailability = useCallback(async (username: string) => {
+    if (!username || username.trim().length === 0) {
+      setUsernameAvailable(null);
+      setUsernameError('');
+      setUsernameSuggestions([]);
+      return;
+    }
+
+    setUsernameLoading(true);
+    setUsernameSuggestions([]);
+
+    try {
+      const available = await usernameValidationService.checkUsernameAvailability(username);
+
+      if (!available) {
+        setUsernameError('Username is already taken');
+        const suggestions = await usernameValidationService.suggestAlternativeUsernames(username);
+        setUsernameSuggestions(suggestions);
+      } else {
+        setUsernameError('');
+        setUsernameSuggestions([]);
+      }
+
+      setUsernameAvailable(available);
+    } catch (error) {
+      console.error('Error checking username:', error);
+      setUsernameError('Error checking availability');
+      setUsernameAvailable(false);
+    } finally {
+      setUsernameLoading(false);
+    }
+  }, []);
+
+  const handleUsernameChange = (value: string) => {
+    handleChange('username', value);
+
+    const formatResult = usernameValidationService.validateUsername(value);
+    if (!formatResult.valid && value.length > 0) {
+      setUsernameError(formatResult.error || '');
+      setUsernameAvailable(false);
+      return;
+    }
+
+    setUsernameError('');
+    const timeoutId = setTimeout(() => checkUsernameAvailability(value), 500);
+    return () => clearTimeout(timeoutId);
+  };
+
+  const handleUsernameBlur = () => {
+    if (!formData.username && formData.parentFullName) {
+      const generated = usernameValidationService.generateUsernameFromDisplayName(formData.parentFullName);
+      handleChange('username', generated);
+      checkUsernameAvailability(generated);
+    }
+  };
+
+  const handleSelectSuggestion = (suggestion: string) => {
+    handleChange('username', suggestion);
+    setUsernameSuggestions([]);
+    setUsernameError('');
+    setUsernameAvailable(true);
   };
 
   const validateForm = (): boolean => {
@@ -181,6 +254,45 @@ const ParentRegistrationForm: React.FC<ParentRegistrationFormProps> = ({ onConti
                 className={errors.parentFullName ? 'error' : ''}
               />
               {errors.parentFullName && <span className="error-message">{errors.parentFullName}</span>}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="username">
+                Username <span className="required">*</span>
+              </label>
+              <div className="username-input-wrapper">
+                <span className="username-prefix">@</span>
+                <input
+                  type="text"
+                  id="username"
+                  value={formData.username}
+                  onChange={(e) => handleUsernameChange(e.target.value)}
+                  onBlur={handleUsernameBlur}
+                  placeholder="parent_john"
+                  className={usernameAvailable === true ? 'valid' : usernameAvailable === false || errors.username ? 'error' : ''}
+                  style={{ paddingLeft: '2.5rem' }}
+                />
+              </div>
+              {usernameLoading && <span className="loading-text">Checking availability...</span>}
+              {usernameError && !errors.username && <span className="error-message">{usernameError}</span>}
+              {errors.username && <span className="error-message">{errors.username}</span>}
+              {usernameSuggestions.length > 0 && (
+                <div className="suggestions-box">
+                  <p className="suggestions-label">Try these instead:</p>
+                  <div className="suggestions-list">
+                    {usernameSuggestions.map(suggestion => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="suggestion-button"
+                        onClick={() => handleSelectSuggestion(suggestion)}
+                      >
+                        @{suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="form-row">

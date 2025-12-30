@@ -122,7 +122,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
   }, [hasUnsavedChanges, formData]);
 
   const handleAutoSave = () => {
-    // In a real app, this would save to a draft or temporary storage// Save to localStorage as draft with enhanced data
+// Save to localStorage as draft with enhanced data
     try {
       const draftData = {
         formData,
@@ -133,7 +133,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
       };
       
       localStorage.setItem('profileEditDraft', JSON.stringify(draftData));
-      setLastSaved(new Date());// Show brief success indicator (could be a toast in real app)
+// Show brief success indicator (could be a toast in real app)
       const saveIndicator = document.getElementById('auto-save-indicator');
       if (saveIndicator) {
         saveIndicator.textContent = 'Draft saved';
@@ -181,7 +181,9 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
             // Restore the active tab if it was saved
             if (draftTab && draftTab !== initialTab) {
               setActiveTab(draftTab);
-            }// Show draft loaded indicator
+            }
+
+            // Show draft loaded indicator
             const saveIndicator = document.getElementById('auto-save-indicator');
             if (saveIndicator) {
               saveIndicator.textContent = 'Draft loaded';
@@ -251,6 +253,9 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
       
       if (field === 'name' && (!value || String(value).trim() === '')) {
         newErrors[field] = 'Name is required';
+      }
+      if (field === 'username' && (!value || String(value).trim() === '')) {
+        newErrors[field] = 'Username is required';
       }
       
       if (field === 'contactEmail' && value && String(value).trim() !== '') {
@@ -575,8 +580,8 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   const value = formData.personalDetails[field as keyof PersonalDetails];
                   const displayValue = getPreviewValue(field, value);
                   
-                  // Skip name as it's shown in header
-                  if (field === 'name') return null;
+                  // Skip username as it's shown in header
+                  if (field === 'username') return null;
                   
                   return (
                     <div key={field} className="preview-field">
@@ -611,11 +616,10 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
             
             return (
               <div key={field} className="form-field">
-                <label htmlFor={field} className="form-label">
-                  {getFieldLabel(field)}
-                  {field === 'name' && <span className="required">*</span>}
-                </label>
-                
+                                    <label htmlFor={field} className="form-label">
+                                      {getFieldLabel(field)}
+                                      {(field === 'name' || field === 'username') && <span className="required">*</span>}
+                                    </label>                
                 {renderFormInput(field, value, error)}
                 
                 {error && <span className="form-error">{error}</span>}
@@ -790,6 +794,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const getFieldLabel = (field: string): string => {
     const labels: Record<string, string> = {
       name: 'Name',
+      username: 'Username',
       age: 'Age',
       height: 'Height',
       weight: 'Weight',

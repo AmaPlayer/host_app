@@ -1,11 +1,9 @@
-import { db } from '../../lib/firebase';
-import { doc, setDoc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { supabase } from '../../lib/supabase';
 import { COLLECTIONS } from '../../constants/firebase';
 import { ParentProfile, Parent, CreateParentData } from '../../types/models/parent';
 
 class ParentsService {
-  private collectionName = COLLECTIONS.PARENTS;
-
+  
   /**
    * Calculate child's age from date of birth in DD-MM-YYYY format
    */
@@ -22,65 +20,88 @@ class ParentsService {
   }
 
   /**
-   * Create a new parent profile in the parents collection
+   * Create a new parent profile in the parents table
+   * @param userId - The Supabase UUID of the user
+   * @param data - The parent profile data
    */
-  async createParentProfile(uid: string, data: Partial<CreateParentData>): Promise<void> {
-    const parentRef = doc(db, this.collectionName, uid);
-
-    // Calculate child's age from date of birth
-    const age = this.calculateAge(data.child?.dateOfBirth || '');
-
-    const parentProfile: ParentProfile = {
-      uid,
-      email: data.email!,
-      role: 'parent',
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-
-      // Parent Information
-      parentFullName: data.parentFullName!,
-      relationshipToChild: data.relationshipToChild!,
-      mobileNumber: data.mobileNumber!,
-      ...(data.photoURL && { photoURL: data.photoURL }),
-
-      // Child Information
-      child: {
-        ...data.child!,
+  async createParentProfile(userId: string, data: Partial<CreateParentData>): Promise<void> {
+    try {
+      // Calculate child's age from date of birth
+      const age = this.calculateAge(data.child?.dateOfBirth || '');
+      
+      const childData = {
+        ...data.child,
         age
-      },
+      };
 
-      // Sports Details
-      sports: data.sports!,
+      const details = {
+        relationshipToChild: data.relationshipToChild,
+        mobileNumber: data.mobileNumber,
+        child: childData,
+        schoolInfo: data.schoolInfo,
+        contentConsent: data.contentConsent,
+        achievements: data.achievements,
+        aspirations: data.aspirations, // Also stored in top-level column
+        sports: data.sports
+      };
 
-      // Parent Consent
-      contentConsent: data.contentConsent!,
+      const { error } = await supabase
+        .from('parents')
+        .insert({
+          user_id: userId,
+          child_names: [data.child?.fullName || ''],
+          child_sports: [data.sports?.primary, data.sports?.secondary].filter(Boolean) as string[],
+          aspirations: data.aspirations || '',
+          details: details
+        });
 
-      // Optional fields
-      ...(data.schoolInfo && { schoolInfo: data.schoolInfo }),
-      ...(data.achievements && { achievements: data.achievements }),
-      ...(data.aspirations && { aspirations: data.aspirations }),
-
-      // System fields
-      isActive: true,
-      isVerified: false
-    };
-
-    await setDoc(parentRef, parentProfile);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error creating parent profile:', error);
+      throw error;
+    }
   }
 
   /**
-   * Get parent profile by UID
+   * Get parent profile by User ID (UUID)
    */
-  async getParentProfile(uid: string): Promise<Parent | null> {
+  async getParentProfile(userId: string): Promise<Parent | null> {
     try {
-      const parentRef = doc(db, this.collectionName, uid);
-      const parentDoc = await getDoc(parentRef);
+      const { data, error } = await supabase
+        .from('parents')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
 
-      if (!parentDoc.exists()) {
-        return null;
+      if (error) {
+        if (error.code === 'PGRST116') return null; // Not found
+        throw error;
       }
 
-      return { id: parentDoc.id, ...parentDoc.data() } as unknown as Parent;
+      // Map Supabase data back to application model
+      const details = data.details || {};
+      
+      const profile: any = {
+        id: userId,
+        uid: userId, // Keeping compatibility, but this is UUID now
+        role: 'parent',
+        relationshipToChild: details.relationshipToChild,
+        mobileNumber: details.mobileNumber,
+        child: details.child,
+        sports: details.sports,
+        schoolInfo: details.schoolInfo,
+        contentConsent: details.contentConsent,
+        achievements: details.achievements,
+        aspirations: data.aspirations || details.aspirations,
+        isActive: true,
+        isVerified: false
+      };
+
+      // Only add these if they have values to avoid overwriting base user data in userService merge
+      if (details.parentFullName) profile.parentFullName = details.parentFullName;
+      if (details.email) profile.email = details.email;
+
+      return profile as unknown as Parent;
     } catch (error) {
       console.error('Error getting parent profile:', error);
       throw error;
@@ -90,19 +111,42 @@ class ParentsService {
   /**
    * Update parent profile
    */
-  async updateParentProfile(uid: string, updates: Partial<ParentProfile>): Promise<void> {
+  async updateParentProfile(userId: string, updates: Partial<ParentProfile>): Promise<void> {
     try {
-      const parentRef = doc(db, this.collectionName, uid);
-
+      // We need to fetch current details to merge, or use jsonb_set in SQL
+      // For simplicity, we'll just update the specific fields if they map to columns,
+      // or update the 'details' JSONB. 
+      // This is a simplified implementation.
+      
+      const { data: currentData } = await supabase
+        .from('parents')
+        .select('details')
+        .eq('user_id', userId)
+        .single();
+        
+      const currentDetails = currentData?.details || {};
+      const newDetails = { ...currentDetails, ...updates }; // Naive merge
+      
       // Recalculate age if date of birth is updated
       if (updates.child?.dateOfBirth) {
-        updates.child.age = this.calculateAge(updates.child.dateOfBirth);
+         // Logic to update age inside newDetails.child
+         newDetails.child.age = this.calculateAge(updates.child.dateOfBirth);
       }
 
-      await updateDoc(parentRef, {
-        ...updates,
-        updatedAt: Timestamp.now()
-      });
+      const dbUpdates: any = {
+        details: newDetails
+      };
+      
+      if (updates.child?.fullName) dbUpdates.child_names = [updates.child.fullName];
+      if (updates.sports) dbUpdates.child_sports = [updates.sports.primary, updates.sports.secondary].filter(Boolean);
+      if (updates.aspirations) dbUpdates.aspirations = updates.aspirations;
+
+      const { error } = await supabase
+        .from('parents')
+        .update(dbUpdates)
+        .eq('user_id', userId);
+
+      if (error) throw error;
     } catch (error) {
       console.error('Error updating parent profile:', error);
       throw error;

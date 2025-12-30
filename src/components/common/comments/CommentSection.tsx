@@ -3,13 +3,14 @@ import React, { useState, useCallback, memo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Send, Heart, Trash2, Edit2 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useRealtimeComments } from '../../../hooks/useRealtimeComments';
+import { useSupabaseComments } from '../../../hooks/useSupabaseComments';
 import CommentService, { Comment, ContentType } from '../../../services/api/commentService';
 import LoadingSpinner from '../feedback/LoadingSpinner';
 import ErrorMessage from '../feedback/ErrorMessage';
 import userService from '../../../services/api/userService';
 import { User } from '../../../types/models/user';
 import UserAvatar from '../user/UserAvatar';
+import { queryClient } from '../../../lib/queryClient';
 import './CommentSection.css';
 
 interface CommentSectionProps {
@@ -17,16 +18,20 @@ interface CommentSectionProps {
   contentType: ContentType;
   className?: string;
   hideCommentForm?: boolean; // Hide form when using separate CommentInputForm
+  onCommentAdded?: () => void; // Callback when comment is added (Fix Issue #5)
+  onCommentDeleted?: () => void; // Callback when comment is deleted (Fix Issue #5)
 }
 
 const CommentSection = memo<CommentSectionProps>(({
   contentId,
   contentType,
   className = '',
-  hideCommentForm = false
+  hideCommentForm = false,
+  onCommentAdded,
+  onCommentDeleted
 }) => {
   const { currentUser, isGuest } = useAuth();
-  const { comments, loading, error, refresh } = useRealtimeComments(contentId, contentType);
+  const { comments, loading, error, refresh } = useSupabaseComments(contentId, contentType);
 
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -89,6 +94,17 @@ const CommentSection = memo<CommentSectionProps>(({
       });
 
       setNewComment('');
+      // Refresh comments list to show the new comment
+      refresh();
+
+      // Invalidate cache and notify parent (Fix Issue #3 & #5)
+      console.log('🔄 Invalidating cache after comment added...');
+      await queryClient.invalidateQueries({ queryKey: ['posts'] });
+      await queryClient.invalidateQueries({ queryKey: ['posts', contentId] });
+
+      if (onCommentAdded) {
+        onCommentAdded();
+      }
     } catch (err: any) {
       // eslint-disable-next-line no-console
       console.error('Error submitting comment:', err);
@@ -96,7 +112,7 @@ const CommentSection = memo<CommentSectionProps>(({
     } finally {
       setSubmitting(false);
     }
-  }, [currentUser, isGuest, newComment, submitting, contentId, contentType, userProfile]);
+  }, [currentUser, isGuest, newComment, submitting, contentId, contentType, userProfile, refresh]);
 
   // Handle comment deletion
   const handleDeleteComment = useCallback(async (comment: Comment) => {
@@ -107,12 +123,23 @@ const CommentSection = memo<CommentSectionProps>(({
     try {
       setLocalError(null);
       await CommentService.deleteComment(comment.id, contentId, contentType, currentUser.uid);
+      // Refresh comments list after deletion
+      refresh();
+
+      // Invalidate cache and notify parent (Fix Issue #3 & #5)
+      console.log('🔄 Invalidating cache after comment deleted...');
+      await queryClient.invalidateQueries({ queryKey: ['posts'] });
+      await queryClient.invalidateQueries({ queryKey: ['posts', contentId] });
+
+      if (onCommentDeleted) {
+        onCommentDeleted();
+      }
     } catch (err: any) {
       // eslint-disable-next-line no-console
       console.error('Error deleting comment:', err);
       setLocalError(err.message || 'Failed to delete comment');
     }
-  }, [currentUser, contentId, contentType]);
+  }, [currentUser, contentId, contentType, refresh]);
 
   // Handle comment edit submission
   const handleEditSubmit = useCallback(async (comment: Comment) => {
@@ -123,12 +150,14 @@ const CommentSection = memo<CommentSectionProps>(({
       await CommentService.editComment(comment.id, editText.trim(), currentUser.uid);
       setEditingId(null);
       setEditText('');
+      // Refresh comments list after edit
+      refresh();
     } catch (err: any) {
       // eslint-disable-next-line no-console
       console.error('Error editing comment:', err);
       setLocalError(err.message || 'Failed to edit comment');
     }
-  }, [currentUser, editText]);
+  }, [currentUser, editText, refresh]);
 
   // Handle comment like toggle
   const handleToggleLike = useCallback(async (comment: Comment) => {
@@ -137,12 +166,14 @@ const CommentSection = memo<CommentSectionProps>(({
     try {
       setLocalError(null);
       await CommentService.toggleCommentLike(comment.id, currentUser.uid);
+      // Refresh comments list after like
+      refresh();
     } catch (err: any) {
       // eslint-disable-next-line no-console
       console.error('Error toggling like:', err);
       setLocalError(err.message || 'Failed to like comment');
     }
-  }, [currentUser]);
+  }, [currentUser, refresh]);
 
   // Format timestamp
   const formatTime = (timestamp: string): string => {

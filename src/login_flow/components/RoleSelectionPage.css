@@ -157,7 +157,7 @@
   transform: translateX(10px);
 }
 
-.back-btn {
+.back-button {
   background: transparent;
   border: 2px solid var(--border-secondary);
   border-radius: 50px;
@@ -168,9 +168,10 @@
   transition: all 0.3s ease;
   text-transform: uppercase;
   letter-spacing: 1px;
+  font-family: inherit;
 }
 
-.back-btn:hover {
+.back-button:hover {
   background: var(--bg-hover);
   border-color: var(--accent-primary);
   color: var(--accent-primary);

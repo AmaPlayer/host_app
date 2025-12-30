@@ -10,7 +10,7 @@ import LazyImage from '../ui/LazyImage';
 import LoadingSpinner from '../feedback/LoadingSpinner';
 import ErrorMessage from '../feedback/ErrorMessage';
 import { Post, Comment, CreateCommentData } from '../../../types/models';
-import postsService from '../../../services/api/postsService';
+import postsService from '../../../services/supabase/postsService';
 import './Modal.css';
 
 interface CommentModalProps {

@@ -48,6 +48,20 @@ export default function Signup() {
       }
     }
 
+    // Check for organization details
+    const organizationDetails = localStorage.getItem('organizationDetails');
+    if (organizationDetails) {
+      try {
+        const details = JSON.parse(organizationDetails);
+        if (details.organizationName) {
+          setDisplayName(details.organizationName);
+          return;
+        }
+      } catch (err) {
+        console.error('Error parsing organization details:', err);
+      }
+    }
+
     // Fall back to pending personal details (for athletes)
     const pendingDetails = localStorage.getItem('pendingPersonalDetails');
     if (pendingDetails) {
@@ -88,6 +102,7 @@ export default function Signup() {
           ...baseUserData,
           role: 'parent',
           parentFullName: parentDetails.parentFullName,
+          username: parentDetails.username || undefined,
           relationshipToChild: parentDetails.relationshipToChild.toLowerCase(),
           mobileNumber: parentDetails.mobile,
           child: {
@@ -134,7 +149,13 @@ export default function Signup() {
           ...baseUserData,
           role: 'coach',
           fullName: coachDetails.fullName,
+          username: coachDetails.username || undefined,
           phone: coachDetails.phone,
+          city: coachDetails.city,
+          state: coachDetails.state,
+          country: coachDetails.country,
+          dateOfBirth: coachDetails.dateOfBirth,
+          gender: coachDetails.gender,
           sport: coachDetails.sport,
           yearsOfExperience: parseInt(coachDetails.yearsOfExperience) || 0,
           coachingLevel: coachDetails.coachingLevel,
@@ -156,6 +177,7 @@ export default function Signup() {
           ...baseUserData,
           role: 'organization',
           organizationName: orgDetails.organizationName,
+          username: orgDetails.username || undefined,
           organizationType: orgDetails.organizationType,
           registrationNumber: orgDetails.registrationNumber,
           yearEstablished: orgDetails.establishedYear,
@@ -220,6 +242,7 @@ export default function Signup() {
           ...baseUserData,
           role: 'athlete',
           fullName: personalDetails.fullName || user.displayName || '',
+          username: personalDetails.username || undefined,
           dateOfBirth: personalDetails.dateOfBirth || '',
           age: age,
           gender: personalDetails.gender ? personalDetails.gender.toLowerCase() : '',

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import postsService from '@/services/api/postsService';
 
 interface LikeState {
   isLiked: boolean;
@@ -26,6 +27,7 @@ interface UseSocialActionsReturn {
   getError: (postId: string) => string | null;
   clearError: (postId: string) => void;
   retryFailedActions: () => Promise<void>;
+  initializePostState: (postId: string, isLiked: boolean, likesCount: number) => void;
 }
 
 const MAX_RETRY_ATTEMPTS = 3;
@@ -35,6 +37,7 @@ const DEBOUNCE_DELAY = 300;
 /**
  * Enhanced social actions hook with optimistic updates and error handling
  * Provides reliable like/unlike functionality with immediate UI feedback
+ * Now unified on Supabase via postsService
  */
 export const useSocialActions = (): UseSocialActionsReturn => {
   const { currentUser: user } = useAuth();
@@ -42,7 +45,6 @@ export const useSocialActions = (): UseSocialActionsReturn => {
   const [actionQueue, setActionQueue] = useState<QueuedAction[]>([]);
   const debounceTimers = useRef<{ [postId: string]: NodeJS.Timeout }>({});
   const processingQueue = useRef<boolean>(false);
-  const subscriptions = useRef<{ [postId: string]: () => void }>({});
 
   /**
    * Get like state for a specific post
@@ -74,6 +76,10 @@ export const useSocialActions = (): UseSocialActionsReturn => {
    */
   const initializePostState = useCallback((postId: string, isLiked: boolean, likesCount: number) => {
     setState(prev => {
+      // Always update initialization to match latest server data if provided
+      // or if it doesn't exist yet.
+      // But be careful not to overwrite user interaction in progress?
+      // For now, if it doesn't exist, set it.
       if (!prev[postId]) {
         return {
           ...prev,
@@ -90,27 +96,24 @@ export const useSocialActions = (): UseSocialActionsReturn => {
   }, []);
 
   /**
-   * Perform actual like/unlike operation with the backend
+   * Perform actual like/unlike operation with the backend (Supabase)
    */
-  const performLikeOperation = useCallback(async (postId: string, shouldLike: boolean): Promise<{ success: boolean; newCount: number }> => {
+  const performLikeOperation = useCallback(async (postId: string): Promise<{ success: boolean; newCount: number; liked: boolean }> => {
     if (!user) {
       throw new Error('User not authenticated');
     }
 
     try {
-      // Import the social service dynamically to avoid circular dependencies
-      const { default: socialService } = await import('@/services/socialService');
-      
-      const userInfo = {
+      // Use the unified postsService (Supabase)
+      const result = await postsService.toggleLike(postId, user.uid, {
         displayName: user.displayName || 'Anonymous',
         photoURL: user.photoURL || null
-      };
-
-      const result = await socialService.toggleLike(postId, user.uid, userInfo);
+      });
       
       return {
-        success: result.success,
-        newCount: result.likesCount
+        success: true,
+        newCount: result.likesCount,
+        liked: result.liked
       };
     } catch (error) {
       console.error('Like operation failed:', error);
@@ -132,30 +135,28 @@ export const useSocialActions = (): UseSocialActionsReturn => {
       const actionsToProcess = [...actionQueue];
       const failedActions: QueuedAction[] = [];
 
-      for (const queuedAction of actionsToProcess) {
-        const { postId, action, retryCount } = queuedAction;
+      // We only process the LATEST action for a post to avoid flip-flopping
+      // Map postID -> latest action
+      const uniqueActions = new Map<string, QueuedAction>();
+      actionsToProcess.forEach(action => {
+        uniqueActions.set(action.postId, action);
+      });
+
+      for (const queuedAction of uniqueActions.values()) {
+        const { postId, retryCount } = queuedAction;
         
         try {
           updatePostState(postId, { isLoading: true, error: null });
           
-          const shouldLike = action === 'like';
-          const result = await performLikeOperation(postId, shouldLike);
+          const result = await performLikeOperation(postId);
           
           // Update state with server response
           updatePostState(postId, {
-            isLiked: shouldLike,
+            isLiked: result.liked,
             likesCount: result.newCount,
             isLoading: false,
             error: null
           });
-
-          // Store in localStorage for persistence
-          const storageKey = `like_${postId}_${user?.uid}`;
-          if (shouldLike) {
-            localStorage.setItem(storageKey, 'true');
-          } else {
-            localStorage.removeItem(storageKey);
-          }
 
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -173,19 +174,21 @@ export const useSocialActions = (): UseSocialActionsReturn => {
             // Max retries reached, show error
             updatePostState(postId, {
               isLoading: false,
-              error: `Failed to ${action} post: ${errorMessage}`
+              error: `Failed to update like: ${errorMessage}`
             });
           }
         }
       }
 
       // Update queue with failed actions for retry
+      // Be careful: if we processed only unique actions, what about the intermediate ones?
+      // In a debounce/toggle scenario, only the last state matters.
       setActionQueue(failedActions);
 
     } finally {
       processingQueue.current = false;
     }
-  }, [actionQueue, performLikeOperation, updatePostState, user?.uid]);
+  }, [actionQueue, performLikeOperation, updatePostState]);
 
   /**
    * Add action to queue for processing
@@ -208,43 +211,6 @@ export const useSocialActions = (): UseSocialActionsReturn => {
     setTimeout(processActionQueue, 100);
   }, [processActionQueue]);
 
-  /**
-   * Subscribe to real-time like updates for a post
-   */
-  const subscribeToPost = useCallback(async (postId: string) => {
-    if (subscriptions.current[postId]) {
-      return; // Already subscribed
-    }
-
-    try {
-      const { default: socialService } = await import('@/services/socialService');
-      
-      const unsubscribe = socialService.subscribeToLikes(postId, (likesCount, likes) => {
-        if (!user) return;
-        
-        const isLiked = likes.some(like => like.userId === user.uid);
-        
-        updatePostState(postId, {
-          isLiked,
-          likesCount,
-          isLoading: false,
-          error: null
-        });
-      });
-      
-      subscriptions.current[postId] = unsubscribe;
-    } catch (error) {
-      console.error('Failed to subscribe to post likes:', error);
-    }
-  }, [user, updatePostState]);
-
-  /**
-   * Initialize post state and subscribe to real-time updates
-   */
-  const initializePost = useCallback((postId: string, isLiked: boolean, likesCount: number) => {
-    initializePostState(postId, isLiked, likesCount);
-    subscribeToPost(postId);
-  }, [initializePostState, subscribeToPost]);
 
   /**
    * Toggle like with optimistic updates and debouncing
@@ -254,8 +220,8 @@ export const useSocialActions = (): UseSocialActionsReturn => {
       throw new Error('User not authenticated');
     }
 
-    // Initialize state and subscribe to real-time updates if needed
-    initializePost(postId, currentLiked, currentCount);
+    // Initialize state if needed
+    initializePostState(postId, currentLiked, currentCount);
 
     // Clear existing debounce timer
     if (debounceTimers.current[postId]) {
@@ -278,7 +244,7 @@ export const useSocialActions = (): UseSocialActionsReturn => {
       queueAction(postId, action);
     }, DEBOUNCE_DELAY);
 
-  }, [user, initializePost, updatePostState, queueAction]);
+  }, [user, initializePostState, updatePostState, queueAction]);
 
   /**
    * Check if a post is currently loading
@@ -302,29 +268,9 @@ export const useSocialActions = (): UseSocialActionsReturn => {
   }, [updatePostState]);
 
   /**
-   * Unsubscribe from real-time updates for a post
-   */
-  const unsubscribeFromPost = useCallback((postId: string) => {
-    const unsubscribe = subscriptions.current[postId];
-    if (unsubscribe) {
-      unsubscribe();
-      delete subscriptions.current[postId];
-    }
-  }, []);
-
-
-
-  /**
    * Retry all failed actions
    */
   const retryFailedActions = useCallback(async () => {
-    try {
-      const { default: socialService } = await import('@/services/socialService');
-      await socialService.retryFailedOperations();
-    } catch (error) {
-      console.error('Failed to retry operations:', error);
-    }
-
     const failedPosts = Object.keys(state).filter(postId => state[postId].error);
     
     for (const postId of failedPosts) {
@@ -337,61 +283,13 @@ export const useSocialActions = (): UseSocialActionsReturn => {
     }
   }, [state, updatePostState, queueAction]);
 
-  /**
-   * Initialize social service on mount
-   */
-  useEffect(() => {
-    const initializeSocialService = async () => {
-      try {
-        const { default: socialService } = await import('@/services/socialService');
-        socialService.initialize();
-      } catch (error) {
-        console.error('Failed to initialize social service:', error);
-      }
-    };
-
-    initializeSocialService();
-
-    // Cleanup on unmount
-    return () => {
-      // Unsubscribe from all posts
-      Object.values(subscriptions.current).forEach(unsubscribe => unsubscribe());
-      subscriptions.current = {};
-    };
-  }, []);
-
-  /**
-   * Load persisted like state from localStorage on mount
-   */
-  useEffect(() => {
-    const loadPersistedState = async () => {
-      if (!user) return;
-
-      try {
-        const { default: socialService } = await import('@/services/socialService');
-        
-        // Load state for posts that are already in our state
-        for (const postId of Object.keys(state)) {
-          const { liked, count } = await socialService.getLikeState(postId, user.uid);
-          updatePostState(postId, {
-            isLiked: liked,
-            likesCount: count
-          });
-        }
-      } catch (error) {
-        console.error('Failed to load persisted like state:', error);
-      }
-    };
-
-    loadPersistedState();
-  }, [user, updatePostState]);
-
   return {
     getLikeState,
     toggleLike,
     isLoading,
     getError,
     clearError,
-    retryFailedActions
+    retryFailedActions,
+    initializePostState
   };
 };

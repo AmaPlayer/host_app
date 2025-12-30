@@ -70,11 +70,11 @@ export const handlePostSave = async (
   try {
     // Optimistically cancel edit mode immediately for better UX
     cancelEditingPost();
-    
+
     // Update in background without blocking UI
-    updatePost(postId, { 
-      caption: editText.trim(), 
-      currentUser 
+    updatePost(postId, {
+      caption: editText.trim(),
+      currentUser
     }).catch(error => {
       // Only show error if update fails
       console.error('Failed to update post:', error);
@@ -124,8 +124,8 @@ export const handlePostCreation = async (
   if (!currentUser) return;
 
   try {
-    await refreshPosts();
-    
+    // await refreshPosts(); // Removed to prevent list reset/flashing, handled by optimistic update
+
     if (trackBehavior && typeof trackBehavior === 'function') {
       trackBehavior('post_create', {
         userId: currentUser.uid,

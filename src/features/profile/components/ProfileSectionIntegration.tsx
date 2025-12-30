@@ -134,8 +134,8 @@ const ProfileSectionIntegration: React.FC<ProfileSectionIntegrationProps> = ({
     const errors: string[] = [];
     
     // Validate personal details
-    if (!personalDetails.name || personalDetails.name.trim() === '') {
-      errors.push('Name is required');
+    if (!personalDetails.username || personalDetails.username.trim() === '') {
+      errors.push('Username is required');
     }
     
     // Validate achievements
@@ -174,8 +174,8 @@ const ProfileSectionIntegration: React.FC<ProfileSectionIntegrationProps> = ({
     let filledFields = 0;
     
     // Count personal details fields
-    const requiredPersonalFields = ['name'];
-    const optionalPersonalFields = ['age', 'height', 'weight', 'sex', 'sport', 'position'];
+    const requiredPersonalFields = ['username'];
+    const optionalPersonalFields = ['name', 'age', 'height', 'weight', 'sex', 'sport', 'position'];
     
     requiredPersonalFields.forEach(field => {
       totalFields++;

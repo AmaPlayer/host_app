@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '@hooks/useLanguage';
 import { indianStates, getCitiesByState } from '../../features/athlete-onboarding/data/indianLocations';
+import { usernameValidationService } from '../../services/username/usernameValidationService';
 import './OrganizationRegistrationForm.css';
 
 interface OrganizationDetails {
   // Basic Information
   organizationName: string;
+  username: string;
   organizationType: string;
   establishedYear: string;
   registrationNumber: string;
@@ -54,9 +56,16 @@ const OrganizationRegistrationForm: React.FC<OrganizationRegistrationFormProps> 
   const [cities, setCities] = useState<string[]>([]);
   const [errors, setErrors] = useState<Partial<Record<keyof OrganizationDetails, string>>>({});
 
+  // Username validation state
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState<string>('');
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+
   const [formData, setFormData] = useState<OrganizationDetails>({
     // Basic Information
     organizationName: '',
+    username: '',
     organizationType: '',
     establishedYear: '',
     registrationNumber: '',

@@ -226,3 +226,113 @@
     font-size: 0.875rem;
   }
 }
+
+/* Username Field Styles */
+.username-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.username-prefix {
+  position: absolute;
+  left: 1rem;
+  color: #666;
+  font-weight: 500;
+  font-size: 1rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.username-input-wrapper input {
+  padding-left: 2.5rem !important;
+  width: 100%;
+}
+
+.success-check {
+  color: #10b981;
+  font-weight: bold;
+  margin-left: 0.5rem;
+  font-size: 1.2rem;
+}
+
+.error-x {
+  color: #ef4444;
+  font-weight: bold;
+  margin-left: 0.5rem;
+  font-size: 1.2rem;
+}
+
+.loading-text {
+  display: block;
+  color: #6366f1;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+.suggestions-box {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.suggestions-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+.suggestions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.suggestion-button {
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 1.5px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #374151;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.suggestion-button:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.suggestion-button:active {
+  transform: translateY(0);
+}
+
+input.valid {
+  border-color: #10b981 !important;
+  background-color: #f0fdf4;
+}
+
+input.error {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2;
+}

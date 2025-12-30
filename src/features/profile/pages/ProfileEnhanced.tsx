@@ -38,6 +38,7 @@ const ProfileEnhanced: React.FC = () => {
     posts: [],
     personalDetails: {
       name: 'baboo yogi',
+      username: 'baboo_yogi',
       dateOfBirth: '1999-05-15',
       gender: 'Male',
       mobile: '+1234567890',
@@ -120,7 +121,23 @@ const ProfileEnhanced: React.FC = () => {
             // Update state with Firebase data
             setProfileState(prev => ({
               ...prev,
-              currentRole: profileRole
+              currentRole: profileRole,
+              personalDetails: {
+                ...prev.personalDetails,
+                name: userData.displayName || (userData as any)?.fullName || (userData as any)?.name || prev.personalDetails.name,
+                username: userData.username || '',
+                email: userData.email || prev.personalDetails.email,
+                mobile: userData.phone || (userData as any)?.mobile || (userData as any)?.phone || prev.personalDetails.mobile,
+                city: userData.city || prev.personalDetails.city,
+                state: userData.state || prev.personalDetails.state,
+                country: userData.country || prev.personalDetails.country,
+                dateOfBirth: userData.dateOfBirth || prev.personalDetails.dateOfBirth,
+                gender: userData.gender || prev.personalDetails.gender,
+                specializations: (userData as any)?.specializations || prev.personalDetails.specializations,
+                yearsExperience: (userData as any)?.yearsExperience || prev.personalDetails.yearsExperience,
+                coachingLevel: (userData as any)?.coachingLevel || prev.personalDetails.coachingLevel,
+                bio: (userData as any)?.bio || userData.bio || prev.personalDetails.bio
+              }
             }));
             
             // Save to localStorage for immediate access
@@ -575,9 +592,10 @@ const ProfileEnhanced: React.FC = () => {
       
       // Custom labels for better UX
       switch (field) {
-        case 'organizationName':
-          label = 'ORGANIZATION NAME';
+        case 'username':
+          label = 'USERNAME';
           break;
+        case 'organizationName':
         case 'organizationType':
           label = 'ORGANIZATION TYPE';
           break;

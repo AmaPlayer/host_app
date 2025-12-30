@@ -1,13 +1,13 @@
-import { db } from '../../lib/firebase';
-import { doc, setDoc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { supabase } from '../../lib/supabase';
 import { COLLECTIONS } from '../../constants/firebase';
+import { Timestamp } from 'firebase/firestore'; // Keeping for type defs if needed, or better replace with string/Date
 
 export interface AthleteProfile {
   uid: string;
   email: string;
   role: 'athlete';
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: any;
+  updatedAt: any;
 
   // Personal Details
   fullName: string;
@@ -65,65 +65,93 @@ export interface CreateAthleteData {
   };
   bio?: string;
   coverPhotoURL?: string;
+  height?: string;
+  weight?: string;
+  specializations?: any;
 }
 
 class AthletesService {
-  private collectionName = COLLECTIONS.ATHLETES;
 
   /**
-   * Create a new athlete profile in the athletes collection
+   * Create a new athlete profile in the athletes table
+   * @param userId - The Supabase UUID
+   * @param data - The athlete profile data
    */
-  async createAthleteProfile(uid: string, data: Partial<CreateAthleteData>): Promise<void> {
-    const athleteRef = doc(db, this.collectionName, uid);
+  async createAthleteProfile(userId: string, data: Partial<CreateAthleteData>): Promise<void> {
+    try {
+      const stats = {
+        phone: data.phone,
+        state: data.state,
+        city: data.city,
+        country: data.country,
+        skillLevel: data.sports?.skillLevel,
+        specializations: data.specializations
+      };
 
-    const athleteProfile: AthleteProfile = {
-      uid,
-      email: data.email!,
-      role: 'athlete',
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
+      const { error } = await supabase
+        .from('athletes')
+        .insert({
+          user_id: userId,
+          gender: data.gender,
+          date_of_birth: data.dateOfBirth ? new Date(data.dateOfBirth).toISOString() : null, // Assuming YYYY-MM-DD or parseable
+          height: data.height,
+          weight: data.weight,
+          sports: [data.sports?.primary, data.sports?.secondary].filter(Boolean) as string[],
+          position: data.sports?.position,
+          stats: stats
+        });
 
-      // Personal Details
-      fullName: data.fullName!,
-      dateOfBirth: data.dateOfBirth!,
-      age: data.age!,
-      gender: data.gender!,
-      phone: data.phone!,
-      ...(data.photoURL && { photoURL: data.photoURL }),
-      ...(data.coverPhotoURL && { coverPhotoURL: data.coverPhotoURL }),
-
-      // Location
-      state: data.state!,
-      city: data.city!,
-      country: data.country || 'India',
-
-      // Sports Details
-      sports: data.sports!,
-
-      // Additional
-      ...(data.bio && { bio: data.bio }),
-
-      // System fields
-      isActive: true,
-      isVerified: false
-    };
-
-    await setDoc(athleteRef, athleteProfile);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error creating athlete profile:', error);
+      throw error;
+    }
   }
 
   /**
-   * Get athlete profile by UID
+   * Get athlete profile by User ID (UUID)
    */
-  async getAthleteProfile(uid: string): Promise<Athlete | null> {
+  async getAthleteProfile(userId: string): Promise<Athlete | null> {
     try {
-      const athleteRef = doc(db, this.collectionName, uid);
-      const athleteDoc = await getDoc(athleteRef);
+      const { data, error } = await supabase
+        .from('athletes')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
 
-      if (!athleteDoc.exists()) {
-        return null;
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw error;
       }
 
-      return { id: athleteDoc.id, ...athleteDoc.data() } as unknown as Athlete;
+      const stats = data.stats || {};
+      
+      const profile: any = {
+        id: userId,
+        uid: userId,
+        role: 'athlete',
+        dateOfBirth: data.date_of_birth,
+        gender: data.gender,
+        height: data.height,
+        weight: data.weight,
+        sports: {
+          primary: data.sports?.[0],
+          secondary: data.sports?.[1],
+          position: data.position,
+          skillLevel: stats.skillLevel
+        },
+        isActive: true,
+        isVerified: false
+      };
+
+      // Only add these if they have values to avoid overwriting base user data in userService merge
+      if (stats.phone) profile.phone = stats.phone;
+      if (stats.city) profile.city = stats.city;
+      if (stats.state) profile.state = stats.state;
+      if (stats.country) profile.country = stats.country;
+      if (stats.specializations) profile.specializations = stats.specializations;
+
+      return profile as unknown as Athlete;
     } catch (error) {
       console.error('Error getting athlete profile:', error);
       throw error;
@@ -133,13 +161,39 @@ class AthletesService {
   /**
    * Update athlete profile
    */
-  async updateAthleteProfile(uid: string, updates: Partial<AthleteProfile>): Promise<void> {
+  async updateAthleteProfile(userId: string, updates: Partial<AthleteProfile>): Promise<void> {
     try {
-      const athleteRef = doc(db, this.collectionName, uid);
-      await updateDoc(athleteRef, {
-        ...updates,
-        updatedAt: Timestamp.now()
-      });
+      const { data: currentData } = await supabase
+        .from('athletes')
+        .select('stats')
+        .eq('user_id', userId)
+        .single();
+        
+      const currentStats = currentData?.stats || {};
+      const newStats = { ...currentStats, ...updates }; // Naive merge
+
+      const dbUpdates: any = {
+        stats: newStats
+      };
+
+      if (updates.gender) dbUpdates.gender = updates.gender;
+      if (updates.dateOfBirth) dbUpdates.date_of_birth = updates.dateOfBirth;
+      // height/weight not in AthleteProfile interface explicitly but used in Create? 
+      // Assuming updates might contain them if casted
+      const anyUpdates = updates as any;
+      if (anyUpdates.height) dbUpdates.height = anyUpdates.height;
+      if (anyUpdates.weight) dbUpdates.weight = anyUpdates.weight;
+      if (updates.sports) {
+         dbUpdates.sports = [updates.sports.primary, updates.sports.secondary].filter(Boolean);
+         dbUpdates.position = updates.sports.position;
+      }
+
+      const { error } = await supabase
+        .from('athletes')
+        .update(dbUpdates)
+        .eq('user_id', userId);
+
+      if (error) throw error;
     } catch (error) {
       console.error('Error updating athlete profile:', error);
       throw error;

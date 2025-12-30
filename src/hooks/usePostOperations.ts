@@ -14,7 +14,7 @@ import { db, storage } from '../lib/firebase';
 import { Post, User } from '../types/models';
 import { usePostsStore } from '../store/appStore';
 import { usePerformanceMonitor } from './usePerformanceMonitor';
-import postsService from '../services/api/postsService';
+import postsService from '../services/supabase/postsService';
 import { sanitizeEngagementData } from '../utils/validation/engagementValidation';
 import notificationService from '../services/notificationService';
 
@@ -56,8 +56,9 @@ const POSTS_PER_PAGE = 10;
 /**
  * Custom hook for handling all post CRUD operations
  * Extracts post-related logic from Home component
+ * @param {string} currentUserId - Optional current user ID for engagement metrics
  */
-export const usePostOperations = (): UsePostOperationsReturn => {
+export const usePostOperations = (currentUserId?: string): UsePostOperationsReturn => {
   const { measureApiCall } = usePerformanceMonitor('usePostOperations');
 
   const {
@@ -68,6 +69,7 @@ export const usePostOperations = (): UsePostOperationsReturn => {
     error: storeError,
     setPosts,
     addPosts,
+    addPost,
     updatePost: updatePostInStore,
     removePost,
     setHasMore,
@@ -92,11 +94,13 @@ export const usePostOperations = (): UsePostOperationsReturn => {
           limit: POSTS_PER_PAGE,
           startAfter: loadMore ? lastDoc : undefined,
           includeEngagementMetrics: true,
-          currentUserId: undefined // Will be set by the calling component if available
+          currentUserId: currentUserId // Pass the currentUserId from hook parameter
         });
       };
 
-      const result = await measureApiCall(apiCall, 'loadPosts');const postsData = result.posts.map(post => sanitizeEngagementData(post));if (loadMore) {
+      const result = await measureApiCall(apiCall, 'loadPosts');
+      const postsData = result.posts.map(post => sanitizeEngagementData(post));
+      if (loadMore) {
         addPosts(postsData);
       } else {
         // Initial load
@@ -170,51 +174,21 @@ export const usePostOperations = (): UsePostOperationsReturn => {
         }
       }
 
-      let mediaUrl: string | null = null;
-      let mediaType: 'image' | 'video' | null = null;
-
-      // Upload media if selected
-      if (mediaFile) {
-        const filename = `posts/${currentUser.uid}/${Date.now()}_${mediaFile.name}`;
-        const storageRef = ref(storage, filename);
-
-        const snapshot = await uploadBytes(storageRef, mediaFile);
-        mediaUrl = await getDownloadURL(snapshot.ref);
-        mediaType = mediaFile.type.startsWith('image/') ? 'image' : 'video';
-      }
-
-      // Create post document
-      const newPostData: any = {
+      // Delegate creation to service (handles upload + db insert)
+      const newPost = await postsService.createPost({
         userId: currentUser.uid,
-        userDisplayName: currentUser.displayName || 'Anonymous User',
-        userPhotoURL: currentUser.photoURL || '',
-        userRole: currentUser.role || null,
+        userDisplayName: currentUser.displayName || 'Unknown',
+        userPhotoURL: currentUser.photoURL,
         caption: text,
-        timestamp: serverTimestamp(),
-        likes: [],
-        comments: [],
-        // Enhanced sharing fields
-        shares: [],
-        shareCount: 0,
-        shareMetadata: {
-          lastSharedAt: null,
-          shareBreakdown: {
-            friends: 0,
-            feeds: 0,
-            groups: 0
-          }
-        }
-      };
+        mediaFile: mediaFile || undefined,
+        visibility: 'public'
+      }, currentUser.uid);
 
-      if (mediaUrl) {
-        newPostData.imageUrl = mediaUrl;
-        newPostData.mediaType = mediaType;
-      }
+      // Optimistically add the new post to the top of the list
+      addPost(newPost);
 
-      await addDoc(collection(db, 'posts'), newPostData);
-
-      // Refresh posts to show the new post
-      await refreshPosts();
+      // Removed refreshPosts() to prevent list flashing/disappearance
+      // await refreshPosts();
 
     } catch (err: any) {
       setStoreError(err.message);
@@ -256,21 +230,22 @@ export const usePostOperations = (): UsePostOperationsReturn => {
         }
       }
 
-      const postRef = doc(db, 'posts', postId);
-      const updateData: any = { ...updates };
-      delete updateData.currentUser; // Remove currentUser from update data
-
-      if (updates.caption) {
-        updateData.editedAt = serverTimestamp();
+      if (!updates.currentUser) {
+        throw new Error('Current user is required for updates');
       }
 
-      await updateDoc(postRef, updateData);
+      // Call service update
+      const updatedPost = await postsService.updatePost(
+        postId,
+        { caption: updates.caption },
+        updates.currentUser.uid
+      );
 
       // Update local state
       updatePostInStore(postId, {
-        ...updateData as any,
+        caption: updatedPost.caption,
         editedAt: new Date()
-      });
+      } as any);
 
     } catch (err: any) {
       setStoreError(err.message);
@@ -285,11 +260,18 @@ export const usePostOperations = (): UsePostOperationsReturn => {
    * @param {string} postId - Post ID to delete
    */
   const deletePost = useCallback(async (postId: string): Promise<void> => {
+    // Need current user to delete - simplified for hook, ideally passed in
+    // Assuming the user viewing is the one deleting for now, or we need to pass user
+    // The service requires userId.
+    // For now, we'll try to find the post in local state to get userId or assume store owner
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
     setStoreLoading(true);
     setStoreError(null);
 
     try {
-      await deleteDoc(doc(db, 'posts', postId));
+      await (postsService as any).deletePost(postId, post.userId);
 
       // Update local state to remove the deleted post
       removePost(postId);
@@ -300,7 +282,7 @@ export const usePostOperations = (): UsePostOperationsReturn => {
     } finally {
       setStoreLoading(false);
     }
-  }, [removePost, setStoreError, setStoreLoading]);
+  }, [posts, removePost, setStoreError, setStoreLoading]);
 
   /**
    * Like or unlike a post
@@ -313,9 +295,10 @@ export const usePostOperations = (): UsePostOperationsReturn => {
   ): Promise<void> => {
     if (!currentUser) return;
 
+    console.log('❤️ likePost called for:', postId, 'by', currentUser.uid);
+
     setStoreError(null);
 
-    const postRef = doc(db, 'posts', postId);
     const userLiked = currentLikes.includes(currentUser.uid);
 
     // Calculate the new likes count
@@ -332,47 +315,40 @@ export const usePostOperations = (): UsePostOperationsReturn => {
       : [...currentLikes, currentUser.uid];
 
     try {
-      // OPTIMISTIC UPDATE FIRST - mark with timestamp to prevent listener duplicate
+      // OPTIMISTIC UPDATE FIRST
       const optimisticUpdateId = Date.now();
+      console.log('👍 Optimistic update applied for:', postId, 'newIsLiked:', !userLiked);
+
       updatePostInStore(postId, {
         likes: newLikes,
         likesCount: newLikesCount,
+        isLiked: !userLiked,  // ✅ Toggle isLiked immediately for instant UI update
         _optimisticUpdateId: optimisticUpdateId
       } as any);
 
-      // Then update Firebase
-      if (userLiked) {
-        // Remove like
-        await updateDoc(postRef, {
-          likes: arrayRemove(currentUser.uid),
-          likesCount: newLikesCount
-        });
-      } else {
-        // Add like
-        await updateDoc(postRef, {
-          likes: arrayUnion(currentUser.uid),
-          likesCount: newLikesCount
-        });
+      // Call service
+      await postsService.toggleLike(postId, currentUser.uid, {
+        displayName: currentUser.displayName,
+        photoURL: currentUser.photoURL
+      });
 
-        // Send notification to post owner (only when liking, not unliking)
-        if (postData && postData.userId && postData.userId !== currentUser.uid) {
-          try {
-            await notificationService.sendLikeNotification(
-              currentUser.uid,
-              currentUser.displayName || 'Someone',
-              currentUser.photoURL || '',
-              postData.userId,
-              postId,
-              postData
-            );
-          } catch (notificationError) {
-            // Error sending like notification - logged in production
-            console.warn('Failed to send like notification:', notificationError);
-          }
+      // Send notification (only when liking)
+      if (!userLiked && postData && postData.userId && postData.userId !== currentUser.uid) {
+        try {
+          await notificationService.sendLikeNotification(
+            currentUser.uid,
+            currentUser.displayName || 'Someone',
+            currentUser.photoURL || '',
+            postData.userId,
+            postId,
+            postData
+          );
+        } catch (notificationError) {
+          console.warn('Failed to send like notification:', notificationError);
         }
       }
 
-      // Clear optimistic flag after Firebase confirms
+      // Clear optimistic flag
       setTimeout(() => {
         updatePostInStore(postId, {
           _optimisticUpdateId: undefined
@@ -406,25 +382,10 @@ export const usePostOperations = (): UsePostOperationsReturn => {
     setStoreError(null);
 
     try {
-      const postRef = doc(db, 'posts', postId);
       const increment = isAdding ? 1 : -1;
 
-      if (isAdding) {
-        // Add share
-        await updateDoc(postRef, {
-          shares: arrayUnion(userId),
-          shareCount: increment,
-          [`shareMetadata.shareBreakdown.${shareType}`]: increment,
-          'shareMetadata.lastSharedAt': serverTimestamp()
-        });
-      } else {
-        // Remove share
-        await updateDoc(postRef, {
-          shares: arrayRemove(userId),
-          shareCount: increment,
-          [`shareMetadata.shareBreakdown.${shareType}`]: increment
-        });
-      }
+      // Update via service
+      await (postsService as any).updateShare(postId, userId, shareType, isAdding);
 
       // Update local state
       const post = posts.find(p => p.id === postId);
@@ -442,7 +403,7 @@ export const usePostOperations = (): UsePostOperationsReturn => {
               [shareType]: Math.max(0, (post.shareMetadata?.shareBreakdown?.[shareType] || 0) + increment)
             }
           }
-        });
+        } as any);
       }
 
     } catch (err: any) {

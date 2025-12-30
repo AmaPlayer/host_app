@@ -50,6 +50,7 @@ export interface WinnerEntry {
   submissionId: string;
   userId: string;
   rank: number;
+  prize?: string;
 }
 
 /**

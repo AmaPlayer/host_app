@@ -1,8 +1,5 @@
 // User service with business logic
-import { BaseService } from './baseService';
-import { COLLECTIONS } from '../../constants/firebase';
-import { db } from '../../lib/firebase';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { supabase } from '../../lib/supabase';
 import { User, UserRole } from '../../types/models/user';
 import { parentsService } from './parentsService';
 import { coachesService } from './coachesService';
@@ -21,6 +18,7 @@ interface CreateUserProfileData {
   location?: string;
   website?: string;
   role?: string;
+  username?: string;
 }
 
 /**
@@ -50,11 +48,8 @@ interface UserStatsUpdate {
 /**
  * User service providing business logic for user operations
  */
-class UserService extends BaseService<User> {
-  constructor() {
-    super(COLLECTIONS.USERS);
-  }
-
+class UserService {
+  
   /**
    * Get browser's default language
    */
@@ -65,40 +60,35 @@ class UserService extends BaseService<User> {
   }
 
   /**
-   * Create user profile
+   * Create user profile (Base User)
    */
   async createUserProfile(userData: CreateUserProfileData & { languagePreference?: string }): Promise<User> {
     try {
       const defaultLanguage = userData.languagePreference || this.getBrowserDefaultLanguage();
 
-      const userProfile: Omit<User, 'id'> = {
-        ...userData,
-        uid: userData.uid,
-        email: userData.email,
-        displayName: userData.displayName,
-        photoURL: userData.photoURL || null,
-        role: userData.role,
-        languagePreference: defaultLanguage,
-        languagePreferenceUpdatedAt: new Date().toISOString(),
-        postsCount: 0,
-        storiesCount: 0,
-        isVerified: false,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        privacy: {
-          profileVisibility: 'public',
-        },
-        settings: {
-          notifications: true,
-          emailNotifications: false,
-          pushNotifications: true,
-        },
-      } as Omit<User, 'id'>;
+      const { data, error } = await supabase
+        .from('users')
+        .insert({
+          uid: userData.uid,
+          email: userData.email,
+          display_name: userData.displayName,
+          photo_url: userData.photoURL || null,
+          username: userData.username || null,
+          role: userData.role,
+          language_preference: defaultLanguage,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          is_active: true,
+          is_verified: false,
+          posts_count: 0,
+          stories_count: 0
+        })
+        .select()
+        .single();
 
-      const userRef = doc(db, COLLECTIONS.USERS, userData.uid);
-      await setDoc(userRef, userProfile);
-      return { id: userData.uid, ...userProfile } as User;
+      if (error) throw error;
+
+      return this.mapSupabaseUserToModel(data);
     } catch (error) {
       console.error('❌ Error creating user profile:', error);
       throw error;
@@ -106,70 +96,102 @@ class UserService extends BaseService<User> {
   }
 
   /**
-   * Get user profile by ID with backward compatibility
-   * Search order:
-   * 1. If role provided, check that specific role collection
-   * 2. If role unknown, check all role-specific collections (parent, coach, organization, athlete)
-   * 3. Finally, fallback to legacy users collection
-   *
-   * This prioritizes role-specific collections over legacy users collection to ensure
-   * users with profiles in multiple collections get their correct role-specific data.
+   * Get user profile by ID (Supabase)
    */
   async getUserProfile(userId: string, role?: UserRole): Promise<User | null> {
     try {
-      // Strategy 1: Check role-specific collection if role is known
-      if (role) {
-        let profile = null;
+      // 1. Fetch base user from 'users' table using Firebase UID (uid column)
+      // We assume userId passed here is the Firebase UID
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('uid', userId)
+        .single();
 
-        switch (role) {
+      if (userError || !userData) {
+        console.warn('⚠️ User profile not found for UID:', userId);
+        return null;
+      }
+
+      const user = this.mapSupabaseUserToModel(userData);
+      const userRole = role || user.role as UserRole;
+
+      // 2. Fetch role-specific details
+      if (userRole) {
+        let roleProfile = null;
+        // Pass the Supabase UUID (user.id) to role services
+        switch (userRole) {
           case 'parent':
-            profile = await parentsService.getParentProfile(userId);
+            roleProfile = await parentsService.getParentProfile(user.id);
             break;
           case 'coach':
-            profile = await coachesService.getCoachProfile(userId);
+            roleProfile = await coachesService.getCoachProfile(user.id);
             break;
           case 'organization':
-            profile = await organizationsService.getOrganizationProfile(userId);
+            roleProfile = await organizationsService.getOrganizationProfile(user.id);
             break;
           case 'athlete':
-            profile = await athletesService.getAthleteProfile(userId);
+            roleProfile = await athletesService.getAthleteProfile(user.id);
             break;
         }
 
-        if (profile) {
-          return profile as unknown as User;
+        if (roleProfile) {
+          // Merge role profile with base user profile
+          return { ...user, ...roleProfile } as User;
         }
       }
 
-      // Strategy 2: If role unknown, check all role-specific collections FIRST
-      // (before legacy users collection to prioritize current architecture)
-      if (!role) {
-        const parentProfile = await parentsService.getParentProfile(userId);
-        if (parentProfile) return parentProfile as unknown as User;
-
-        const coachProfile = await coachesService.getCoachProfile(userId);
-        if (coachProfile) return coachProfile as unknown as User;
-
-        const orgProfile = await organizationsService.getOrganizationProfile(userId);
-        if (orgProfile) return orgProfile as unknown as User;
-
-        const athleteProfile = await athletesService.getAthleteProfile(userId);
-        if (athleteProfile) return athleteProfile as unknown as User;
-      }
-
-      // Strategy 3: Check legacy users collection as fallback
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      const userDoc = await getDoc(userRef);
-
-      if (userDoc.exists()) {
-        const userData = { id: userDoc.id, ...userDoc.data() } as User;
-        return userData;
-      }
-
-      console.warn('⚠️ User profile not found:', userId);
-      return null;
+      return user;
     } catch (error) {
       console.error('❌ Error getting user profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Alias for getUserProfile to maintain backward compatibility
+   */
+  async getById(userId: string): Promise<User | null> {
+    return this.getUserProfile(userId);
+  }
+
+  /**
+   * Update role-specific profile data
+   */
+  async updateRoleSpecificProfile(userId: string, role: UserRole, data: any): Promise<void> {
+    try {
+      // 1. Resolve Firebase UID to Supabase UUID
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('uid', userId)
+        .single();
+
+      if (userError || !userData) {
+        console.warn(`User not found for UID: ${userId}, skipping role update`);
+        return;
+      }
+
+      const supabaseId = userData.id;
+
+      switch (role) {
+        case 'parent':
+          await parentsService.updateParentProfile(supabaseId, data);
+          break;
+        case 'coach':
+          await coachesService.updateCoachProfile(supabaseId, data);
+          break;
+        case 'organization':
+          await organizationsService.updateOrganizationProfile(supabaseId, data);
+          break;
+        case 'athlete':
+          await athletesService.updateAthleteProfile(supabaseId, data);
+          break;
+        default:
+          console.warn(`Unknown role for update: ${role}`);
+      }
+    } catch (error) {
+      console.error('❌ Error updating role-specific profile:', error);
       throw error;
     }
   }
@@ -179,18 +201,50 @@ class UserService extends BaseService<User> {
    */
   async createRoleSpecificProfile(uid: string, role: UserRole, data: any): Promise<void> {
     try {
+      // 1. Create Base User in Supabase 'users' table
+      const baseUserData: CreateUserProfileData = {
+        uid: uid,
+        email: data.email,
+        displayName: data.displayName || data.fullName || data.organizationName || data.parentFullName, // Fallbacks
+        photoURL: data.photoURL,
+        role: role,
+        username: data.username
+      };
+
+      // Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('uid', uid)
+        .single();
+
+      let supabaseUserId = existingUser?.id;
+
+      if (!supabaseUserId) {
+        const newUser = await this.createUserProfile(baseUserData);
+        supabaseUserId = newUser.id;
+      } else {
+        // Update existing user with base details (role, username, etc.)
+        await this.updateUserProfile(uid, {
+          role: role,
+          username: data.username,
+          displayName: baseUserData.displayName
+        });
+      }
+
+      // 2. Create Role Specific Profile using Supabase UUID
       switch (role) {
         case 'parent':
-          await parentsService.createParentProfile(uid, data);
+          await parentsService.createParentProfile(supabaseUserId, data);
           break;
         case 'coach':
-          await coachesService.createCoachProfile(uid, data);
+          await coachesService.createCoachProfile(supabaseUserId, data);
           break;
         case 'organization':
-          await organizationsService.createOrganizationProfile(uid, data);
+          await organizationsService.createOrganizationProfile(supabaseUserId, data);
           break;
         case 'athlete':
-          await athletesService.createAthleteProfile(uid, data);
+          await athletesService.createAthleteProfile(supabaseUserId, data);
           break;
         default:
           throw new Error(`Unknown role: ${role}`);
@@ -206,39 +260,18 @@ class UserService extends BaseService<User> {
    */
   async updateUserProfile(userId: string, updateData: UpdateUserProfileData): Promise<Partial<User>> {
     try {
-      // First, get the user's profile to determine their role
-      const userProfile = await this.getUserProfile(userId);
+      const updates = this.mapModelToSupabaseUser(updateData);
+      
+      const { error } = await supabase
+        .from('users')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('uid', userId); // Assuming userId is Firebase UID
 
-      if (!userProfile) {
-        throw new Error(`User profile not found for userId: ${userId}`);
-      }
-
-      // Determine the collection based on role
-      let collectionName: string;
-      switch (userProfile.role) {
-        case 'parent':
-          collectionName = COLLECTIONS.PARENTS;
-          break;
-        case 'coach':
-          collectionName = COLLECTIONS.COACHES;
-          break;
-        case 'organization':
-          collectionName = COLLECTIONS.ORGANIZATIONS;
-          break;
-        case 'athlete':
-          collectionName = COLLECTIONS.ATHLETES;
-          break;
-        default:
-          // Fallback to athletes for unknown roles
-          collectionName = COLLECTIONS.ATHLETES;
-          break;
-      }
-
-      const userRef = doc(db, collectionName, userId);
-      await updateDoc(userRef, {
-        ...updateData,
-        updatedAt: new Date().toISOString(),
-      });
+      if (error) throw error;
+      
       return { id: userId, ...updateData };
     } catch (error) {
       console.error('❌ Error updating user profile:', error);
@@ -251,19 +284,15 @@ class UserService extends BaseService<User> {
    */
   async searchUsers(searchTerm: string, limit: number = 20): Promise<User[]> {
     try {
-      const nameResults = await this.search('displayName', searchTerm, limit);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .or(`display_name.ilike.%${searchTerm}%,username.ilike.%${searchTerm}%`)
+        .limit(limit);
 
-      let usernameResults: User[] = [];
-      try {
-        usernameResults = await this.search('username', searchTerm, limit);
-      } catch (error) {}
+      if (error) throw error;
 
-      const allResults = [...nameResults, ...usernameResults];
-      const uniqueResults = allResults.filter((user, index, array) =>
-        array.findIndex(u => u.id === user.id) === index
-      );
-
-      return uniqueResults.slice(0, limit);
+      return data.map(this.mapSupabaseUserToModel);
     } catch (error) {
       console.error('❌ Error searching users:', error);
       throw error;
@@ -275,18 +304,16 @@ class UserService extends BaseService<User> {
    */
   async getUserProfiles(userIds: string[]): Promise<User[]> {
     try {
-      const profiles: User[] = [];
+      if (!userIds.length) return [];
 
-      const chunkSize = 10;
-      for (let i = 0; i < userIds.length; i += chunkSize) {
-        const chunk = userIds.slice(i, i + chunkSize);
-        const chunkPromises = chunk.map(id => this.getUserProfile(id));
-        const chunkResults = await Promise.all(chunkPromises);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .in('uid', userIds);
 
-        profiles.push(...chunkResults.filter((profile): profile is User => profile !== null));
-      }
+      if (error) throw error;
 
-      return profiles;
+      return data.map(this.mapSupabaseUserToModel);
     } catch (error) {
       console.error('❌ Error getting user profiles:', error);
       throw error;
@@ -298,17 +325,18 @@ class UserService extends BaseService<User> {
    */
   async updateUserStats(userId: string, statsUpdate: UserStatsUpdate): Promise<UserStatsUpdate> {
     try {
-      const validStats = ['postsCount', 'storiesCount'];
-      const filteredUpdate: UserStatsUpdate = {};
+      const updates: any = {};
+      if (statsUpdate.postsCount !== undefined) updates.posts_count = statsUpdate.postsCount;
+      if (statsUpdate.storiesCount !== undefined) updates.stories_count = statsUpdate.storiesCount;
 
-      Object.keys(statsUpdate).forEach(key => {
-        if (validStats.includes(key)) {
-          filteredUpdate[key as keyof UserStatsUpdate] = Math.max(0, statsUpdate[key as keyof UserStatsUpdate] || 0);
-        }
-      });
+      const { error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('uid', userId);
 
-      await this.updateUserProfile(userId, filteredUpdate as UpdateUserProfileData);
-      return filteredUpdate;
+      if (error) throw error;
+
+      return statsUpdate;
     } catch (error) {
       console.error('❌ Error updating user stats:', error);
       throw error;
@@ -339,12 +367,75 @@ class UserService extends BaseService<User> {
   }
 
   /**
+   * Get user by username
+   * @param username - Username to search for
+   * @returns User or null if not found
+   */
+  async getUserByUsername(username: string): Promise<User | null> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username.toLowerCase())
+        .single();
+
+      if (error || !data) {
+        return null;
+      }
+
+      return this.mapSupabaseUserToModel(data);
+    } catch (error) {
+      console.error('❌ Error getting user by username:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if username is available
+   * @param username - Username to check
+   * @param excludeUid - Optional Firebase UID to exclude (when updating own username)
+   * @returns True if available, false if taken
+   */
+  async checkUsernameAvailability(username: string, excludeUid?: string): Promise<boolean> {
+    try {
+      const lowerUsername = username.toLowerCase().trim();
+
+      let query = supabase
+        .from('users')
+        .select('id', { count: 'exact', head: true })
+        .eq('username', lowerUsername);
+
+      if (excludeUid) {
+        query = query.neq('uid', excludeUid);
+      }
+
+      const { count, error } = await query;
+
+      if (error) {
+        console.error('❌ Error checking username availability:', error);
+        throw error;
+      }
+
+      return count === 0;
+    } catch (error) {
+      console.error('❌ Error in checkUsernameAvailability:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get user's language preference
    */
   async getLanguagePreference(userId: string): Promise<string | null> {
     try {
-      const user = await this.getUserProfile(userId);
-      return user?.languagePreference || null;
+      const { data, error } = await supabase
+        .from('users')
+        .select('language_preference')
+        .eq('uid', userId)
+        .single();
+
+      if (error) return null;
+      return data?.language_preference || null;
     } catch (error) {
       console.error('❌ Error getting language preference:', error);
       throw error;
@@ -356,12 +447,15 @@ class UserService extends BaseService<User> {
    */
   async setLanguagePreference(userId: string, languageCode: string): Promise<void> {
     try {
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      await updateDoc(userRef, {
-        languagePreference: languageCode,
-        languagePreferenceUpdatedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      const { error } = await supabase
+        .from('users')
+        .update({
+          language_preference: languageCode,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('uid', userId);
+
+      if (error) throw error;
     } catch (error) {
       console.error('❌ Error setting language preference:', error);
       throw error;
@@ -372,13 +466,47 @@ class UserService extends BaseService<User> {
    * Save language preference when user is created
    */
   async setUserLanguagePreference(userId: string, userData: CreateUserProfileData & { languagePreference?: string }): Promise<void> {
-    try {
-      if (userData.languagePreference) {
-        await this.setLanguagePreference(userId, userData.languagePreference);
-      }
-    } catch (error) {
-      console.warn('⚠️ Warning: Could not set language preference during user creation:', error);
-    }
+    // Handled in createUserProfile now
+  }
+
+  // --- Mappers ---
+
+  private mapSupabaseUserToModel(data: any): User {
+    return {
+      id: data.id, // Supabase UUID
+      uid: data.uid, // Firebase UID
+      email: data.email,
+      displayName: data.display_name,
+      photoURL: data.photo_url,
+      username: data.username,
+      bio: data.bio,
+      location: data.location,
+      website: data.website,
+      role: data.role,
+      isVerified: data.is_verified,
+      isActive: data.is_active,
+      postsCount: data.posts_count,
+      storiesCount: data.stories_count,
+      languagePreference: data.language_preference,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
+      settings: data.settings || {},
+      privacy: data.privacy || {}
+    } as User;
+  }
+
+  private mapModelToSupabaseUser(user: Partial<User>): any {
+    const map: any = {};
+    if (user.displayName !== undefined) map.display_name = user.displayName;
+    if (user.photoURL !== undefined) map.photo_url = user.photoURL;
+    if (user.username !== undefined) map.username = user.username;
+    if (user.bio !== undefined) map.bio = user.bio;
+    if (user.location !== undefined) map.location = user.location;
+    if (user.website !== undefined) map.website = user.website;
+    if (user.role !== undefined) map.role = user.role;
+    if (user.settings !== undefined) map.settings = user.settings;
+    if (user.privacy !== undefined) map.privacy = user.privacy;
+    return map;
   }
 }
 

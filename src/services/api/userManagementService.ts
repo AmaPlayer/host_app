@@ -1,8 +1,5 @@
-import { doc, updateDoc, getDoc, writeBatch } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import { COLLECTIONS } from '../../constants/firebase';
+import { supabase } from '../../lib/supabase';
 import { User } from '@/types/models';
-import userService from './userService';
 
 export interface UserManagementResult {
   success: boolean;
@@ -18,7 +15,7 @@ export interface BulkUserManagementResult {
 }
 
 /**
- * Enhanced user management service with bulk operations support
+ * Enhanced user management service with bulk operations support using Supabase
  */
 class UserManagementService {
   /**
@@ -26,28 +23,23 @@ class UserManagementService {
    */
   async suspendUser(userId: string, reason?: string): Promise<UserManagementResult> {
     try {
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      const userDoc = await getDoc(userRef);
-      
-      if (!userDoc.exists()) {
-        return {
-          success: false,
-          message: 'User not found'
-        };
-      }
-
       const updateData = {
-        isActive: false,
-        status: 'suspended',
-        suspendedAt: new Date().toISOString(),
-        suspensionReason: reason || 'Administrative action',
-        updatedAt: new Date().toISOString()
+        is_active: false,
+        settings: { status: 'suspended', suspensionReason: reason || 'Administrative action', suspendedAt: new Date().toISOString() },
+        updated_at: new Date().toISOString()
       };
 
-      await updateDoc(userRef, updateData);return {
+      const { error } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('uid', userId);
+
+      if (error) throw error;
+
+      return {
         success: true,
         message: 'User suspended successfully',
-        updatedUser: { id: userId, ...updateData }
+        updatedUser: { uid: userId, isActive: false } as any
       };
     } catch (error) {
       console.error('Error suspending user:', error);
@@ -63,27 +55,20 @@ class UserManagementService {
    */
   async verifyUser(userId: string, reason?: string): Promise<UserManagementResult> {
     try {
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      const userDoc = await getDoc(userRef);
-      
-      if (!userDoc.exists()) {
-        return {
-          success: false,
-          message: 'User not found'
-        };
-      }
+      const { error } = await supabase
+        .from('users')
+        .update({
+          is_verified: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('uid', userId);
 
-      const updateData = {
-        isVerified: true,
-        verifiedAt: new Date().toISOString(),
-        verificationReason: reason || 'Administrative verification',
-        updatedAt: new Date().toISOString()
-      };
+      if (error) throw error;
 
-      await updateDoc(userRef, updateData);return {
+      return {
         success: true,
         message: 'User verified successfully',
-        updatedUser: { id: userId, ...updateData }
+        updatedUser: { uid: userId, isVerified: true } as any
       };
     } catch (error) {
       console.error('Error verifying user:', error);
@@ -99,31 +84,20 @@ class UserManagementService {
    */
   async activateUser(userId: string, reason?: string): Promise<UserManagementResult> {
     try {
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      const userDoc = await getDoc(userRef);
-      
-      if (!userDoc.exists()) {
-        return {
-          success: false,
-          message: 'User not found'
-        };
-      }
+      const { error } = await supabase
+        .from('users')
+        .update({
+          is_active: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('uid', userId);
 
-      const updateData = {
-        isActive: true,
-        status: 'active',
-        activatedAt: new Date().toISOString(),
-        activationReason: reason || 'Administrative activation',
-        updatedAt: new Date().toISOString(),
-        // Clear suspension data
-        suspendedAt: null,
-        suspensionReason: null
-      };
+      if (error) throw error;
 
-      await updateDoc(userRef, updateData);return {
+      return {
         success: true,
         message: 'User activated successfully',
-        updatedUser: { id: userId, ...updateData }
+        updatedUser: { uid: userId, isActive: true } as any
       };
     } catch (error) {
       console.error('Error activating user:', error);
@@ -138,137 +112,79 @@ class UserManagementService {
    * Bulk suspend users
    */
   async bulkSuspendUsers(userIds: string[], reason?: string): Promise<BulkUserManagementResult> {
-    return this.executeBulkUserOperation(userIds, 'suspend', reason);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .in('uid', userIds);
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        processedCount: userIds.length,
+        failedCount: 0,
+        errors: []
+      };
+    } catch (error) {
+      console.error('Bulk suspend failed:', error);
+      return { success: false, processedCount: 0, failedCount: userIds.length, errors: [{ userId: 'multiple', error: String(error) }] };
+    }
   }
 
   /**
    * Bulk verify users
    */
   async bulkVerifyUsers(userIds: string[], reason?: string): Promise<BulkUserManagementResult> {
-    return this.executeBulkUserOperation(userIds, 'verify', reason);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          is_verified: true,
+          updated_at: new Date().toISOString()
+        })
+        .in('uid', userIds);
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        processedCount: userIds.length,
+        failedCount: 0,
+        errors: []
+      };
+    } catch (error) {
+      return { success: false, processedCount: 0, failedCount: userIds.length, errors: [{ userId: 'multiple', error: String(error) }] };
+    }
   }
 
   /**
    * Bulk activate users
    */
   async bulkActivateUsers(userIds: string[], reason?: string): Promise<BulkUserManagementResult> {
-    return this.executeBulkUserOperation(userIds, 'activate', reason);
-  }
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          is_active: true,
+          updated_at: new Date().toISOString()
+        })
+        .in('uid', userIds);
 
-  /**
-   * Execute bulk user operation
-   */
-  private async executeBulkUserOperation(
-    userIds: string[],
-    operation: 'suspend' | 'verify' | 'activate',
-    reason?: string
-  ): Promise<BulkUserManagementResult> {
-    const result: BulkUserManagementResult = {
-      success: false,
-      processedCount: 0,
-      failedCount: 0,
-      errors: []
-    };
+      if (error) throw error;
 
-    if (userIds.length === 0) {
-      result.success = true;
-      return result;
-    }// Process in batches of 500 (Firestore batch limit)
-    const batchSize = 500;
-    const batches = [];
-    
-    for (let i = 0; i < userIds.length; i += batchSize) {
-      batches.push(userIds.slice(i, i + batchSize));
+      return {
+        success: true,
+        processedCount: userIds.length,
+        failedCount: 0,
+        errors: []
+      };
+    } catch (error) {
+      return { success: false, processedCount: 0, failedCount: userIds.length, errors: [{ userId: 'multiple', error: String(error) }] };
     }
-
-    for (const batch of batches) {
-      try {
-        await this.processBatch(batch, operation, reason);
-        result.processedCount += batch.length;
-      } catch (error) {
-        console.error(`Batch operation failed, processing individually:`, error);
-        
-        // Process individually to identify specific failures
-        for (const userId of batch) {
-          try {
-            switch (operation) {
-              case 'suspend':
-                await this.suspendUser(userId, reason);
-                break;
-              case 'verify':
-                await this.verifyUser(userId, reason);
-                break;
-              case 'activate':
-                await this.activateUser(userId, reason);
-                break;
-            }
-            result.processedCount++;
-          } catch (error) {
-            result.failedCount++;
-            result.errors.push({
-              userId,
-              error: error instanceof Error ? error.message : 'Unknown error'
-            });
-          }
-        }
-      }
-    }
-
-    result.success = result.processedCount > 0;return result;
-  }
-
-  /**
-   * Process a batch of users using Firestore batch operations
-   */
-  private async processBatch(
-    userIds: string[],
-    operation: 'suspend' | 'verify' | 'activate',
-    reason?: string
-  ): Promise<void> {
-    const batch = writeBatch(db);
-    const timestamp = new Date().toISOString();
-
-    for (const userId of userIds) {
-      const userRef = doc(db, COLLECTIONS.USERS, userId);
-      let updateData: Record<string, any>;
-
-      switch (operation) {
-        case 'suspend':
-          updateData = {
-            isActive: false,
-            status: 'suspended',
-            suspendedAt: timestamp,
-            suspensionReason: reason || 'Administrative action',
-            updatedAt: timestamp
-          };
-          break;
-        case 'verify':
-          updateData = {
-            isVerified: true,
-            verifiedAt: timestamp,
-            verificationReason: reason || 'Administrative verification',
-            updatedAt: timestamp
-          };
-          break;
-        case 'activate':
-          updateData = {
-            isActive: true,
-            status: 'active',
-            activatedAt: timestamp,
-            activationReason: reason || 'Administrative activation',
-            updatedAt: timestamp,
-            suspendedAt: null,
-            suspensionReason: null
-          };
-          break;
-        default:
-          throw new Error(`Unknown operation: ${operation}`);
-      }
-
-      batch.update(userRef, updateData);
-    }
-
-    await batch.commit();
   }
 
   /**
@@ -281,22 +197,19 @@ class UserManagementService {
     verifiedUsers: number;
   }> {
     try {
-      // This would typically use aggregation queries or cached statistics
-      // For now, we'll return mock data
+      const { count: total } = await supabase.from('users').select('*', { count: 'exact', head: true });
+      const { count: active } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_active', true);
+      const { count: verified } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_verified', true);
+
       return {
-        totalUsers: 0,
-        activeUsers: 0,
-        suspendedUsers: 0,
-        verifiedUsers: 0
+        totalUsers: total || 0,
+        activeUsers: active || 0,
+        suspendedUsers: (total || 0) - (active || 0),
+        verifiedUsers: verified || 0
       };
     } catch (error) {
       console.error('Error getting user management stats:', error);
-      return {
-        totalUsers: 0,
-        activeUsers: 0,
-        suspendedUsers: 0,
-        verifiedUsers: 0
-      };
+      return { totalUsers: 0, activeUsers: 0, suspendedUsers: 0, verifiedUsers: 0 };
     }
   }
 
@@ -308,24 +221,10 @@ class UserManagementService {
     errors: string[];
   } {
     const errors: string[] = [];
-
-    if (userIds.length === 0) {
-      errors.push('No users selected');
-    }
-
-    if (userIds.length > 1000) {
-      errors.push('Too many users selected. Maximum 1000 users per operation');
-    }
-
+    if (userIds.length === 0) errors.push('No users selected');
     const validOperations = ['suspend', 'verify', 'activate'];
-    if (!validOperations.includes(operation)) {
-      errors.push(`Invalid operation: ${operation}`);
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
+    if (!validOperations.includes(operation)) errors.push(`Invalid operation: ${operation}`);
+    return { isValid: errors.length === 0, errors };
   }
 }
 

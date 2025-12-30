@@ -97,7 +97,7 @@ function Home(): React.JSX.Element {
     updatePost,
     deletePost,
     likePost
-  } = usePostOperations();
+  } = usePostOperations(firebaseUser?.uid);
 
   const {
     showPrompt: showNotificationPrompt,

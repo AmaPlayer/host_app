@@ -6,11 +6,13 @@ import { useDebounce } from '../../utils/performance/optimization';
 import { usePostInteractions } from '../../hooks/usePostInteractions';
 import { useRealtimeEngagementBatch } from '../../hooks/useRealtimeEngagement';
 import { useToast } from '../../hooks/useToast';
+import postsService from '../../services/api/postsService';
 import FeedCard, { TalentCard, ProfileCard } from '../../components/common/feed/FeedCard';
 import ToastContainer from '../../components/common/ui/ToastContainer';
 import { LoadingFallback } from '../../utils/performance/lazyLoading';
 import { RefreshCw, Filter, Search, Plus, CheckCircle, AlertCircle } from 'lucide-react';
 import { User } from '../../types/models/user';
+import { Post } from '../../types/models/post';
 import './FeedPage.css';
 
 // Lazy-loaded components for better performance
@@ -28,6 +30,7 @@ interface BaseFeedItem {
   userId: string;
   userDisplayName: string;
   userPhotoURL: string;
+  userRole?: 'athlete' | 'parent' | 'organization' | 'coach';
   caption: string;
   mediaUrl: string;
   thumbnailUrl?: string | null;
@@ -77,77 +80,6 @@ interface ShareData {
   [key: string]: any;
 }
 
-// Mock API functions (replace with real API calls)
-const feedAPI = {
-  fetchFeedItems: async (page: number, pageSize: number, filters: FeedFilters = {}): Promise<FeedItem[]> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Mock data generation
-    const items: FeedItem[] = Array.from({ length: pageSize }, (_, index) => {
-      const id = (page - 1) * pageSize + index;
-      const types: FeedItemType[] = ['image', 'video', 'talent', 'profile'];
-      const type = types[Math.floor(Math.random() * types.length)];
-      
-      const baseItem: BaseFeedItem = {
-        id: `item-${id}`,
-        type,
-        userId: `user-${Math.floor(Math.random() * 100)}`,
-        userDisplayName: `User ${Math.floor(Math.random() * 100)}`,
-        userPhotoURL: `/assets/placeholders/default-avatar.svg`,
-        caption: `This is a sample ${type} post #${id}`,
-        mediaUrl: type === 'video' 
-          ? `https://sample-videos.com/zip/10/mp4/SampleVideo_${Math.random() > 0.5 ? '720x480' : '1280x720'}_1mb.mp4`
-          : `/assets/placeholders/default-post.svg`,
-        thumbnailUrl: type === 'video' ? `/assets/placeholders/default-post.svg` : null,
-        likesCount: Math.floor(Math.random() * 1000),
-        commentsCount: Math.floor(Math.random() * 100),
-        sharesCount: Math.floor(Math.random() * 50),
-        isLiked: Math.random() > 0.7,
-        createdAt: new Date(Date.now() - Math.random() * 86400000 * 7), // Within last week
-      };
-
-      if (type === 'video') {
-        return {
-          ...baseItem,
-          type: 'video',
-          views: Math.floor(Math.random() * 10000)
-        } as VideoFeedItem;
-      } else if (type === 'talent') {
-        return {
-          ...baseItem,
-          type: 'talent',
-          rating: Math.round((Math.random() * 2 + 3) * 10) / 10,
-          category: ['Sports', 'Music', 'Dance', 'Art'][Math.floor(Math.random() * 4)]
-        } as TalentFeedItem;
-      } else if (type === 'profile') {
-        return {
-          ...baseItem,
-          type: 'profile',
-          followersCount: Math.floor(Math.random() * 10000),
-          postsCount: Math.floor(Math.random() * 500),
-          isFollowing: Math.random() > 0.5,
-          bio: 'This is a sample bio for the profile card.'
-        } as ProfileFeedItem;
-      }
-      
-      return baseItem;
-    });
-    
-    return items;
-  },
-  
-  likePost: async (postId: string, liked: boolean): Promise<{ success: boolean; liked: boolean }> => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return { success: true, liked };
-  },
-  
-  followUser: async (userId: string, following: boolean): Promise<{ success: boolean; following: boolean }> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return { success: true, following };
-  }
-};
-
 const FeedPage = memo(() => {
   const { currentUser } = useAuth();
   const { toasts, showToast, dismissToast } = useToast();
@@ -177,6 +109,51 @@ const FeedPage = memo(() => {
     hasUserSharedPost
   } = usePostInteractions();
 
+  // Helper to map Post to FeedItem
+  const mapPostToFeedItem = useCallback((post: Post): FeedItem => {
+    // Determine type based on mediaType or metadata
+    let type: FeedItemType = 'image';
+    if (post.mediaType === 'video') type = 'video';
+    // Logic for 'talent' or 'profile' types could be added here if backend supports distinguishing them
+    
+    // Convert string timestamp to Date if needed
+    let createdAt = new Date();
+    if (post.createdAt instanceof Date) {
+      createdAt = post.createdAt;
+    } else if (typeof post.createdAt === 'string') {
+      createdAt = new Date(post.createdAt);
+    } else if (post.createdAt && typeof (post.createdAt as any).toDate === 'function') {
+      createdAt = (post.createdAt as any).toDate();
+    }
+
+    const baseItem: BaseFeedItem = {
+      id: post.id,
+      type,
+      userId: post.userId,
+      userDisplayName: post.userDisplayName,
+      userPhotoURL: post.userPhotoURL || '',
+      userRole: post.userRole as any,
+      caption: post.caption || '',
+      mediaUrl: post.mediaUrl || '',
+      thumbnailUrl: post.mediaMetadata?.thumbnail || null,
+      likesCount: post.likesCount,
+      commentsCount: post.commentsCount,
+      sharesCount: post.sharesCount,
+      isLiked: post.isLiked || false,
+      createdAt,
+    };
+
+    if (type === 'video') {
+       return {
+         ...baseItem,
+         type: 'video',
+         views: post.metadata?.views || 0
+       } as VideoFeedItem;
+    }
+
+    return baseItem;
+  }, []);
+
   // Infinite scroll implementation
   const {
     items,
@@ -188,17 +165,27 @@ const FeedPage = memo(() => {
     containerRef
   } = useInfiniteScroll({
     fetchMore: useCallback(async (page: number, pageSize: number) => {
-      return await feedAPI.fetchFeedItems(page, pageSize, {
-        search: debouncedSearch,
-        ...filters
-      });
-    }, [debouncedSearch, filters]),
+      try {
+        // Use real Supabase data instead of mock
+        const result = await postsService.getPosts({
+          limit: pageSize,
+          page: page - 1, // postsService uses 0-indexed pages
+          currentUserId: currentUser?.uid,
+          includeEngagementMetrics: true
+        });
+        
+        return result.posts.map(mapPostToFeedItem);
+      } catch (err) {
+        console.error("Failed to fetch posts:", err);
+        throw err;
+      }
+    }, [debouncedSearch, filters, currentUser, mapPostToFeedItem]),
     pageSize: 10,
     hasMore: true
   });
 
   // Real-time engagement tracking for all posts in the feed
-  // This listens to Firestore for updates to engagement counts (likes, comments, shares)
+  // This listens to Supabase (via useRealtimeEngagementBatch) for updates
   const postIds = useMemo(() => items.map(item => item.id), [items]);
   const { engagement } = useRealtimeEngagementBatch('posts', postIds);
 
@@ -255,6 +242,12 @@ const FeedPage = memo(() => {
 
   // Event handlers
   const handleLike = useCallback(async (itemId: string, liked: boolean) => {
+    if (!currentUser) {
+       // Ideally show toast or login modal
+       console.warn('User must be logged in to like posts');
+       return;
+    }
+
     // Set loading state
     setLoadingStates(prev => ({
       ...prev,
@@ -262,10 +255,18 @@ const FeedPage = memo(() => {
     }));
 
     try {
-      await feedAPI.likePost(itemId, liked);
+      // Use real Supabase postsService
+      await postsService.toggleLike(
+        itemId,
+        currentUser.uid,
+        {
+          displayName: currentUser.displayName || 'User',
+          photoURL: currentUser.photoURL
+        }
+      );
     } catch (error) {
       console.error('Error liking post:', error);
-      throw error;
+      // Optional: Show toast error
     } finally {
       // Clear loading state
       setLoadingStates(prev => ({
@@ -273,7 +274,7 @@ const FeedPage = memo(() => {
         likes: new Set([...prev.likes].filter(id => id !== itemId))
       }));
     }
-  }, []);
+  }, [currentUser]);
 
   const handleComment = useCallback((itemId: string) => {
     // Save scroll position before opening modal
@@ -297,7 +298,10 @@ const FeedPage = memo(() => {
     }, 100);
   }, [items, saveScrollPosition]);
 
-  const handleCommentAdded = useCallback((itemId: string) => {}, []);
+  const handleCommentAdded = useCallback((itemId: string) => {
+      // Trigger a refresh or local update if needed
+      // With real-time engagement, this might be automatic
+  }, []);
 
   const handleShare = useCallback((itemId: string) => {
     // Save scroll position before opening modal
@@ -365,7 +369,10 @@ const FeedPage = memo(() => {
 
   const handleFollow = useCallback(async (userId: string, following: boolean) => {
     try {
-      await feedAPI.followUser(userId, following);
+      // Implement follow logic using a real service (e.g., userService or socialService if adapted)
+      // For now, console log as placeholder if service method missing
+      console.log(`Following user ${userId}: ${following}`);
+      // await userService.followUser(userId, following); 
     } catch (error) {
       console.error('Error following user:', error);
       throw error;

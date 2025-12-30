@@ -44,17 +44,17 @@ export const QUERY_CONFIGS: Record<string, QueryConfig> = {
   },
 };
 
-// Create QueryClient with offline-first configuration as per documentation
+// Create QueryClient with improved configuration (Fix Issue #6)
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh
+      staleTime: 2 * 60 * 1000, // 2 minutes - data considered fresh (reduced from 5)
       gcTime: 10 * 60 * 1000, // 10 minutes - cache retention time (formerly cacheTime)
       retry: 3, // Retry failed requests 3 times
       networkMode: 'offlineFirst', // Offline-first strategy
-      refetchOnWindowFocus: false, // Don't refetch on window focus
+      refetchOnWindowFocus: true, // ✅ Refetch on window focus (was false)
       refetchOnReconnect: true, // Refetch when network reconnects
-      refetchOnMount: false, // Don't always refetch on mount
+      refetchOnMount: 'always', // ✅ Always refetch on mount (was false)
     },
     mutations: {
       retry: 2, // Retry failed mutations 2 times

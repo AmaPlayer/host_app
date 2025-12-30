@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface EngagementData {
   likes?: number;
@@ -19,17 +19,11 @@ interface UseRealtimeEngagementOptions {
 }
 
 /**
- * Custom hook for real-time engagement data updates (likes, comments, shares, views)
- * Automatically syncs engagement counts when they change
- *
- * @param collectionName - The collection name (e.g., 'posts', 'moments')
- * @param documentId - The document ID to listen to
- * @param options - Configuration options
- * @returns engagement data, loading, error, and manual refresh function
+ * Custom hook for real-time engagement data updates (Supabase version)
  */
 export const useRealtimeEngagement = (
-  collectionName: string | null,
-  documentId: string | null,
+  tableName: string | null,
+  recordId: string | null,
   options: UseRealtimeEngagementOptions = {}
 ) => {
   const { enabled = true, debounceMs = 300 } = options;
@@ -38,228 +32,201 @@ export const useRealtimeEngagement = (
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const unsubscribeRef = useRef<Unsubscribe | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<number>(0);
 
-  /**
-   * Setup real-time listener for engagement data
-   */
-  const setupListener = useCallback(() => {
-    if (!collectionName || !documentId || !enabled) {
-      return;
-    }
+  // Helper to extract engagement data from a record
+  const extractEngagement = (data: any): EngagementData => ({
+    likes: data.likes_count || 0,
+    likesCount: data.likes_count || 0,
+    comments: data.comments_count || 0,
+    commentsCount: data.comments_count || 0,
+    shares: data.shares_count || 0,
+    sharesCount: data.shares_count || 0,
+    views: data.views_count || 0,
+    viewsCount: data.views_count || 0
+  });
+
+  // Initial fetch
+  const fetchInitialData = useCallback(async () => {
+    if (!tableName || !recordId || !enabled) return;
 
     try {
       setLoading(true);
-      setError(null);
+      // Only query columns that exist in posts table (Fix: removed shares_count, views_count)
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('likes_count, comments_count')
+        .eq('id', recordId)
+        .single();
 
-      // Subscribe to real-time updates
-      unsubscribeRef.current = onSnapshot(
-        doc(db, collectionName, documentId),
-        (docSnapshot) => {
-          try {
-            if (!docSnapshot.exists()) {
-              setEngagement({});
-              setError(null);
-              return;
-            }
+      if (error) throw error;
+      if (data) setEngagement(extractEngagement(data));
+    } catch (err) {
+      console.error('Error fetching initial engagement:', err);
+      setError('Failed to fetch initial data');
+    } finally {
+      setLoading(false);
+    }
+  }, [tableName, recordId, enabled]);
 
-            const data = docSnapshot.data();
-            const engagementData: EngagementData = {
-              likes: data.likes?.length || data.likesCount || 0,
-              likesCount: data.likes?.length || data.likesCount || 0,
-              comments: data.comments?.length || data.commentsCount || 0,
-              commentsCount: data.comments?.length || data.commentsCount || 0,
-              shares: data.shares?.length || data.sharesCount || 0,
-              sharesCount: data.shares?.length || data.sharesCount || 0,
-              views: data.views?.length || data.viewsCount || 0,
-              viewsCount: data.views?.length || data.viewsCount || 0
-            };
+  const setupListener = useCallback(() => {
+    if (!tableName || !recordId || !enabled) return;
 
-            // Debounce rapid updates
+    // Clean up old channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    try {
+      const channel = supabase
+        .channel(`engagement:${tableName}:${recordId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: tableName,
+            filter: `id=eq.${recordId}`
+          },
+          (payload) => {
+            const newData = payload.new;
+            const engagementData = extractEngagement(newData);
+
+            // Debounce
             const now = Date.now();
-            if (debounceTimerRef.current) {
-              clearTimeout(debounceTimerRef.current);
-            }
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
             if (now - lastUpdateRef.current > debounceMs) {
               setEngagement(engagementData);
               lastUpdateRef.current = now;
-              setError(null);
             } else {
               debounceTimerRef.current = setTimeout(() => {
                 setEngagement(engagementData);
                 lastUpdateRef.current = Date.now();
-                setError(null);
               }, debounceMs - (now - lastUpdateRef.current));
             }
-          } catch (err) {
-            console.error('Error processing engagement snapshot:', err);
-            setError('Failed to update engagement data');
-          } finally {
-            setLoading(false);
           }
-        },
-        (err) => {
-          console.error('Realtime engagement listener error:', err);
-          setError('Failed to listen for engagement updates');
-          setLoading(false);
-        }
-      );
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            setError(null);
+          } else if (status === 'CHANNEL_ERROR') {
+            setError('Failed to connect to realtime channel');
+          }
+        });
+
+      channelRef.current = channel;
     } catch (err) {
       console.error('Error setting up engagement listener:', err);
-      setError('Failed to set up real-time engagement updates');
-      setLoading(false);
+      setError('Failed to set up listener');
     }
-  }, [collectionName, documentId, enabled, debounceMs]);
+  }, [tableName, recordId, enabled, debounceMs]);
 
-  /**
-   * Cleanup listener on unmount
-   */
   useEffect(() => {
+    fetchInitialData();
     setupListener();
 
     return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-      }
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [setupListener]);
+  }, [fetchInitialData, setupListener]);
 
-  /**
-   * Manual refresh function
-   */
-  const refresh = useCallback(() => {
-    setupListener();
-  }, [setupListener]);
-
-  return {
-    engagement,
-    loading,
-    error,
-    refresh
-  };
+  return { engagement, loading, error, refresh: fetchInitialData };
 };
 
 /**
- * Hook to track multiple posts/moments engagement in parallel
- * Useful for feeds where you need engagement data for multiple items
+ * Batch hook for multiple records
+ * Note: Supabase limits number of channels. For large lists, 
+ * listening to the whole table and filtering locally is more efficient.
  */
 export const useRealtimeEngagementBatch = (
-  collectionName: string,
-  documentIds: string[],
+  tableName: string,
+  recordIds: string[],
   options: UseRealtimeEngagementOptions = {}
 ) => {
   const { enabled = true } = options;
-
   const [engagementMap, setEngagementMap] = useState<Record<string, EngagementData>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
-  const unsubscribesRef = useRef<Record<string, Unsubscribe>>({});
+  const extractEngagement = (data: any): EngagementData => ({
+    likes: data.likes_count || 0,
+    likesCount: data.likes_count || 0,
+    comments: data.comments_count || 0,
+    commentsCount: data.comments_count || 0,
+    shares: data.shares_count || 0,
+    sharesCount: data.shares_count || 0,
+    views: data.views_count || 0,
+    viewsCount: data.views_count || 0
+  });
 
-  /**
-   * Setup listeners for all documents
-   */
-  const setupListeners = useCallback(() => {
-    if (!enabled || documentIds.length === 0) {
-      return;
-    }
+  const fetchInitialData = useCallback(async () => {
+    if (!tableName || recordIds.length === 0 || !enabled) return;
 
     try {
       setLoading(true);
-      setError(null);
+      // Only query columns that exist in posts table (Fix: removed shares_count, views_count)
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('id, likes_count, comments_count')
+        .in('id', recordIds);
 
-      // Clean up old listeners
-      Object.values(unsubscribesRef.current).forEach(unsub => unsub());
-      unsubscribesRef.current = {};
+      if (error) throw error;
 
-      // Create listeners for each document
-      documentIds.forEach(docId => {
-        unsubscribesRef.current[docId] = onSnapshot(
-          doc(db, collectionName, docId),
-          (docSnapshot) => {
-            try {
-              if (!docSnapshot.exists()) {
-                setEngagementMap(prev => {
-                  const updated = { ...prev };
-                  delete updated[docId];
-                  return updated;
-                });
-                return;
-              }
-
-              const data = docSnapshot.data();
-              const engagementData: EngagementData = {
-                likes: data.likes?.length || data.likesCount || 0,
-                likesCount: data.likes?.length || data.likesCount || 0,
-                comments: data.comments?.length || data.commentsCount || 0,
-                commentsCount: data.comments?.length || data.commentsCount || 0,
-                shares: data.shares?.length || data.sharesCount || 0,
-                sharesCount: data.shares?.length || data.sharesCount || 0,
-                views: data.views?.length || data.viewsCount || 0,
-                viewsCount: data.views?.length || data.viewsCount || 0
-              };
-
-              setEngagementMap(prev => ({
-                ...prev,
-                [docId]: engagementData
-              }));
-            } catch (err) {
-              console.error(`Error processing engagement snapshot for ${docId}:`, err);
-            }
-          },
-          (err) => {
-            console.error(`Realtime engagement listener error for ${docId}:`, err);
-            setError('Failed to listen for some engagement updates');
-          }
-        );
+      const newMap: Record<string, EngagementData> = {};
+      data?.forEach((row: any) => {
+        newMap[row.id] = extractEngagement(row);
       });
-
-      setLoading(false);
+      setEngagementMap(newMap);
     } catch (err) {
-      console.error('Error setting up engagement batch listeners:', err);
-      setError('Failed to set up real-time engagement updates');
+      console.error('Error fetching batch engagement:', err);
+      setError('Failed to fetch batch data');
+    } finally {
       setLoading(false);
     }
-  }, [collectionName, documentIds, enabled]);
+  }, [tableName, recordIds, enabled]);
 
-  /**
-   * Setup/update listeners when documentIds change
-   */
+  const setupListener = useCallback(() => {
+    if (!tableName || recordIds.length === 0 || !enabled) return;
+
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
+
+    // Listen to all updates on the table and filter client-side
+    // Filtering 100+ IDs in filter string is hard.
+    const channel = supabase
+      .channel(`engagement_batch:${tableName}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: tableName },
+        (payload) => {
+          const newData = payload.new;
+          if (recordIds.includes(newData.id)) {
+            setEngagementMap(prev => ({
+              ...prev,
+              [newData.id]: extractEngagement(newData)
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+  }, [tableName, recordIds, enabled]);
+
   useEffect(() => {
-    setupListeners();
+    fetchInitialData();
+    setupListener();
 
     return () => {
-      Object.values(unsubscribesRef.current).forEach(unsub => unsub());
-      unsubscribesRef.current = {};
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [setupListeners]);
+  }, [JSON.stringify(recordIds), tableName, enabled]); // Deep compare IDs if possible, or use stringify
 
-  /**
-   * Manual refresh function
-   */
-  const refresh = useCallback(() => {
-    setupListeners();
-  }, [setupListeners]);
+  const getEngagement = useCallback((id: string) => engagementMap[id] || {}, [engagementMap]);
 
-  /**
-   * Get engagement data for a specific document
-   */
-  const getEngagement = useCallback((docId: string): EngagementData => {
-    return engagementMap[docId] || {};
-  }, [engagementMap]);
-
-  return {
-    engagementMap,
-    engagement: engagementMap,
-    loading,
-    error,
-    refresh,
-    getEngagement
-  };
+  return { engagementMap, engagement: engagementMap, loading, error, refresh: fetchInitialData, getEngagement };
 };

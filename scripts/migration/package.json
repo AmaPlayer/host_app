@@ -1,0 +1,21 @@
+{
+  "name": "amaplayer-migration-scripts",
+  "version": "1.0.0",
+  "description": "Migration scripts for Firebase to Supabase migration",
+  "type": "commonjs",
+  "scripts": {
+    "migrate:users": "node migrate-users.js",
+    "migrate:posts": "node migrate-posts.js",
+    "migrate:events": "node migrate-events.js",
+    "migrate:friends": "node migrate-friends.js",
+    "migrate:groups": "node migrate-groups.js",
+    "migrate:storage": "node migrate-storage-to-r2.js",
+    "test-connection": "node test-connection.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.540.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^17.2.3",
+    "firebase-admin": "^13.6.0"
+  }
+}

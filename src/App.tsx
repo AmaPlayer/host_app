@@ -22,7 +22,9 @@ import './performance.css';
 
 // Optimized lazy loading with preloading for critical routes
 const WelcomePage = React.lazy(() => import('./login_flow/components/WelcomePage'));
+const RoleSelectionPage = React.lazy(() => import('./login_flow/components/RoleSelectionPage'));
 const AboutPage = React.lazy(() => import('./login_flow/components/AboutPage'));
+const AuthChoicePage = React.lazy(() => import('./login_flow/components/AuthChoicePage'));
 const Login = React.lazy(() => import('./features/auth/Login'));
 const Signup = React.lazy(() => import('./features/auth/Signup'));
 
@@ -42,6 +44,8 @@ const VerificationPage = React.lazy(() => import(/* webpackChunkName: "verificat
 const VideoVerificationPage = React.lazy(() => import(/* webpackChunkName: "verification" */ './features/profile/pages/VideoVerification'));
 const Settings = React.lazy(() => import(/* webpackChunkName: "settings" */ './features/settings/pages/Settings'));
 const MomentsPage = React.lazy(() => import(/* webpackChunkName: "moments" */ './pages/moments/MomentsPage'));
+const GroupsPage = React.lazy(() => import(/* webpackChunkName: "groups" */ './pages/groups/GroupsPage'));
+const GroupDetails = React.lazy(() => import(/* webpackChunkName: "groups" */ './features/groups/GroupDetails'));
 
 // Athlete Onboarding - separate chunk
 const SportSelectionPage = React.lazy(() => import(/* webpackChunkName: "onboarding" */ './features/athlete-onboarding/components/SportSelectionPage'));
@@ -51,6 +55,7 @@ const SubcategorySelectionPage = React.lazy(() => import(/* webpackChunkName: "o
 const SpecializationPage = React.lazy(() => import(/* webpackChunkName: "onboarding" */ './features/athlete-onboarding/components/SpecializationPage'));
 const AthleteAboutPage = React.lazy(() => import(/* webpackChunkName: "onboarding" */ './features/athlete-onboarding/components/AthleteAboutPage'));
 const PersonalDetailsForm = React.lazy(() => import(/* webpackChunkName: "onboarding" */ './features/athlete-onboarding/components/PersonalDetailsForm'));
+
 
 // Optimized loading component with minimal DOM and CSS
 const LoadingSpinner: React.FC = React.memo(() => (
@@ -73,10 +78,10 @@ function AppContent(): React.JSX.Element {
     // Optimized initialization
     const initializeApp = async (): Promise<void> => {
       const currentVersion = '2.1.1';
-      
+
       // Set document title immediately
       document.title = 'AmaPlayer - Sports Social Media Platform';
-      
+
       // Version management (non-blocking)
       try {
         const storedVersion = localStorage.getItem('amaplayer-version');
@@ -86,11 +91,11 @@ function AppContent(): React.JSX.Element {
       } catch (e) {
         // Silently handle localStorage errors
       }
-      
+
       // Preload critical chunks after a short delay
       setTimeout(preloadCriticalChunks, 1000);
     };
-    
+
     initializeApp();
 
     // Register service worker (non-blocking)
@@ -120,11 +125,13 @@ function AppContent(): React.JSX.Element {
             <Routes>
               {/* Login Flow Routes */}
               <Route path="/" element={<WelcomePage key={location.key} />} />
+              <Route path="/role-selection" element={<RoleSelectionPage />} />
               <Route path="/about/:role" element={<AboutPage />} />
+              <Route path="/auth-choice/:role" element={<AuthChoicePage />} />
               <Route path="/login/:role" element={<Login />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
-              
+
               {/* Athlete Onboarding Routes */}
               <Route path="/athlete-onboarding/sport" element={<SportSelectionPage />} />
               <Route path="/athlete-onboarding/position" element={<PositionSelectionPage />} />
@@ -181,6 +188,16 @@ function AppContent(): React.JSX.Element {
               <Route path="/settings" element={
                 <PrivateRoute>
                   <Settings />
+                </PrivateRoute>
+              } />
+              <Route path="/groups" element={
+                <PrivateRoute>
+                  <GroupsPage />
+                </PrivateRoute>
+              } />
+              <Route path="/groups/:groupId" element={
+                <PrivateRoute>
+                  <GroupDetails />
                 </PrivateRoute>
               } />
               <Route path="/post/:postId" element={

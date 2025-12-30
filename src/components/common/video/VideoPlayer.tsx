@@ -4,7 +4,7 @@ import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { MomentVideo, VideoPlayerState } from '../../../types/models/moment';
 import { MomentsService } from '../../../services/api/momentsService';
-import PostsService from '../../../services/api/postsService';
+import PostsService from '../../../services/supabase/postsService';
 import VideoComments from './VideoComments';
 import VideoShare from './VideoShare';
 import { useTouchGestures } from '../../../hooks/useTouchGestures';

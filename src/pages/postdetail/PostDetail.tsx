@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePostInteractions } from '../../hooks/usePostInteractions';
-import { db } from '../../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import postsService from '../../services/api/postsService';
 import { Heart, MessageCircle, ArrowLeft, Video, Share2, CheckCircle, AlertCircle } from 'lucide-react';
 import ThemeToggle from '../../components/common/ui/ThemeToggle';
 import LanguageSelector from '../../components/common/forms/LanguageSelector';
@@ -14,8 +13,7 @@ import { LoadingFallback } from '../../utils/performance/lazyLoading';
 import CommentSection from '../../components/common/comments/CommentSection';
 import notificationService from '../../services/notificationService';
 import './PostDetail.css';
-import { updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
-import type { Post, Like, ShareData } from '../../types/models';
+import type { Post, ShareData } from '../../types/models';
 
 // Lazy-loaded components
 const ShareModal = lazy(() => import('../../components/common/modals/ShareModal'));
@@ -60,17 +58,12 @@ export default function PostDetail(): React.JSX.Element {
 
     try {
       setLoading(true);
-      setError(null);const postDoc = await getDoc(doc(db, 'posts', postId));
+      setError(null);
+      // Use postsService instead of direct Firebase calls (Supabase backend)
+      const postData = await postsService.getPostById(postId, currentUser?.uid);
 
-      if (postDoc.exists()) {
-        const postData = { id: postDoc.id, ...postDoc.data() } as Post;
-
-        // Ensure accurate engagement counts
-        const likes = postData.likes || [];
-        const shares = postData.shares || [];
-
-        postData.likesCount = likes.length;
-        postData.sharesCount = postData.sharesCount || shares.length;setPost(postData);
+      if (postData) {
+        setPost(postData);
       } else {
         console.error('❌ Post not found:', postId);
         setError('Post not found');
@@ -87,83 +80,65 @@ export default function PostDetail(): React.JSX.Element {
     if (!currentUser || !post || isLiking) return;
 
     setIsLiking(true);
-    const postRef = doc(db, 'posts', post.id);
-    const currentLikes = post.likes || [];
-    // Handle both string[] and Like[] formats for backward compatibility
-    const userLiked = Array.isArray(currentLikes) && currentLikes.length > 0 && typeof currentLikes[0] === 'string' 
-      ? (currentLikes as unknown as string[]).includes(currentUser.uid)
-      : (currentLikes as Like[]).some(like => like.userId === currentUser.uid);
 
     // Store original state for error rollback
     const originalPost = { ...post };
+    const originalLiked = post.isLiked || false;
+    const originalCount = post.likesCount || 0;
 
     try {
-      if (userLiked) {
-        // Optimistic update - remove like
-        const updatedLikes = Array.isArray(currentLikes) && currentLikes.length > 0 && typeof currentLikes[0] === 'string'
-          ? (currentLikes as unknown as string[]).filter(uid => uid !== currentUser.uid)
-          : (currentLikes as Like[]).filter(like => like.userId !== currentUser.uid);
-        
-        setPost(prev => prev ? ({
-          ...prev,
-          likes: updatedLikes as Like[],
-          likesCount: updatedLikes.length
-        }) : null);
+      // Optimistic update
+      const newLiked = !originalLiked;
+      const newCount = newLiked ? originalCount + 1 : Math.max(0, originalCount - 1);
 
-        // Remove like - handle both string and Like object formats
-        if (currentLikes.length > 0 && typeof currentLikes[0] === 'string') {
-          // Handle legacy string format
-          await updateDoc(postRef, {
-            likes: arrayRemove(currentUser.uid),
-            likesCount: updatedLikes.length
-          });
-        } else {
-          // Handle Like object format
-          const likeToRemove = (currentLikes as Like[]).find(like => like.userId === currentUser.uid);
-          if (likeToRemove) {
-            await updateDoc(postRef, {
-              likes: arrayRemove(likeToRemove),
-              likesCount: updatedLikes.length
-            });
-          }
+      setPost(prev => prev ? ({
+        ...prev,
+        isLiked: newLiked,
+        likesCount: newCount
+      }) : null);
+
+      // Call API using postsService (Supabase backend)
+      // console.log('❤️ Toggling like for:', post.id);
+      const result = await postsService.toggleLike(
+        post.id,
+        currentUser.uid,
+        {
+          displayName: currentUser.displayName || 'User',
+          photoURL: currentUser.photoURL
         }
-      } else {
-        // Optimistic update - add like
-        const newLikes = [...currentLikes, currentUser.uid] as unknown as Like[];
-        
+      );
+
+      // Sync with server result
+      if (result.likesCount !== newCount) {
+        console.warn('Like count mismatch with server. Correcting...');
         setPost(prev => prev ? ({
           ...prev,
-          likes: newLikes,
-          likesCount: newLikes.length
+          likesCount: result.likesCount,
+          isLiked: result.liked
         }) : null);
+      }
 
-        // Add like as string for backward compatibility
-        await updateDoc(postRef, {
-          likes: arrayUnion(currentUser.uid),
-          likesCount: newLikes.length
-        });
-        
-        // Send notification to post owner (only when liking, not unliking)
-        if (post.userId && post.userId !== currentUser.uid) {
-          try {await notificationService.sendLikeNotification(
-              currentUser.uid,
-              currentUser.displayName || 'Someone',
-              currentUser.photoURL || '',
-              post.userId,
-              post.id,
-              post
-            );
-          } catch (notificationError) {
-            console.error('Error sending like notification:', notificationError);
-          }
+      // Send notification to post owner (only when liking, not unliking)
+      if (newLiked && post.userId && post.userId !== currentUser.uid) {
+        try {
+          await notificationService.sendLikeNotification(
+            currentUser.uid,
+            currentUser.displayName || 'Someone',
+            currentUser.photoURL || '',
+            post.userId,
+            post.id,
+            post
+          );
+        } catch (notificationError) {
+          console.error('Error sending like notification:', notificationError);
         }
       }
     } catch (error) {
-      console.error('Error updating like:', error);
-      
+      console.error('❌ Like failed:', error);
+
       // Rollback optimistic update on error
       setPost(originalPost);
-      
+
       // Show user-friendly error message
       setEngagementError('Failed to update like. Please try again.');
       setTimeout(() => setEngagementError(null), 5000);
@@ -171,7 +146,6 @@ export default function PostDetail(): React.JSX.Element {
       setIsLiking(false);
     }
   };
-
 
   // Handle share button click
   const handleShare = useCallback(() => {
@@ -307,15 +281,12 @@ export default function PostDetail(): React.JSX.Element {
     );
   }
 
-  const effectiveLikes = post.likes || [];
-  const userLiked = Array.isArray(effectiveLikes) && effectiveLikes.length > 0 && typeof effectiveLikes[0] === 'string' 
-    ? (effectiveLikes as unknown as string[]).includes(currentUser?.uid || '')
-    : (effectiveLikes as Like[]).some(like => like.userId === (currentUser?.uid || ''));
+  const userLiked = post.isLiked || false;
 
-  // Calculate accurate engagement counts
-  const likesCount = effectiveLikes.length;
+  // Calculate engagement counts from post data
+  const likesCount = post.likesCount || 0;
   const commentsCount = post.commentsCount || 0;
-  const sharesCount = post.sharesCount || post.shares?.length || 0;
+  const sharesCount = post.sharesCount || 0;
 
   const formatTimestamp = (timestamp: any): string => {
     if (!timestamp) return 'now';
@@ -399,7 +370,7 @@ export default function PostDetail(): React.JSX.Element {
                   <div className="post-image-container">
                     <LazyImage 
                       src={post.mediaUrl || ''} 
-                      alt={post.caption || 'Post image'} 
+                      alt={post.caption || 'Post image'}
                       className="post-image"
                       style={{
                         maxWidth: '100%',
@@ -466,7 +437,7 @@ export default function PostDetail(): React.JSX.Element {
             {!(post.mediaUrl && post.mediaUrl.trim() !== '') && post.caption && (
               <div 
                 className="post-text-content"
-                style={{ 
+                style={{
                   padding: '20px',
                   fontSize: '18px',
                   lineHeight: '1.6',
