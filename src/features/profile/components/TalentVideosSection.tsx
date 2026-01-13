@@ -139,10 +139,9 @@ const TalentVideosSection: React.FC<TalentVideosSectionProps> = ({
         }
 
         // Import Firebase modules dynamically
-        const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-        const { storage } = await import('../../../lib/firebase');
         const { getAuth } = await import('firebase/auth');
         const { talentVideoService } = await import('../../../services/api/talentVideoService');
+        const { storageService } = await import('../../../services/storage');
 
         // Get current user ID from auth
         const auth = getAuth();
@@ -158,9 +157,8 @@ const TalentVideosSection: React.FC<TalentVideosSectionProps> = ({
         const thumbnailFileName = `${timestamp}-thumbnail.jpg`;
 
         // Upload video file
-        const videoStorageRef = ref(storage, `talent-videos/${userId}/${videoFileName}`);
-        const videoUploadResult = await uploadBytes(videoStorageRef, videoData.videoFile);
-        const videoUrl = await getDownloadURL(videoUploadResult.ref);
+        const videoUploadResult = await storageService.uploadFile(`talent-videos/${userId}/${videoFileName}`, videoData.videoFile);
+        const videoUrl = videoUploadResult.url;
 
         // Generate thumbnail from video (using canvas)
         const thumbnailUrl = await generateVideoThumbnail(videoData.videoFile, userId, thumbnailFileName);
@@ -192,14 +190,15 @@ const TalentVideosSection: React.FC<TalentVideosSectionProps> = ({
           verificationLink: shareableLink,
           userId: userId,
           verifications: [],
-          verificationThreshold: 3, // Needs 3 community verifications
+          verificationThreshold: 1, // Needs 1 community verification (User Request)
           verificationDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
         };
 
         // Save to talentVideos collection (NOT to user document)
         await talentVideoService.addTalentVideo(userId, newVideo);
 
-        // Notify parent component (will trigger re-render)// Close modal and reload
+        // Notify parent component (will trigger re-render)
+        // Close modal and reload
         setIsManagementModalOpen(false);
         setEditingVideo(null);
         setIsLoading(false);
@@ -257,12 +256,10 @@ const TalentVideosSection: React.FC<TalentVideosSectionProps> = ({
 
             try {
               // Upload thumbnail to Firebase Storage
-              const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-              const { storage } = await import('../../../lib/firebase');
+              const { storageService } = await import('../../../services/storage');
 
-              const thumbnailRef = ref(storage, `thumbnails/${userId}/${thumbnailFileName}`);
-              const thumbnailUploadResult = await uploadBytes(thumbnailRef, blob);
-              const thumbnailUrl = await getDownloadURL(thumbnailUploadResult.ref);
+              const thumbnailUploadResult = await storageService.uploadFile(`thumbnails/${userId}/${thumbnailFileName}`, blob);
+              const thumbnailUrl = thumbnailUploadResult.url;
 
               // Clean up
               URL.revokeObjectURL(video.src);
@@ -528,11 +525,11 @@ const TalentVideosSection: React.FC<TalentVideosSectionProps> = ({
                       title={
                         video.verificationStatus === 'verified'
                           ? `Verified by ${video.verifications?.length || 0} people`
-                          : `${video.verifications?.length || 0}/${video.verificationThreshold || 3} verifications`
+                          : `${video.verifications?.length || 0}/${video.verificationThreshold || 1} verifications`
                       }
                     >
                       {video.verificationStatus === 'verified' && '✓ Verified'}
-                      {video.verificationStatus === 'pending' && `⏳ ${video.verifications?.length || 0}/${video.verificationThreshold || 3}`}
+                      {video.verificationStatus === 'pending' && `⏳ ${video.verifications?.length || 0}/${video.verificationThreshold || 1}`}
                       {video.verificationStatus === 'rejected' && '✗ Rejected'}
                     </span>
                   )}

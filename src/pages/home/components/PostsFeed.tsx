@@ -21,8 +21,10 @@ interface PostsFeedProps {
   onLike?: (postId: string, likes: string[], isSample: boolean, post: PostType) => void;
   onEditPost?: (postId: string, newCaption: string) => void;
   onSharePost?: (postId: string, post: PostType) => void;
+  onRepost?: (postId: string, post: PostType, mode?: 'instant' | 'quote') => void;
   onDeletePost?: (postId: string, post: PostType) => void;
   onUserClick?: (userId: string) => void;
+  onNavigateToPost?: (postId: string) => void;
 }
 
 /**
@@ -58,8 +60,10 @@ const PostsFeed: React.FC<PostsFeedProps> = memo(({
   onLike,
   onEditPost,
   onSharePost,
+  onRepost,
   onDeletePost,
-  onUserClick
+  onUserClick,
+  onNavigateToPost
 }) => {
   // Get translation function
   const { t } = useLanguage();
@@ -109,14 +113,14 @@ const PostsFeed: React.FC<PostsFeedProps> = memo(({
 
   const handleLoadMore = useCallback(async () => {
     if (isLoadingRef.current) return;
-    
+
     // Don't try to load if there's nothing more to load
     if (!hasMore && !hasMoreFromServer) {
       return;
     }
-    
+
     isLoadingRef.current = true;
-    
+
     try {
       if (hasMore) {
         // Load more from client-side posts (progressive loading)
@@ -148,7 +152,7 @@ const PostsFeed: React.FC<PostsFeedProps> = memo(({
         }
       },
       {
-        rootMargin: '100px',
+        rootMargin: '400px',
         threshold: 0.1
       }
     );
@@ -208,8 +212,8 @@ const PostsFeed: React.FC<PostsFeedProps> = memo(({
       {/* Development stats - only show if useful */}
       {process.env.NODE_ENV === 'development' && totalPosts > 5 && (
         <div className="progressive-stats">
-          <small style={{ 
-            color: 'var(--text-secondary)', 
+          <small style={{
+            color: 'var(--text-secondary)',
             fontSize: '12px',
             padding: '8px',
             background: 'var(--bg-secondary)',
@@ -252,55 +256,48 @@ const PostsFeed: React.FC<PostsFeedProps> = memo(({
             if (onSharePost) onSharePost(postId, post);
             setShareSuccess(postId, true);
           }}
+          onRepost={onRepost}
           onDeletePost={onDeletePost!}
           onSetEditText={setEditText}
           onUserClick={onUserClick}
+          onNavigateToPost={onNavigateToPost}
         />
       ))}
 
-      {/* Intersection Observer Sentinel for auto-loading */}
-      {(hasMore || hasMoreFromServer) && (
-        <div 
-          ref={sentinelRef} 
-          className="loading-sentinel"
-          style={{ height: '20px', margin: '10px 0' }}
-        />
-      )}
+      {/* Custom Intersection Observer Sentinel for auto-loading */}
+      {/* Increased threshold and margin for smoother experience */}
+      <div
+        ref={sentinelRef}
+        className="loading-sentinel"
+        style={{
+          height: '50px',
+          margin: '20px 0',
+          // Only show sentinel if we have more content to load, otherwise hide it to prevent extra whitespace
+          display: (hasMore || hasMoreFromServer) ? 'block' : 'none'
+        }}
+      />
 
-      {/* Progressive loading indicator */}
-      {loadingState && loadingState.isLoadingMore && (
+      {/* Loading States */}
+      {(loading || serverLoading) && (
         <div className="progressive-loading">
-          <StableLoadingIndicator 
-            loadingState={loadingState}
-            message="Loading more posts..."
+          <StableLoadingIndicator
+            loadingState={loadingState || { isInitialLoad: false, isLoadingMore: true, hasError: false, transitionState: 'loading' }}
+            message={serverLoading ? t('loadingPosts') : "Loading more..."}
             className="compact"
           />
           <SkeletonPost />
         </div>
       )}
 
-      {/* Manual load more button for client-side posts */}
-      {hasMore && !loading && !serverLoading && (
-        <div className="load-more-container">
-          <button onClick={loadMore} className="load-more-btn">
-            Show More ({remainingPosts} remaining)
-          </button>
-        </div>
-      )}
+      {/* Fallback Manual Load Buttons (Only if auto-load fails or for accessibility) */}
+      {/* We hide these by default to prevent "blinking" and rely on the observer */}
+      {/* You could add a "Load More" text that only appears if the observer hasn't triggered for 3s, but for now we'll hide to match "smooth scroll" request */}
 
-      {/* Server-side load more button */}
-      {!hasMore && hasMoreFromServer && !serverLoading && (
-        <div className="load-more-container">
-          <button onClick={onLoadMore} className="load-more-btn">
-            Load More Posts
-          </button>
-        </div>
-      )}
 
       {/* Server loading indicator */}
       {serverLoading && hasMoreFromServer && loadingState && (
         <div className="loading-container">
-          <StableLoadingIndicator 
+          <StableLoadingIndicator
             loadingState={loadingState}
             message="Loading posts from server..."
             className="compact"

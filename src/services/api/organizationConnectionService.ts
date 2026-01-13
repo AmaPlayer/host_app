@@ -1,8 +1,8 @@
 import { supabase } from '../../lib/supabase';
-import { 
-  OrganizationConnection, 
-  SendConnectionRequestData, 
-  AcceptConnectionRequestData, 
+import {
+  OrganizationConnection,
+  SendConnectionRequestData,
+  AcceptConnectionRequestData,
   RejectConnectionRequestData,
   ConnectionType,
   ConnectionStatus
@@ -10,11 +10,11 @@ import {
 import notificationService from '../notificationService';
 
 class OrganizationConnectionService {
-  
+
   async sendConnectionRequest(data: SendConnectionRequestData): Promise<OrganizationConnection> {
     try {
       const { data: sender } = await supabase.from('users').select('id').eq('uid', data.senderId).single();
-      const { data: receiver } = await supabase.from('users').select('id').eq('uid', data.recipientId).single();
+      const { data: receiver } = await supabase.from('users').select('id, role').eq('uid', data.recipientId).single();
       if (!sender || !receiver) throw new Error('Users not found');
 
       const { data: connection, error } = await supabase
@@ -35,7 +35,9 @@ class OrganizationConnectionService {
         connection_id: connection.id,
         action: 'request_sent',
         actor_id: sender.id,
-        target_id: receiver.id
+        target_id: receiver.id,
+        sender_role: data.senderRole,
+        receiver_role: receiver.role
       });
 
       // Notification
@@ -73,7 +75,17 @@ class OrganizationConnectionService {
 
   async acceptConnectionRequest(data: AcceptConnectionRequestData): Promise<void> {
     try {
-      const { data: conn } = await supabase.from('organization_connections').select('*').eq('id', data.connectionId).single();
+      // Fetch connection with roles
+      const { data: conn } = await supabase
+        .from('organization_connections')
+        .select(`
+          *,
+          sender:users!sender_id(role),
+          recipient:users!recipient_id(role)
+        `)
+        .eq('id', data.connectionId)
+        .single();
+
       if (!conn) throw new Error('Not found');
 
       // 1. Create Friendship
@@ -100,7 +112,9 @@ class OrganizationConnectionService {
         connection_id: data.connectionId,
         action: 'request_accepted',
         actor_id: conn.recipient_id,
-        target_id: conn.sender_id
+        target_id: conn.sender_id,
+        sender_role: conn.sender?.role,
+        receiver_role: conn.recipient?.role
       });
     } catch (error) {
       console.error('Error accepting connection:', error);

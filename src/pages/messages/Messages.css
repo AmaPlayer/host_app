@@ -63,9 +63,19 @@
 }
 
 @keyframes inputWarningShake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-2px); }
-  75% { transform: translateX(2px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-2px);
+  }
+
+  75% {
+    transform: translateX(2px);
+  }
 }
 
 .message-input-form input.content-success {
@@ -76,21 +86,38 @@
 }
 
 @keyframes inputSuccessPulse {
-  0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+  }
 }
 
 @keyframes inputWarningPulse {
-  0%, 100% { border-color: #f44336; }
-  50% { border-color: #d32f2f; }
+
+  0%,
+  100% {
+    border-color: #f44336;
+  }
+
+  50% {
+    border-color: #d32f2f;
+  }
 }
 
 .messages-content {
   max-width: 600px;
   margin: 80px auto 0;
   padding: 20px;
-  padding-bottom: 120px; /* Increased space for footer nav */
+  padding: 20px;
+  /* Dynamic padding for FooterNav + Safe Area */
+  padding-bottom: calc(120px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 80px);
@@ -404,7 +431,8 @@
   gap: 10px;
 }
 
-.accept-btn, .reject-btn {
+.accept-btn,
+.reject-btn {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -483,8 +511,15 @@
 }
 
 @keyframes loadingPulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Mobile Responsive - Enhanced for Task 5.1 */
@@ -493,56 +528,70 @@
     padding: 15px;
     margin: 70px auto 0;
     /* Optimize for mobile viewport */
+    margin: 70px auto 0;
+    /* Optimize for mobile viewport with safe area */
     min-height: calc(100vh - 70px);
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
     max-width: 100%;
   }
-  
+
   .messages-tabs {
     padding: 6px;
     margin-bottom: 15px;
     /* Enhanced touch targets */
     border-radius: 12px;
   }
-  
+
   .tab-btn {
-    padding: 14px 16px; /* Increased from 10px 12px for better touch targets */
+    padding: 14px 16px;
+    /* Increased from 10px 12px for better touch targets */
     font-size: 14px;
-    min-height: 44px; /* Ensure minimum 44px touch target */
+    min-height: 44px;
+    /* Ensure minimum 44px touch target */
     border-radius: 8px;
     /* Better touch feedback */
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
-  
+
   .message-item {
-    padding: 16px 12px; /* Increased padding for better touch targets */
-    min-height: 60px; /* Ensure adequate touch area */
+    padding: 16px 12px;
+    /* Increased padding for better touch targets */
+    min-height: 60px;
+    /* Ensure adequate touch area */
   }
-  
+
   .request-item {
-    padding: 18px 15px; /* Increased padding */
+    padding: 18px 15px;
+    /* Increased padding */
     flex-direction: column;
     gap: 14px;
-    min-height: 80px; /* Better touch area */
+    min-height: 80px;
+    /* Better touch area */
   }
-  
+
   .request-content {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
   }
-  
+
   .request-actions {
     justify-content: stretch;
-    gap: 12px; /* Better spacing between buttons */
+    gap: 12px;
+    /* Better spacing between buttons */
   }
-  
-  .accept-btn, .reject-btn {
+
+  .accept-btn,
+  .reject-btn {
     flex: 1;
     justify-content: center;
-    min-height: 44px; /* Ensure minimum touch target */
-    padding: 12px 16px; /* Better touch area */
-    font-size: 15px; /* Slightly larger for readability */
+    min-height: 44px;
+    /* Ensure minimum touch target */
+    padding: 12px 16px;
+    /* Better touch area */
+    font-size: 15px;
+    /* Slightly larger for readability */
     border-radius: 10px;
     /* Enhanced touch feedback */
     -webkit-tap-highlight-color: transparent;
@@ -552,18 +601,24 @@
   /* Enhanced friend actions for mobile touch targets */
   .friend-actions {
     display: flex !important;
-    gap: 8px !important; /* Increased gap */
+    gap: 8px !important;
+    /* Increased gap */
     align-items: center !important;
     justify-content: flex-end !important;
     flex-wrap: nowrap !important;
     flex-shrink: 0 !important;
   }
 
-  .message-friend-btn, .follow-btn {
-    padding: 10px 14px !important; /* Increased padding */
-    font-size: 13px !important; /* Slightly larger */
-    min-width: 70px !important; /* Increased minimum width */
-    min-height: 44px !important; /* Ensure touch target */
+  .message-friend-btn,
+  .follow-btn {
+    padding: 10px 14px !important;
+    /* Increased padding */
+    font-size: 13px !important;
+    /* Slightly larger */
+    min-width: 70px !important;
+    /* Increased minimum width */
+    min-height: 44px !important;
+    /* Ensure touch target */
     max-width: 85px !important;
     text-align: center !important;
     white-space: nowrap !important;
@@ -574,15 +629,17 @@
     -webkit-tap-highlight-color: transparent !important;
     touch-action: manipulation !important;
   }
-  
+
   /* Virtual keyboard handling */
   .messages-content {
     /* Adjust for virtual keyboard */
-    padding-bottom: 120px; /* Extra space for virtual keyboard */
+    padding-bottom: 120px;
+    /* Extra space for virtual keyboard */
   }
-  
+
   /* Enhanced scrolling for mobile */
-  .friends-list, .requests-list {
+  .friends-list,
+  .requests-list {
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
   }
@@ -590,113 +647,139 @@
 
 @media (max-width: 480px) {
   .messages-content {
-    padding: 12px; /* Slightly increased for better touch areas */
+    padding: 12px;
+    /* Slightly increased for better touch areas */
     /* Enhanced mobile viewport handling */
     min-height: calc(100vh - 60px);
-    padding-bottom: 120px; /* Adjusted space for virtual keyboard */
+    padding-bottom: 120px;
+    /* Adjusted space for virtual keyboard */
   }
-  
+
   .chat-interface {
-    height: calc(100vh - 180px); /* Account for nav and footer on small screens */
+    height: calc(100vh - 180px);
+    /* Account for nav and footer on small screens */
     max-height: calc(100vh - 180px);
-    margin-bottom: 5px; /* Minimal margin for small screens */
+    margin-bottom: 5px;
+    /* Minimal margin for small screens */
   }
-  
+
   .message-input-area {
-    padding: 6px 12px; /* More compact for small screens */
+    padding: 6px 12px;
+    /* More compact for small screens */
     gap: 4px;
     /* Ensure better visibility on small screens */
     background: var(--bg-secondary);
-    border-top: 2px solid var(--accent-primary); /* More prominent border */
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1); /* Add shadow for better separation */
-    z-index: 1001; /* Ensure above footer nav */
-    margin-bottom: 65px; /* Space for small screen footer nav */
+    border-top: 2px solid var(--accent-primary);
+    /* More prominent border */
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    /* Add shadow for better separation */
+    z-index: 1001;
+    /* Ensure above footer nav */
+    /* Position above FooterNav (60px) + Safe Area + Spacing */
+    margin-bottom: calc(65px + env(safe-area-inset-bottom));
   }
-  
+
   .message-input-form {
-    gap: 8px; /* Reduced gap for small screens */
+    gap: 8px;
+    /* Reduced gap for small screens */
   }
-  
+
   .message-input-form input {
-    padding: 10px 14px; /* More compact padding */
-    min-height: 36px; /* Smaller but still accessible */
-    font-size: 16px; /* Prevent zoom on iOS */
-    border-radius: 20px; /* Slightly smaller radius */
+    padding: 10px 14px;
+    /* More compact padding */
+    min-height: 36px;
+    /* Smaller but still accessible */
+    font-size: 16px;
+    /* Prevent zoom on iOS */
+    border-radius: 20px;
+    /* Slightly smaller radius */
   }
-  
+
   .guest-restriction-content {
-    padding: 30px 20px; /* Increased padding */
-    border-radius: 16px; /* Larger border radius for mobile */
+    padding: 30px 20px;
+    /* Increased padding */
+    border-radius: 16px;
+    /* Larger border radius for mobile */
   }
-  
+
   .empty-state {
-    padding: 50px 20px; /* Increased padding */
+    padding: 50px 20px;
+    /* Increased padding */
     border-radius: 12px;
   }
-  
+
   .message-avatar img {
-    width: 40px; /* Increased from 35px for better visibility */
+    width: 40px;
+    /* Increased from 35px for better visibility */
     height: 40px;
-    border-width: 1px; /* Thinner border on small screens */
+    border-width: 1px;
+    /* Thinner border on small screens */
   }
-  
+
   .request-avatar img {
-    width: 48px; /* Increased from 45px */
+    width: 48px;
+    /* Increased from 45px */
     height: 48px;
     border-width: 1px;
   }
-  
+
   /* Enhanced touch targets for small screens */
   .tab-btn {
-    min-height: 48px; /* Larger touch target on small screens */
+    min-height: 48px;
+    /* Larger touch target on small screens */
     padding: 16px 12px;
     font-size: 13px;
   }
-  
+
   /* Better spacing for small screens */
   .messages-tabs {
     margin-bottom: 20px;
     padding: 8px;
   }
-  
+
   /* Improved button sizing for small screens */
-  .accept-btn, .reject-btn {
-    min-height: 48px; /* Larger touch targets */
+  .accept-btn,
+  .reject-btn {
+    min-height: 48px;
+    /* Larger touch targets */
     font-size: 14px;
     padding: 14px 18px;
   }
-  
-  .message-friend-btn, .follow-btn {
-    min-height: 40px !important; /* Adequate touch target */
+
+  .message-friend-btn,
+  .follow-btn {
+    min-height: 40px !important;
+    /* Adequate touch target */
     padding: 8px 12px !important;
     font-size: 12px !important;
     min-width: 60px !important;
     max-width: 80px !important;
   }
-  
+
   /* Enhanced message options for small screens */
   .options-menu {
     min-width: 140px;
     border-radius: 10px;
   }
-  
+
   .option-item {
-    padding: 14px 16px; /* Adequate touch targets */
+    padding: 14px 16px;
+    /* Adequate touch targets */
     font-size: 14px;
     min-height: 44px;
   }
-  
+
   /* Better edit interface for small screens */
   .edit-input-container {
     padding: 8px 10px;
     border-radius: 10px;
   }
-  
+
   .edit-input {
     font-size: 14px;
     padding: 6px 8px;
   }
-  
+
   .edit-actions {
     gap: 6px;
   }
@@ -917,10 +1000,12 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 240px); /* Account for nav bar and footer nav */
+  height: calc(100vh - 240px);
+  /* Account for nav bar and footer nav */
   max-height: calc(100vh - 240px);
   position: relative;
-  margin-bottom: 20px; /* Add space above footer nav */
+  margin-bottom: 20px;
+  /* Add space above footer nav */
 }
 
 .chat-header {
@@ -930,7 +1015,8 @@
   padding: 15px 20px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-primary);
-  flex-shrink: 0; /* Prevent header from shrinking */
+  flex-shrink: 0;
+  /* Prevent header from shrinking */
 }
 
 .back-btn {
@@ -1020,7 +1106,8 @@
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 0; /* Allow flex child to shrink */
+  min-height: 0;
+  /* Allow flex child to shrink */
   /* Enhanced scrolling behavior */
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
@@ -1051,10 +1138,12 @@
 
 .chat-messages {
   padding: 20px;
-  padding-bottom: 10px; /* Reduced bottom padding for better spacing */
+  padding-bottom: 10px;
+  /* Reduced bottom padding for better spacing */
   display: flex;
   flex-direction: column;
-  gap: 12px; /* Improved message spacing */
+  gap: 12px;
+  /* Improved message spacing */
   min-height: min-content;
   /* Ensure messages start from top when few messages */
   justify-content: flex-start;
@@ -1063,7 +1152,8 @@
 .message {
   max-width: 70%;
   padding: 12px 15px;
-  padding-bottom: 8px; /* Reduced bottom padding for timestamp */
+  padding-bottom: 8px;
+  /* Reduced bottom padding for timestamp */
   border-radius: 15px;
   position: relative;
   animation: messageSlideIn 0.3s ease-out;
@@ -1082,6 +1172,7 @@
     opacity: 0;
     transform: translateY(10px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1207,6 +1298,7 @@
     opacity: 0;
     transform: translateY(10px) scale(0.8);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1215,18 +1307,23 @@
 
 /* Message Input Area - Fixed at bottom of chat */
 .message-input-area {
-  flex-shrink: 0; /* Prevent input area from shrinking */
+  flex-shrink: 0;
+  /* Prevent input area from shrinking */
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-primary);
-  padding: 12px 20px; /* Reduced top/bottom padding for better visibility */
+  padding: 12px 20px;
+  /* Reduced top/bottom padding for better visibility */
   display: flex;
   flex-direction: column;
-  gap: 8px; /* Reduced gap for more compact layout */
+  gap: 8px;
+  /* Reduced gap for more compact layout */
   position: relative;
-  z-index: 1001; /* Higher than FooterNav (1000) to ensure visibility */
+  z-index: 1001;
+  /* Higher than FooterNav (1000) to ensure visibility */
   /* Ensure proper positioning above footer nav */
-  margin-bottom: 80px; /* Add space for FooterNav */
-  
+  margin-bottom: 80px;
+  /* Add space for FooterNav */
+
   /* Additional styling for better visibility */
   border-top-left-radius: 15px;
   border-top-right-radius: 15px;
@@ -1238,12 +1335,14 @@
   gap: 12px;
   align-items: center;
   position: relative;
-  z-index: 1002; /* Ensure form is above footer nav */
+  z-index: 1002;
+  /* Ensure form is above footer nav */
 }
 
 .message-input-form input {
   flex: 1;
-  padding: 12px 16px; /* Slightly reduced padding for more compact look */
+  padding: 12px 16px;
+  /* Slightly reduced padding for more compact look */
   border: 2px solid var(--message-input-border);
   border-radius: 25px;
   background: var(--message-input-bg);
@@ -1254,16 +1353,18 @@
   line-height: var(--line-height-normal);
   outline: none;
   transition: var(--transition-bounce);
-  min-height: 40px; /* Slightly reduced for more compact layout */
+  min-height: 40px;
+  /* Slightly reduced for more compact layout */
   box-sizing: border-box;
   position: relative;
-  z-index: 1001; /* Ensure above footer nav */
-  
+  z-index: 1001;
+  /* Ensure above footer nav */
+
   /* Enhanced visual styling */
-  box-shadow: 
+  box-shadow:
     0 2px 6px rgba(0, 0, 0, 0.1),
     inset 0 1px 2px rgba(0, 0, 0, 0.05);
-  
+
   /* Better text rendering */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -1282,7 +1383,7 @@
 
 .message-input-form input:focus {
   border-color: var(--message-input-focus);
-  box-shadow: 
+  box-shadow:
     0 0 0 3px rgba(0, 255, 136, 0.15),
     0 2px 8px rgba(0, 255, 136, 0.1),
     inset 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -1294,7 +1395,7 @@
 @media (hover: hover) and (pointer: fine) {
   .message-input-form input:hover:not(:focus) {
     border-color: var(--border-primary);
-    box-shadow: 
+    box-shadow:
       0 2px 6px rgba(0, 0, 0, 0.08),
       inset 0 1px 2px rgba(0, 0, 0, 0.05);
   }
@@ -1317,33 +1418,42 @@
 /* Mobile Responsive for Chat - Enhanced for Task 5.1 */
 @media (max-width: 768px) {
   .chat-interface {
-    height: calc(100vh - 200px); /* Account for nav and footer on mobile */
+    height: calc(100vh - 200px);
+    /* Account for nav and footer on mobile */
     max-height: calc(100vh - 200px);
     /* Enhanced mobile layout */
     border-radius: 12px;
-    margin-bottom: 10px; /* Reduced margin for mobile */
+    margin-bottom: 10px;
+    /* Reduced margin for mobile */
   }
-  
+
   .message-input-area {
-    padding: 8px 16px; /* Reduced padding for mobile */
-    gap: 6px; /* Smaller gap for mobile */
+    padding: 8px 16px;
+    /* Reduced padding for mobile */
+    gap: 6px;
+    /* Smaller gap for mobile */
     /* Ensure input area is visible above footer nav */
     position: relative;
-    z-index: 1001; /* Higher than FooterNav */
+    z-index: 1001;
+    /* Higher than FooterNav */
     background: var(--bg-secondary);
-    border-top: 2px solid var(--border-primary); /* Slightly thicker border for better separation */
-    margin-bottom: 70px; /* Space for mobile footer nav */
+    border-top: 2px solid var(--border-primary);
+    /* Slightly thicker border for better separation */
+    margin-bottom: 70px;
+    /* Space for mobile footer nav */
   }
-  
+
   .chat-messages {
     padding: 16px;
-    padding-bottom: 8px; /* Reduced bottom padding for mobile */
-    gap: 10px; /* Slightly reduced gap for mobile */
+    padding-bottom: 8px;
+    /* Reduced bottom padding for mobile */
+    gap: 10px;
+    /* Slightly reduced gap for mobile */
     /* Better touch scrolling */
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
   }
-  
+
   /* Enhanced mobile scrolling container */
   .chat-messages-container {
     /* Better mobile scrolling performance */
@@ -1352,106 +1462,120 @@
     /* Optimize for mobile touch */
     overscroll-behavior: contain;
   }
-  
+
   .message {
     max-width: 85%;
     padding: 12px 16px;
-    padding-bottom: 8px; /* Consistent bottom padding */
+    padding-bottom: 8px;
+    /* Consistent bottom padding */
     /* Enhanced touch interaction */
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    min-height: 40px; /* Ensure adequate touch area */
+    min-height: 40px;
+    /* Ensure adequate touch area */
     /* Better mobile spacing */
     margin-bottom: 2px;
   }
-  
+
   /* Enhanced mobile timestamp positioning */
   .message .message-time {
-    font-size: 11px; /* Slightly larger for mobile readability */
+    font-size: 11px;
+    /* Slightly larger for mobile readability */
     margin-top: 4px;
     opacity: 0.7;
   }
-  
+
   /* Mobile scroll to bottom button */
   .scroll-to-bottom-btn {
     bottom: 16px;
     right: 16px;
-    width: 44px; /* Larger touch target */
+    width: 44px;
+    /* Larger touch target */
     height: 44px;
     font-size: 20px;
     /* Enhanced mobile touch */
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
-  
+
   .chat-header {
-    padding: 14px 16px; /* Increased padding */
-    min-height: 68px; /* Ensure adequate touch area */
+    padding: 14px 16px;
+    /* Increased padding */
+    min-height: 68px;
+    /* Ensure adequate touch area */
   }
-  
+
   .message-input-area {
-    padding: 16px; /* Increased padding */
+    padding: 16px;
+    /* Increased padding */
     /* Virtual keyboard handling */
     position: relative;
     background: var(--bg-secondary);
     /* Ensure it stays above virtual keyboard */
     z-index: 100;
   }
-  
+
   .message-input-form {
-    gap: 14px; /* Increased gap */
+    gap: 14px;
+    /* Increased gap */
   }
-  
+
   .message-input-form input {
-    padding: 14px 18px; /* Increased padding */
-    font-size: 16px; /* Prevent zoom on iOS */
+    padding: 14px 18px;
+    /* Increased padding */
+    font-size: 16px;
+    /* Prevent zoom on iOS */
     font-weight: 400;
     line-height: 1.4;
-    min-height: 48px; /* Increased minimum touch target */
-    border-radius: 24px; /* Larger radius for mobile */
+    min-height: 48px;
+    /* Increased minimum touch target */
+    border-radius: 24px;
+    /* Larger radius for mobile */
     /* Enhanced mobile input handling */
     -webkit-appearance: none;
     appearance: none;
     -webkit-tap-highlight-color: transparent;
   }
-  
+
   .message-input-form input:focus {
-    transform: none; /* Remove transform on mobile for better performance */
-    box-shadow: 
+    transform: none;
+    /* Remove transform on mobile for better performance */
+    box-shadow:
       0 0 0 3px rgba(0, 255, 136, 0.25),
       0 2px 8px rgba(0, 255, 136, 0.15);
     /* Ensure input stays visible with virtual keyboard */
     position: relative;
     z-index: 101;
   }
-  
+
   /* Enhanced mobile styles for content warnings */
   .message-violation-warning {
     margin: 10px 16px;
     padding: 14px 18px;
     border-radius: 16px;
-    bottom: 80px; /* Adjust for mobile keyboard */
+    bottom: 80px;
+    /* Adjust for mobile keyboard */
     /* Better mobile positioning */
     left: 16px;
     right: 16px;
     width: auto;
   }
-  
+
   .message-violation-warning .warning-header {
     font-size: 15px;
   }
-  
+
   .message-violation-warning .warning-message {
     font-size: 14px;
     line-height: 1.4;
   }
-  
+
   .message-violation-warning .warning-suggestion {
     font-size: 13px;
     padding: 8px 12px;
     margin-top: 8px;
   }
-  
+
   /* Virtual keyboard detection and handling */
   @supports (height: 100dvh) {
     .chat-interface {
@@ -1459,7 +1583,7 @@
       max-height: calc(100dvh - 180px);
     }
   }
-  
+
   /* Enhanced message options for mobile */
   .options-menu {
     min-width: 160px;
@@ -1467,9 +1591,10 @@
     /* Better mobile positioning */
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   }
-  
+
   .option-item {
-    padding: 16px 20px; /* Larger touch targets */
+    padding: 16px 20px;
+    /* Larger touch targets */
     font-size: 15px;
     min-height: 48px;
     /* Enhanced touch feedback */
@@ -1479,58 +1604,74 @@
 }
 
 @media (max-width: 480px) {
-  .friend-item, .friend-card {
-    padding: 14px 12px; /* Increased padding for better touch targets */
-    gap: 12px; /* Increased gap */
-    min-height: 60px; /* Ensure adequate touch area */
+
+  .friend-item,
+  .friend-card {
+    padding: 14px 12px;
+    /* Increased padding for better touch targets */
+    gap: 12px;
+    /* Increased gap */
+    min-height: 60px;
+    /* Ensure adequate touch area */
   }
-  
-  .friend-avatar img, .friend-card img {
-    width: 40px; /* Increased from 36px for better visibility */
+
+  .friend-avatar img,
+  .friend-card img {
+    width: 40px;
+    /* Increased from 36px for better visibility */
     height: 40px;
-    border-width: 1px; /* Thinner border on small screens */
+    border-width: 1px;
+    /* Thinner border on small screens */
   }
-  
+
   .friend-info strong {
-    font-size: 15px; /* Increased from 14px for better readability */
+    font-size: 15px;
+    /* Increased from 14px for better readability */
     line-height: 1.3;
   }
-  
-  .friend-info p, .online-indicator {
-    font-size: 13px; /* Increased from 12px */
+
+  .friend-info p,
+  .online-indicator {
+    font-size: 13px;
+    /* Increased from 12px */
     line-height: 1.2;
   }
-  
+
   .chat-interface {
     height: calc(100vh - 160px);
     max-height: calc(100vh - 160px);
-    border-radius: 8px; /* Smaller radius for very small screens */
+    border-radius: 8px;
+    /* Smaller radius for very small screens */
   }
-  
+
   .chat-messages {
     padding: 14px;
-    padding-bottom: 6px; /* Reduced bottom padding for small screens */
-    gap: 8px; /* Reduced gap for small screens */
+    padding-bottom: 6px;
+    /* Reduced bottom padding for small screens */
+    gap: 8px;
+    /* Reduced gap for small screens */
   }
-  
+
   .message {
     max-width: 90%;
     padding: 10px 14px;
-    padding-bottom: 6px; /* Consistent bottom padding */
-    min-height: 36px; /* Ensure adequate touch area */
+    padding-bottom: 6px;
+    /* Consistent bottom padding */
+    min-height: 36px;
+    /* Ensure adequate touch area */
     /* Better touch interaction */
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     /* Better small screen spacing */
     margin-bottom: 1px;
   }
-  
+
   /* Small screen timestamp adjustments */
   .message .message-time {
     font-size: 10px;
     margin-top: 3px;
   }
-  
+
   /* Small screen scroll to bottom button */
   .scroll-to-bottom-btn {
     bottom: 12px;
@@ -1539,26 +1680,31 @@
     height: 40px;
     font-size: 18px;
   }
-  
+
   .message-input-area {
-    padding: 14px 12px; /* Increased padding */
+    padding: 14px 12px;
+    /* Increased padding */
   }
-  
+
   .message-input-form {
-    gap: 12px; /* Better spacing */
+    gap: 12px;
+    /* Better spacing */
   }
-  
+
   .message-input-form input {
-    padding: 12px 16px; /* Increased padding */
-    min-height: 44px; /* Increased minimum touch target */
-    font-size: 16px; /* Maintain to prevent zoom */
+    padding: 12px 16px;
+    /* Increased padding */
+    min-height: 44px;
+    /* Increased minimum touch target */
+    font-size: 16px;
+    /* Maintain to prevent zoom */
     border-radius: 22px;
     /* Enhanced mobile input */
     -webkit-appearance: none;
     appearance: none;
     -webkit-tap-highlight-color: transparent;
   }
-  
+
   /* Virtual keyboard support for very small screens */
   @supports (height: 100dvh) {
     .chat-interface {
@@ -1566,42 +1712,44 @@
       max-height: calc(100dvh - 160px);
     }
   }
-  
+
   /* Enhanced message options for small screens */
   .options-menu {
     min-width: 140px;
     border-radius: 10px;
   }
-  
+
   .option-item {
-    padding: 14px 16px; /* Adequate touch targets */
+    padding: 14px 16px;
+    /* Adequate touch targets */
     font-size: 14px;
     min-height: 44px;
   }
-  
+
   /* Better edit interface for small screens */
   .edit-input-container {
     padding: 8px 12px;
     border-radius: 8px;
     gap: 8px;
     /* Enhanced small screen layout */
-    box-shadow: 
+    box-shadow:
       0 0 0 2px rgba(0, 255, 136, 0.25),
       0 2px 12px rgba(0, 255, 136, 0.2);
   }
-  
+
   .edit-input {
     font-size: 14px;
     padding: 8px 10px;
     min-height: 36px;
     border-radius: 6px;
   }
-  
+
   .edit-actions {
     gap: 8px;
   }
-  
-  .save-btn, .cancel-btn {
+
+  .save-btn,
+  .cancel-btn {
     padding: 10px;
     border-radius: 8px;
     min-width: 44px;
@@ -1728,11 +1876,13 @@
   transform: translateX(4px);
 }
 
-.friend-avatar, .friend-info {
+.friend-avatar,
+.friend-info {
   cursor: pointer;
 }
 
-.friend-avatar:hover, .friend-info:hover {
+.friend-avatar:hover,
+.friend-info:hover {
   opacity: 0.8;
 }
 
@@ -1780,7 +1930,8 @@
 }
 
 .options-menu {
-  position: fixed; /* Changed from absolute to fixed for better positioning control */
+  position: fixed;
+  /* Changed from absolute to fixed for better positioning control */
   background: var(--bg-card);
   border: 1px solid var(--border-primary);
   border-radius: 12px;
@@ -1813,6 +1964,7 @@
     opacity: 0;
     transform: scale(0.9) translateY(-8px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -1923,7 +2075,7 @@
   padding: 12px 16px;
   border: 2px solid var(--accent-primary);
   animation: editSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 
+  box-shadow:
     0 0 0 3px rgba(0, 255, 136, 0.15),
     0 4px 20px rgba(0, 255, 136, 0.1),
     0 1px 3px rgba(0, 0, 0, 0.1);
@@ -1949,10 +2101,11 @@
     transform: scale(0.95) translateY(-8px);
     box-shadow: 0 0 0 0 rgba(0, 255, 136, 0);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
-    box-shadow: 
+    box-shadow:
       0 0 0 3px rgba(0, 255, 136, 0.15),
       0 4px 20px rgba(0, 255, 136, 0.1),
       0 1px 3px rgba(0, 0, 0, 0.1);
@@ -1960,9 +2113,17 @@
 }
 
 @keyframes editShimmer {
-  0% { left: -100%; }
-  50% { left: -100%; }
-  100% { left: 100%; }
+  0% {
+    left: -100%;
+  }
+
+  50% {
+    left: -100%;
+  }
+
+  100% {
+    left: 100%;
+  }
 }
 
 .edit-input {
@@ -2112,12 +2273,14 @@
 @media (hover: none) {
   .message:active {
     background: rgba(0, 255, 136, 0.05);
-    transform: none; /* Remove transforms on mobile for better performance */
+    transform: none;
+    /* Remove transforms on mobile for better performance */
   }
-  
+
   .message.message-selected {
     background: rgba(0, 255, 136, 0.08);
-    transform: none; /* Remove scale on mobile */
+    transform: none;
+    /* Remove scale on mobile */
   }
 }
 
@@ -2142,55 +2305,58 @@
     /* Enhanced mobile positioning */
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.1);
   }
-  
+
   .option-item {
-    padding: 16px 20px; /* Larger touch targets */
+    padding: 16px 20px;
+    /* Larger touch targets */
     font-size: 15px;
-    min-height: 48px; /* Enhanced touch target size */
+    min-height: 48px;
+    /* Enhanced touch target size */
     margin: 2px 6px;
     border-radius: 10px;
   }
-  
+
   /* Enhanced long-press feedback for mobile */
   .message.long-press-active {
     background: rgba(0, 255, 136, 0.08);
     transform: scale(1.005);
     box-shadow: 0 1px 4px rgba(0, 255, 136, 0.15);
   }
-  
+
   .edit-input-container {
     padding: 10px 14px;
     border-radius: 10px;
     gap: 10px;
     /* Enhanced mobile layout */
-    box-shadow: 
+    box-shadow:
       0 0 0 2px rgba(0, 255, 136, 0.2),
       0 4px 16px rgba(0, 255, 136, 0.15),
       0 1px 3px rgba(0, 0, 0, 0.1);
   }
-  
+
   .edit-input {
     padding: 10px 14px;
     font-size: 15px;
     min-height: 40px;
     border-radius: 8px;
   }
-  
+
   .edit-actions {
     gap: 10px;
   }
-  
-  .save-btn, .cancel-btn {
+
+  .save-btn,
+  .cancel-btn {
     min-width: 48px;
     min-height: 48px;
     padding: 12px;
     border-radius: 10px;
   }
-  
+
   .edit-input {
     font-size: 13px;
   }
-  
+
   .message.message-selected {
     transform: scale(1.01);
   }
@@ -2203,13 +2369,13 @@
     padding: 25px;
     margin: 80px auto 0;
   }
-  
+
   .messages-tabs {
     padding: 10px;
     margin-bottom: 25px;
     border-radius: 18px;
   }
-  
+
   .tab-btn {
     padding: 16px 20px;
     font-size: 16px;
@@ -2218,48 +2384,48 @@
     /* Enhanced hover effects for tablet */
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .tab-btn:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
-  
+
   .chat-interface {
     height: calc(100vh - 200px);
     max-height: calc(100vh - 200px);
     border-radius: 20px;
   }
-  
+
   .chat-messages {
     padding: 25px;
   }
-  
+
   .message {
     max-width: 75%;
     padding: 14px 18px;
     font-size: 15px;
     border-radius: 18px;
   }
-  
+
   .message.sent {
     border-bottom-right-radius: 6px;
   }
-  
+
   .message.received {
     border-bottom-left-radius: 6px;
   }
-  
+
   .message-input-area {
     padding: 20px 25px;
   }
-  
+
   .message-input-form input {
     padding: 16px 20px;
     font-size: 16px;
     min-height: 52px;
     border-radius: 26px;
   }
-  
+
   /* Enhanced friend cards for tablet */
   .friend-card-enhanced {
     padding: 18px 20px;
@@ -2268,22 +2434,22 @@
     margin: 0 4px 4px 4px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .friend-card-enhanced:hover {
     transform: translateX(6px) translateY(-2px);
     box-shadow: 0 6px 20px rgba(0, 255, 136, 0.15);
     border-radius: 16px;
   }
-  
+
   .friend-avatar-enhanced {
     width: 52px;
     height: 52px;
   }
-  
+
   .friend-name {
     font-size: 17px;
   }
-  
+
   .friend-status {
     font-size: 15px;
   }
@@ -2296,14 +2462,14 @@
     padding: 30px;
     margin: 80px auto 0;
   }
-  
+
   .messages-tabs {
     padding: 12px;
     margin-bottom: 30px;
     border-radius: 20px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   }
-  
+
   .tab-btn {
     padding: 18px 24px;
     font-size: 17px;
@@ -2311,27 +2477,27 @@
     border-radius: 14px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .tab-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   }
-  
+
   .tab-btn.active:hover {
     box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
   }
-  
+
   .chat-interface {
     height: calc(100vh - 220px);
     max-height: calc(100vh - 220px);
     border-radius: 24px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   }
-  
+
   .chat-messages {
     padding: 30px;
   }
-  
+
   .message {
     max-width: 70%;
     padding: 16px 20px;
@@ -2339,28 +2505,28 @@
     border-radius: 20px;
     transition: all 0.2s ease;
   }
-  
+
   .message:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
-  
+
   .message.sent {
     border-bottom-right-radius: 8px;
   }
-  
+
   .message.received {
     border-bottom-left-radius: 8px;
   }
-  
+
   .message-input-area {
     padding: 24px 30px;
   }
-  
+
   .message-input-form {
     gap: 16px;
   }
-  
+
   .message-input-form input {
     padding: 18px 24px;
     font-size: 16px;
@@ -2368,13 +2534,13 @@
     border-radius: 28px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .message-input-form input:hover:not(:focus) {
     border-color: var(--accent-primary);
     box-shadow: 0 4px 12px rgba(0, 255, 136, 0.1);
     transform: translateY(-1px);
   }
-  
+
   /* Enhanced friend cards for desktop */
   .friend-card-enhanced {
     padding: 20px 24px;
@@ -2383,43 +2549,43 @@
     margin: 0 6px 6px 6px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .friend-card-enhanced:hover {
     transform: translateX(8px) translateY(-3px);
     box-shadow: 0 8px 24px rgba(0, 255, 136, 0.2);
     border-radius: 20px;
     background: linear-gradient(135deg, var(--bg-card), rgba(0, 255, 136, 0.05));
   }
-  
+
   .friend-avatar-enhanced {
     width: 56px;
     height: 56px;
   }
-  
+
   .friend-card-enhanced:hover .friend-avatar-enhanced {
     transform: scale(1.08);
     border-color: var(--accent-primary);
     box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
   }
-  
+
   .friend-name {
     font-size: 18px;
     font-weight: 600;
   }
-  
+
   .friend-status {
     font-size: 16px;
   }
-  
+
   .friend-action-indicator {
     opacity: 0.4;
   }
-  
+
   .friend-card-enhanced:hover .friend-action-indicator {
     opacity: 1;
     transform: scale(1.2);
   }
-  
+
   /* Enhanced request items for desktop */
   .request-item {
     padding: 24px;
@@ -2427,39 +2593,40 @@
     margin: 0 6px 6px 6px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .request-item:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
     background: linear-gradient(135deg, var(--bg-card), rgba(0, 255, 136, 0.03));
   }
-  
+
   .request-avatar img {
     width: 60px;
     height: 60px;
   }
-  
+
   .request-info strong {
     font-size: 18px;
   }
-  
+
   .request-info p {
     font-size: 16px;
   }
-  
-  .accept-btn, .reject-btn {
+
+  .accept-btn,
+  .reject-btn {
     padding: 12px 20px;
     font-size: 16px;
     min-height: 48px;
     border-radius: 12px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   .accept-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(39, 174, 96, 0.4);
   }
-  
+
   .reject-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(231, 76, 60, 0.3);
@@ -2472,40 +2639,40 @@
     padding: 15px;
     margin: 60px auto 0;
   }
-  
+
   .chat-interface {
     height: calc(100vh - 140px);
     max-height: calc(100vh - 140px);
   }
-  
+
   .chat-messages {
     padding: 15px;
   }
-  
+
   .message-input-area {
     padding: 12px 15px;
   }
-  
+
   .message-input-form input {
     min-height: 40px;
     padding: 10px 16px;
   }
-  
+
   /* Compact friend cards in landscape */
   .friend-card-enhanced {
     padding: 12px 16px;
     min-height: 56px;
   }
-  
+
   .friend-avatar-enhanced {
     width: 40px;
     height: 40px;
   }
-  
+
   .friend-name {
     font-size: 15px;
   }
-  
+
   .friend-status {
     font-size: 13px;
   }
@@ -2513,13 +2680,13 @@
 
 /* Dark theme adjustments for input */
 .dark-theme .message-input-form input {
-  box-shadow: 
+  box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.2),
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .dark-theme .message-input-form input:focus {
-  box-shadow: 
+  box-shadow:
     0 0 0 3px rgba(0, 255, 136, 0.2),
     0 2px 8px rgba(0, 255, 136, 0.15),
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
@@ -2527,7 +2694,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .dark-theme .message-input-form input:hover:not(:focus) {
-    box-shadow: 
+    box-shadow:
       0 2px 6px rgba(0, 0, 0, 0.15),
       inset 0 1px 2px rgba(0, 0, 0, 0.1);
   }
@@ -2570,10 +2737,9 @@
 
 .notification-item.unread {
   border-color: var(--accent-primary);
-  background: linear-gradient(135deg, 
-    var(--bg-card), 
-    rgba(0, 255, 136, 0.05)
-  );
+  background: linear-gradient(135deg,
+      var(--bg-card),
+      rgba(0, 255, 136, 0.05));
 }
 
 .notification-content {
@@ -2741,10 +2907,12 @@
     transform: scale(1);
     opacity: 1;
   }
+
   50% {
     transform: scale(1.2);
     opacity: 0.7;
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -2756,37 +2924,37 @@
   .notifications-tab {
     padding: 16px;
   }
-  
+
   .notification-item {
     padding: 12px;
     border-radius: 12px;
   }
-  
+
   .notification-avatar {
     width: 32px;
     height: 32px;
   }
-  
+
   .story-preview {
     padding: 8px;
     gap: 8px;
   }
-  
+
   .story-preview-media {
     width: 48px;
     height: 48px;
   }
-  
+
   .story-video-preview {
     width: 48px;
     height: 48px;
   }
-  
+
   .video-play-icon {
     width: 20px;
     height: 20px;
   }
-  
+
   .story-like-icon {
     width: 20px;
     height: 20px;
@@ -2797,6 +2965,7 @@
 
 /* Reduced motion support for accessibility */
 @media (prefers-reduced-motion: reduce) {
+
   .message,
   .message-item,
   .friend-item,
@@ -2814,7 +2983,7 @@
     animation: none !important;
     transition: none !important;
   }
-  
+
   .message-item:hover,
   .friend-item:hover,
   .friend-card:hover,
@@ -2828,13 +2997,13 @@
   .option-item:hover {
     transform: none !important;
   }
-  
+
   .message-input-form input.content-warning,
   .message-input-form input.content-success,
   .loading {
     animation: none !important;
   }
-  
+
   .friend-card::after,
   .friend-card::before,
   .message-item::before,
@@ -2869,6 +3038,7 @@
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
+
   .message-item,
   .friend-item,
   .friend-card,
@@ -2879,7 +3049,7 @@
   .follow-btn {
     border-width: 2px;
   }
-  
+
   .message-item:hover,
   .friend-item:hover,
   .friend-card:hover,

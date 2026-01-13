@@ -1,21 +1,22 @@
 import { supabase } from '../../lib/supabase';
-import { 
-  MomentVideo, 
-  CreateMomentData, 
-  UpdateMomentData, 
-  MomentsQueryOptions, 
-  PaginatedMomentsResult, 
-  VideoComment, 
-  CreateVideoCommentData, 
-  ToggleVideoLikeResult, 
+import {
+  MomentVideo,
+  CreateMomentData,
+  UpdateMomentData,
+  MomentsQueryOptions,
+  PaginatedMomentsResult,
+  VideoComment,
+  CreateVideoCommentData,
+  ToggleVideoLikeResult,
   VideoUploadResult,
   EnhancedVideoUploadResult,
   MomentInteraction,
   UploadProgressCallback
 } from '../../types/models/moment';
-import { storage } from '../../lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject, UploadTask } from 'firebase/storage';
+import { storageService } from '../storage';
 import notificationService from '../notificationService';
+
+type UploadTask = any;
 
 class MomentsService {
   private static readonly STORAGE_PATH = 'moments';
@@ -35,6 +36,7 @@ class MomentsService {
           user:users!user_id (uid, display_name, photo_url)
         `)
         .eq('is_active', true)
+        .lte('duration', 30) // Enforce 30s limit for Moments
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
@@ -141,7 +143,7 @@ class MomentsService {
       // Wait, the previous service `createMoment` took `CreateMomentData` which has `videoFile`.
       // It created the doc with empty videoUrl, then returned ID.
       // The Caller `useVideoManager` likely handles the upload.
-      
+
       const { data: moment, error } = await supabase
         .from('moments')
         .insert({
@@ -200,14 +202,10 @@ class MomentsService {
     try {
       // Get video URL to delete from storage
       const { data } = await supabase.from('moments').select('video_url').eq('id', momentId).single();
-      
+
       if (data?.video_url) {
-        // Try delete from Firebase Storage
-        // We need to parse the path from the URL or reconstruct it
-        // The previous service used `moments/${momentId}/video`
         try {
-          const videoRef = ref(storage, `${this.STORAGE_PATH}/${momentId}/video`);
-          await deleteObject(videoRef);
+          await storageService.deleteFile(data.video_url);
         } catch (e) {
           console.warn('Failed to delete video from storage', e);
         }
@@ -249,10 +247,10 @@ class MomentsService {
             .select('user:users!user_id(uid)')
             .eq('id', momentId)
             .single();
-            
+
           if ((moment?.user as any)?.uid) {
             await notificationService.sendLikeNotification(
-              userId, userDisplayName, userPhotoURL || '', 
+              userId, userDisplayName, userPhotoURL || '',
               (moment.user as any).uid, momentId, { contentType: 'moment' }
             );
           }
@@ -263,7 +261,7 @@ class MomentsService {
 
       // Fetch updated count
       const { data: moment } = await supabase.from('moments').select('likes_count').eq('id', momentId).single();
-      
+
       return {
         liked,
         likesCount: moment?.likes_count || 0
@@ -352,8 +350,8 @@ class MomentsService {
    */
   static async trackInteraction(interaction: MomentInteraction): Promise<void> {
     if (interaction.type === 'view') {
-       const { data } = await supabase.from('moments').select('views_count').eq('id', interaction.momentId).single();
-       await supabase.from('moments').update({ views_count: (data?.views_count || 0) + 1 }).eq('id', interaction.momentId);
+      const { data } = await supabase.from('moments').select('views_count').eq('id', interaction.momentId).single();
+      await supabase.from('moments').update({ views_count: (data?.views_count || 0) + 1 }).eq('id', interaction.momentId);
     }
   }
 
@@ -370,36 +368,26 @@ class MomentsService {
   ): Promise<EnhancedVideoUploadResult> {
     const startTime = Date.now();
     const fileExtension = file.name.split('.').pop() || 'mp4';
-    const videoRef = ref(storage, `${this.STORAGE_PATH}/${momentId}/video.${fileExtension}`);
-    const uploadTask = uploadBytesResumable(videoRef, file);
+    const path = `${this.STORAGE_PATH}/${momentId}/video.${fileExtension}`;
 
-    if (onTaskCreated) onTaskCreated(uploadTask);
+    if (onProgress) onProgress(10, 0, file.size);
+    if (onTaskCreated) onTaskCreated({} as any);
 
-    return new Promise<EnhancedVideoUploadResult>((resolve, reject) => {
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          if (onProgress) onProgress(progress, snapshot.bytesTransferred, snapshot.totalBytes);
-        },
-        (error) => reject(error),
-        async () => {
-          const videoUrl = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve({
-            videoUrl,
-            thumbnailUrl: videoUrl, // Generate actual thumb if possible
-            metadata: {
-              width: 0, height: 0, fileSize: file.size, format: file.type,
-              aspectRatio: '9:16', uploadedAt: new Date().toISOString(),
-              processingStatus: 'completed'
-            },
-            uploadDuration: Date.now() - startTime,
-            bytesTransferred: uploadTask.snapshot.bytesTransferred,
-            totalBytes: uploadTask.snapshot.totalBytes
-          });
-        }
-      );
-    });
+    const result = await storageService.uploadFile(path, file);
+    if (onProgress) onProgress(100, file.size, file.size);
+
+    return {
+      videoUrl: result.url,
+      thumbnailUrl: result.url,
+      metadata: {
+        width: 0, height: 0, fileSize: file.size, format: file.type,
+        aspectRatio: '9:16', uploadedAt: new Date().toISOString(),
+        processingStatus: 'completed'
+      },
+      uploadDuration: Date.now() - startTime,
+      bytesTransferred: file.size,
+      totalBytes: file.size
+    };
   }
 
   static async cleanupFailedUpload(momentId: string): Promise<void> {
@@ -427,7 +415,7 @@ class MomentsService {
         .select(`*, user:users!user_id(uid, display_name, photo_url)`)
         .eq('is_approved', true)
         .limit(limit);
-      
+
       return (data || []).map(m => ({
         id: m.id,
         userId: m.user.uid,
@@ -452,58 +440,111 @@ class MomentsService {
   }
 
   static async getShortVideoPosts(limit = 10, currentUserId?: string): Promise<MomentVideo[]> {
-    // Implement using posts table
     try {
-       const { data } = await supabase
-         .from('posts')
-         .select(`*, user:users!user_id(uid, display_name, photo_url)`)
-         .eq('media_type', 'video')
-         .limit(limit);
-         
-       return (data || []).map(p => ({
-         id: p.id,
-         userId: p.user.uid,
-         userDisplayName: p.user.display_name,
-         userPhotoURL: p.user.photo_url,
-         videoUrl: p.media_url,
-         thumbnailUrl: p.media_url,
-         caption: p.caption,
-         duration: (p.metadata as any)?.duration || 0,
-         createdAt: new Date(p.created_at),
-         updatedAt: new Date(p.updated_at),
-         isActive: true,
-         moderationStatus: 'approved',
-         engagement: { 
-            likes: [], likesCount: p.likes_count, 
-            comments: [], commentsCount: p.comments_count, 
-            shares: [], sharesCount: p.shares_count, 
-            views: 0, watchTime: 0, completionRate: 0 
-         },
-         metadata: p.metadata || {},
-         isPostVideo: true,
-         isLiked: false // logic to check likes needed if currentUserId passed
-       }));
-    } catch(e) {
+      // Fetch 5x limit to ensure we get enough qualified videos
+      const fetchBuffer = limit * 5;
+
+      const { data } = await supabase
+        .from('posts')
+        .select(`*, user:users!user_id(uid, display_name, photo_url)`)
+        .eq('media_type', 'video')
+        .order('created_at', { ascending: false })
+        .limit(fetchBuffer);
+
+      // Filter for duration <= 30 seconds (Strict per user request)
+      // BUT include videos with unknown duration (legacy/missing metadata) to ensure we don't hide valid clips.
+      const filteredPosts = (data || []).filter(p => {
+        const metadata = p.metadata || {};
+        const mediaMetadata = p.mediaMetadata || {};
+
+        // Check multiple possible locations for duration
+        const duration =
+          p.duration ||
+          p.videoDuration ||
+          metadata.duration ||
+          mediaMetadata.duration;
+
+        // If duration is KNOWN and > 30, exclude it.
+        if (duration && Number(duration) > 30) {
+          return false;
+        }
+
+        // Otherwise (duration <= 30 OR duration is missing), include it.
+        // This ensures we fetch "every video" that isn't explicitly too long.
+        return true;
+      });
+
+      return filteredPosts.slice(0, limit).map(p => {
+        const metadata = p.metadata || {};
+        const mediaMetadata = p.mediaMetadata || {};
+        const duration = p.duration || p.videoDuration || metadata.duration || mediaMetadata.duration || 0;
+
+        return {
+          id: p.id,
+          userId: p.user.uid,
+          userDisplayName: p.user.display_name,
+          userPhotoURL: p.user.photo_url,
+          videoUrl: p.media_url,
+          thumbnailUrl: p.media_url,
+          caption: p.caption,
+          duration: Number(duration),
+          createdAt: new Date(p.created_at),
+          updatedAt: new Date(p.updated_at),
+          isActive: true,
+          moderationStatus: 'approved',
+          engagement: {
+            likes: [], likesCount: p.likes_count,
+            comments: [], commentsCount: p.comments_count,
+            shares: [], sharesCount: p.shares_count,
+            views: (p.metadata as any)?.views || 0,
+            watchTime: 0,
+            completionRate: 0
+          },
+          metadata: p.metadata || {},
+          isPostVideo: true,
+          isLiked: false
+        };
+      });
+    } catch (e) {
+      console.error('Error fetching short video posts:', e);
       return [];
     }
   }
 
   static async getCombinedFeed(options: MomentsQueryOptions = {}): Promise<PaginatedMomentsResult> {
     const { limit = 20, currentUserId } = options;
+
+    // Distribute fetch limits to get a mix needed for the final unified feed
+    const momentLimit = Math.ceil(limit * 0.5);
+    const talentLimit = Math.ceil(limit * 0.3);
+    const postLimit = Math.ceil(limit * 0.4); // Over-fetch slightly
+
     const [moments, talent, posts] = await Promise.all([
-      this.getMoments({ ...options, limit: limit / 2 }),
-      this.getVerifiedTalentVideos(limit / 4),
-      this.getShortVideoPosts(limit / 4, currentUserId)
+      this.getMoments({ ...options, limit: momentLimit }),
+      this.getVerifiedTalentVideos(talentLimit),
+      this.getShortVideoPosts(postLimit, currentUserId)
     ]);
-    
-    // Sort combined
-    const combined = [...moments.moments, ...talent, ...posts].sort((a, b) => 
-      new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime()
-    );
-    
+
+    // Combine all sources
+    const allVideos = [
+      ...moments.moments,
+      ...talent,
+      ...posts
+    ];
+
+    // Remove duplicates (by ID) just in case
+    const uniqueVideos = Array.from(new Map(allVideos.map(v => [v.id, v])).values());
+
+    // Sort by createdAt descending (newest first)
+    const sorted = uniqueVideos.sort((a, b) => {
+      const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt as any).getTime();
+      const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt as any).getTime();
+      return timeB - timeA;
+    });
+
     return {
-      moments: combined,
-      hasMore: moments.hasMore,
+      moments: sorted,
+      hasMore: moments.hasMore || (posts.length >= postLimit), // heuristic
       lastDocument: null
     };
   }

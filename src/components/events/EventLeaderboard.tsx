@@ -83,7 +83,11 @@ export function EventLeaderboard({ event }: EventLeaderboardProps) {
             <div className="podium-grid">
               {/* 2nd Place */}
               {event.leaderboard.length >= 2 && (
-                <div className="podium-spot second-place">
+                <div
+                  className="podium-spot second-place"
+                  onClick={() => handleWinnerClick(event.leaderboard[1].userId)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="podium-rank">🥈</div>
                   <div className="podium-content">
                     <Avatar
@@ -92,11 +96,11 @@ export function EventLeaderboard({ event }: EventLeaderboardProps) {
                       photoURL={event.leaderboard[1].userAvatar}
                       variant="large"
                       type="event-winner"
-                      clickable={true}
+                      clickable={false} // Parent handles click
                       fallbackInitials
                     />
                     <div className="podium-info">
-                      <p className="podium-name" style={{ cursor: 'pointer' }} onClick={() => handleWinnerClick(event.leaderboard[1].userId)}>{event.leaderboard[1].userName}</p>
+                      <p className="podium-name">{event.leaderboard[1].userName}</p>
                       <p className="podium-label">2nd Place</p>
                     </div>
                   </div>
@@ -104,7 +108,11 @@ export function EventLeaderboard({ event }: EventLeaderboardProps) {
               )}
 
               {/* 1st Place (Center) */}
-              <div className="podium-spot first-place">
+              <div
+                className="podium-spot first-place"
+                onClick={() => handleWinnerClick(event.leaderboard[0].userId)}
+                style={{ cursor: 'pointer' }}
+              >
                 <div className="podium-rank">🥇</div>
                 <div className="podium-content">
                   <Avatar
@@ -113,11 +121,11 @@ export function EventLeaderboard({ event }: EventLeaderboardProps) {
                     photoURL={event.leaderboard[0].userAvatar}
                     variant="xl"
                     type="event-winner"
-                    clickable={true}
+                    clickable={false} // Parent handles click
                     fallbackInitials
                   />
                   <div className="podium-info">
-                    <p className="podium-name" style={{ cursor: 'pointer' }} onClick={() => handleWinnerClick(event.leaderboard[0].userId)}>{event.leaderboard[0].userName}</p>
+                    <p className="podium-name">{event.leaderboard[0].userName}</p>
                     <p className="podium-label">1st Place</p>
                   </div>
                 </div>
@@ -126,7 +134,11 @@ export function EventLeaderboard({ event }: EventLeaderboardProps) {
 
               {/* 3rd Place */}
               {event.leaderboard.length >= 3 && (
-                <div className="podium-spot third-place">
+                <div
+                  className="podium-spot third-place"
+                  onClick={() => handleWinnerClick(event.leaderboard[2].userId)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="podium-rank">🥉</div>
                   <div className="podium-content">
                     <Avatar
@@ -135,11 +147,11 @@ export function EventLeaderboard({ event }: EventLeaderboardProps) {
                       photoURL={event.leaderboard[2].userAvatar}
                       variant="large"
                       type="event-winner"
-                      clickable={true}
+                      clickable={false} // Parent handles click
                       fallbackInitials
                     />
                     <div className="podium-info">
-                      <p className="podium-name" style={{ cursor: 'pointer' }} onClick={() => handleWinnerClick(event.leaderboard[2].userId)}>{event.leaderboard[2].userName}</p>
+                      <p className="podium-name">{event.leaderboard[2].userName}</p>
                       <p className="podium-label">3rd Place</p>
                     </div>
                   </div>
@@ -158,7 +170,12 @@ export function EventLeaderboard({ event }: EventLeaderboardProps) {
               const placeLabel = getPlaceLabel(rank - 1);
 
               return (
-                <div key={winner.userId} className="additional-winner">
+                <div
+                  key={winner.userId}
+                  className="additional-winner"
+                  onClick={() => handleWinnerClick(winner.userId)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="winner-rank">
                     <span className="medal">{medal}</span>
                     <span className="place">{placeLabel}</span>
@@ -169,10 +186,10 @@ export function EventLeaderboard({ event }: EventLeaderboardProps) {
                     photoURL={winner.userAvatar}
                     variant="medium"
                     type="event-winner"
-                    clickable={true}
+                    clickable={false} // Parent handles click
                     fallbackInitials
                   />
-                  <div className="winner-name" style={{ cursor: 'pointer' }} onClick={() => handleWinnerClick(winner.userId)}>{winner.userName}</div>
+                  <div className="winner-name">{winner.userName}</div>
                   {winner.prize && (
                     <div className="winner-prize">{winner.prize}</div>
                   )}
@@ -187,12 +204,17 @@ export function EventLeaderboard({ event }: EventLeaderboardProps) {
           <h4>Final Rankings</h4>
           <div className="rankings-table">
             {event.leaderboard.map((winner, index) => (
-              <div key={winner.userId} className="ranking-row">
+              <div
+                key={winner.userId}
+                className="ranking-row"
+                onClick={() => handleWinnerClick(winner.userId)}
+                style={{ cursor: 'pointer' }}
+              >
                 <div className="ranking-position">
                   <span className="medal-large">{getMedal(index)}</span>
                 </div>
                 <div className="ranking-info">
-                  <p className="ranking-name" style={{ cursor: 'pointer' }} onClick={() => handleWinnerClick(winner.userId)}>{winner.userName}</p>
+                  <p className="ranking-name">{winner.userName}</p>
                   {winner.prize && (
                     <p className="ranking-prize">Prize: {winner.prize}</p>
                   )}

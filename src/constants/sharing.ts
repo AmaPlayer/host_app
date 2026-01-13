@@ -11,6 +11,15 @@ export const SHARE_TYPES = {
 
 export type ShareType = typeof SHARE_TYPES[keyof typeof SHARE_TYPES];
 
+// Share Tabs
+export const SHARE_TABS = {
+  FRIENDS: 'friends',
+  FEED: 'feed',
+  GROUPS: 'groups'
+} as const;
+
+export type ShareTab = typeof SHARE_TABS[keyof typeof SHARE_TABS];
+
 // Privacy Levels
 export const PRIVACY_LEVELS = {
   PUBLIC: 'public',

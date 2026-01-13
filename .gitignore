@@ -10,9 +10,11 @@ node_modules/
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
+Thumbs.db
 
 # Environment variables and secrets
 .env
@@ -23,8 +25,7 @@ node_modules/
 .env.test.local
 .env.production
 .env.production.local
-*.env
-*.env.*
+.env.*.local
 
 # API Keys and credentials
 **/config/secrets.json
@@ -57,20 +58,49 @@ scripts/**/serviceAccountKey*.json
 database.config.json
 db-credentials.json
 
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
+*.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
 .claude
 .claude.md
 .kiro
-.vscode
+*.swp
+*.swo
+*~
 
-# Documentation files  
-*.md
-!CLAUDE.md
-!docs/*.md
-.firebase
+# Documentation files (selective)
+# Ignore AI assistant conversation files
+.gemini/
+.anthropic/
+*.ai.md
+*_conversation.md
+
+# Keep important documentation
+!README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+!LICENSE.md
+!CODE_OF_CONDUCT.md
+!SECURITY.md
+
+# Keep docs folder but ignore temporary files
+!docs/
+docs/**/*.tmp
+docs/**/*.draft
+
+# Firebase
+.firebase/
 firebase-debug.log
+firebase-debug.*.log
 firebase.json
 firebase.rules
 firebase.functions.config.json
@@ -83,6 +113,54 @@ firebase.remoteconfig.config.json
 firebase.messaging.config.json
 firebase.auth.config.json
 
-#folder
-/docs
+# R2/Cloudflare credentials
+r2-credentials.json
+cloudflare-*.json
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+.cache/
+.temp/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Admin folder
 admin/node_modules/
+admin/.env
+admin/dist/
+admin/build/
+
+# Test files
+*.test.local.js
+*.spec.local.js
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Debug files
+debug/*.local.*
+debug/temp/
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Package manager files
+package-lock.json.backup
+yarn.lock.backup
+
+# Local development
+.local/
+local/
+*.local

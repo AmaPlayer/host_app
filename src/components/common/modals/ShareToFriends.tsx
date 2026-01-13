@@ -6,6 +6,7 @@ import { SHARE_TYPES } from '../../../constants/sharing';
 import { debounce, loadBatch, createInfiniteScrollObserver } from '../../../utils/sharing/lazyLoadingUtils';
 import { Post } from '../../../types/models';
 import { User } from 'firebase/auth';
+import friendsService from '../../../services/supabase/friendsService';
 
 const BATCH_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -74,43 +75,31 @@ const ShareToFriends = memo<ShareToFriendsProps>(({
         };
     }, [searchQuery]);
 
-    // Mock friends data - in real implementation, this would come from an API
+    // Load friends data
     useEffect(() => {
         const loadFriends = async () => {
+            if (!currentUser) return;
+
             setIsLoading(true);
             setError(null);
 
             try {
-                // Simulate API call
-                await new Promise(resolve => setTimeout(resolve, 800));
+                const friends = await friendsService.getFriendsList(currentUser.uid);
 
-                // Mock friends data - generate more for testing pagination
-                const mockFriends: Friend[] = [];
-                const names = [
-                    'Alice Johnson', 'Bob Smith', 'Carol Davis', 'David Wilson', 'Emma Brown',
-                    'Frank Miller', 'Grace Lee', 'Henry Taylor', 'Iris Chen', 'Jack Anderson',
-                    'Kate Martinez', 'Liam Garcia', 'Mia Rodriguez', 'Noah Lopez', 'Olivia Hill',
-                    'Peter Scott', 'Quinn Green', 'Rachel Adams', 'Sam Baker', 'Tina Nelson',
-                    'Uma Carter', 'Victor Mitchell', 'Wendy Perez', 'Xavier Roberts', 'Yara Turner',
-                    'Zoe Phillips', 'Aaron Campbell', 'Bella Parker', 'Chris Evans', 'Diana Morris',
-                    'Ethan Rogers', 'Fiona Reed', 'George Cook', 'Hannah Morgan', 'Ian Bell',
-                    'Julia Murphy', 'Kevin Bailey', 'Laura Rivera', 'Mike Cooper', 'Nina Richardson',
-                    'Oscar Cox', 'Paula Howard', 'Quincy Ward', 'Rita Torres', 'Steve Peterson',
-                    'Tara Gray', 'Ulysses Ramirez', 'Vera James', 'Walter Watson', 'Xena Brooks'
-                ];
+                // Map to component Friend interface if needed (checking fields)
+                // Service returns: id, displayName, photoURL, status, createdAt
+                // Component needs: id, displayName, photoURL, isOnline, lastSeen, canReceiveShares
 
-                for (let i = 0; i < names.length; i++) {
-                    mockFriends.push({
-                        id: `friend${i + 1}`,
-                        displayName: names[i],
-                        photoURL: '/default-avatar.jpg',
-                        isOnline: Math.random() > 0.5,
-                        lastSeen: new Date(Date.now() - Math.random() * 1000 * 60 * 60 * 24),
-                        canReceiveShares: Math.random() > 0.1 // 90% can receive shares
-                    });
-                }
+                const mappedFriends: Friend[] = friends.map(f => ({
+                    id: f.userId || f.id, // Service returns userId as friend's ID
+                    displayName: f.displayName,
+                    photoURL: f.photoURL,
+                    isOnline: false, // Not supported in MVP
+                    lastSeen: new Date(), // Not supported in MVP
+                    canReceiveShares: true // Default to true
+                }));
 
-                setAllFriends(mockFriends);
+                setAllFriends(mappedFriends);
             } catch (err) {
                 setError('Failed to load friends. Please try again.');
                 console.error('Error loading friends:', err);
@@ -120,7 +109,7 @@ const ShareToFriends = memo<ShareToFriendsProps>(({
         };
 
         loadFriends();
-    }, []);
+    }, [currentUser]);
 
     // Filter friends based on debounced search query
     const filteredFriends = useMemo(() => {

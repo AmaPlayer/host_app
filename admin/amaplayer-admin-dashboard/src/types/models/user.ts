@@ -36,7 +36,7 @@ export interface User {
   // Denormalized athlete fields for efficient querying
   role?: UserRole; // User role: 'athlete', 'parent', 'organization', 'coach'
   sports?: string[]; // Array of sport IDs for querying: ['marathon', 'track', 'swimming']
-  sportDetails?: Array<{id: string; name: string; icon?: string}>; // Full sport objects
+  sportDetails?: Array<{ id: string; name: string; icon?: string }>; // Full sport objects
   eventTypes?: string[]; // Event/distance types: ['5000m', '10000m', 'marathon']
   position?: string; // Position ID for querying: 'distance-runner', 'sprinter'
   positionName?: string; // Position display name: 'Distance Runner', 'Sprinter'
@@ -55,6 +55,8 @@ export interface User {
   city?: string;
   phone?: string;
   mobile?: string;
+  status?: string; // 'active', 'suspended', 'deleted'
+  suspension_reason?: string;
 }
 
 /**

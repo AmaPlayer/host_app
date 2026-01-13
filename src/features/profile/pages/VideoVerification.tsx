@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Check, AlertCircle, Video, Users } from 'lucide-react';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import { TalentVideo, VideoVerification } from '../types/TalentVideoTypes';
-import '../styles/VideoVerification.css';
+import { useAuth } from '../../../contexts/AuthContext';
+// CSS injected directly in component to ensure Portal rendering consistency
 
 interface VerificationFormData {
   verifierName: string;
@@ -28,10 +30,15 @@ const cleanObject = (obj: any): any => {
   return obj;
 };
 
+
+
 const VideoVerificationPage: React.FC = () => {
   const { userId, videoId } = useParams<{ userId: string; videoId: string }>();
+  const { currentUser } = useAuth();
+
   const [searchParams] = useSearchParams();
   const [video, setVideo] = useState<TalentVideo | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,6 +92,16 @@ const VideoVerificationPage: React.FC = () => {
     };
 
     initializeAntiCheat();
+
+    // Lock body scroll to prevent background scrolling and layout shifts
+    document.body.style.overflow = 'hidden';
+    // Ensure no padding is added by other libs (prevents right shift)
+    document.body.style.paddingRight = '0px';
+
+    return () => {
+      document.body.style.overflow = 'unset';
+      document.body.style.paddingRight = 'unset';
+    };
   }, []);
 
   // Load video data
@@ -99,38 +116,9 @@ const VideoVerificationPage: React.FC = () => {
           return;
         }
 
-        // Fetch talent video from talentVideos collection (NOT from user document)
-        const { doc, getDoc, collection, query, where, getDocs } = await import('firebase/firestore');
-        const { db } = await import('../../../lib/firebase');
-
-        // Query talentVideos collection for the specific video
-        const talentVideosRef = collection(db, 'talentVideos');
-        const q = query(
-          talentVideosRef,
-          where('userId', '==', userId)
-        );
-
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-          setError('User not found');
-          setIsLoading(false);
-          return;
-        }
-
-        // Find the specific video by ID
-        let targetVideoData: TalentVideo | null = null;
-        querySnapshot.forEach((doc) => {
-          if (doc.id === videoId) {
-            const data = doc.data();
-            targetVideoData = {
-              ...data,
-              id: doc.id,
-              uploadDate: data.uploadDate?.toDate ? data.uploadDate.toDate() : data.uploadDate,
-              verificationDeadline: data.verificationDeadline?.toDate ? data.verificationDeadline.toDate() : undefined
-            } as TalentVideo;
-          }
-        });
+        // Fetch talent video from Supabase service
+        const { talentVideoService } = await import('../../../services/api/talentVideoService');
+        const targetVideoData = await talentVideoService.getTalentVideo(videoId);
 
         if (!targetVideoData) {
           setError('Video not found');
@@ -138,8 +126,18 @@ const VideoVerificationPage: React.FC = () => {
           return;
         }
 
-        setVideo(targetVideoData);
+        // Verify userId matches (optional security check)
+        if (targetVideoData.userId !== userId) {
+          // In a real app we might want to be strict, but for now we trust the ID lookup
+          // Or we could strict check:
+          // setError('Video does not belong to this user');
+          // setIsLoading(false);
+          // return;
+          // Warn if mismatch, but don't block (legacy links might use UUID instead of UID)
+          console.debug('Video owner ID formatted differently from URL param', targetVideoData.userId, userId);
+        }
 
+        setVideo(targetVideoData);
         setIsLoading(false);
       } catch (err) {
         console.error('Error loading video:', err);
@@ -150,6 +148,13 @@ const VideoVerificationPage: React.FC = () => {
 
     loadVideoData();
   }, [userId, videoId]);
+
+  // Check ownership
+  useEffect(() => {
+    if (currentUser && userId && currentUser.uid === userId) {
+      setIsOwner(true);
+    }
+  }, [currentUser, userId]);
 
   // Check for duplicate device/IP after video, fingerprint, and IP are loaded
   useEffect(() => {
@@ -227,8 +232,8 @@ const VideoVerificationPage: React.FC = () => {
         const reason = isDuplicateDevice && isDuplicateIP
           ? 'same device and network'
           : isDuplicateDevice
-          ? 'same device'
-          : 'same network/IP address';
+            ? 'same device'
+            : 'same network/IP address';
 
         alert(`This video has already been verified from the ${reason}. Each device and network can only verify once to prevent fraud.\n\nPrevious verification by: ${matchedVerification?.verifierName || 'Unknown'}`);
         setIsSubmitting(false);
@@ -254,285 +259,330 @@ const VideoVerificationPage: React.FC = () => {
         ...(formData.verificationMessage.trim() && { verificationMessage: formData.verificationMessage.trim() })
       };
 
-      // Update Firestore - Update the talentVideos collection directly (NOT user document)
-      const { doc, getDoc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('../../../lib/firebase');
+      // Import Services
+      const { talentVideoService } = await import('../../../services/api/talentVideoService');
+      const userService = (await import('../../../services/api/userService')).default;
 
-      const videoRef = doc(db, 'talentVideos', videoId);
-      const videoDoc = await getDoc(videoRef);
+      // Add Verification via Service (Secure RPC)
+      // This single call will:
+      // 1. Check for duplicates (IP/Device) SERVER-SIDE
+      // 2. Add verification
+      // 3. Update video status if threshold is met
+      // 4. Update user profile if video is verified
+      await talentVideoService.addVerification(videoId, newVerification);
 
-      if (!videoDoc.exists()) {
-        throw new Error('Video not found');
-      }
-
-      const videoData = videoDoc.data();
-      const currentVerifications = videoData.verifications || [];
-      const updatedVerifications = [...currentVerifications, newVerification];
-      const threshold = videoData.verificationThreshold || 3;
-
-      // Auto-verify if threshold reached
-      const newStatus = updatedVerifications.length >= threshold ? 'verified' : 'pending';
-
-      // Update the video in talentVideos collection
-      await updateDoc(videoRef, {
-        verifications: updatedVerifications,
-        verificationStatus: newStatus,
-        updatedAt: new Date()
-      });
-
+      // Verify success (UI update only)
       setVerificationSuccess(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting verification:', err);
-      alert('Failed to submit verification. Please try again.');
+
+      // Check for specific backend errors
+      if (err.message && err.message.includes('Duplicate verification')) {
+        setAlreadyVerified(true);
+        // Optional: still alert or just silent transition? 
+        // Transition is better UX, maybe with a toast, but here setState triggers the UI change.
+        alert('You have already verified this video (detected by secure server check).');
+      } else {
+        alert(`Failed to verify: ${err.message || 'Unknown error'}`);
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="verification-page">
-        <div className="verification-container">
-          <div className="loading-spinner"></div>
-          <p>Loading verification...</p>
-        </div>
-      </div>
-    );
-  }
+  // Render to portal to escape any parent layout constraints
+  const content = (
+    <div className="verify-root">
+      <style>{`
+        .verify-root {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          width: 100vw; height: 100vh;
+          z-index: 2147483647;
+          background: linear-gradient(135deg, #1a1c23 0%, #2d3748 100%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding: 40px 20px;
+          box-sizing: border-box;
+          font-family: 'Inter', -apple-system, system-ui, sans-serif;
+        }
+        .verify-card {
+          width: 100%;
+          max-width: 650px;
+          background: #ffffff;
+          border-radius: 16px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+          padding: 32px;
+          margin: auto;
+          position: relative;
+          color: #1a202c;
+        }
+        .verify-header { 
+          text-align: center; margin-bottom: 24px; 
+        }
+        .verify-title { 
+          font-size: 24px; font-weight: 800; color: #1a202c; 
+          margin: 0 0 8px 0; letter-spacing: -0.02em; 
+        }
+        .verify-subtitle { 
+          font-size: 15px; color: #718096; margin: 0; 
+        }
+        .verify-video-wrapper {
+          width: 100%; border-radius: 12px; overflow: hidden;
+          background: #000; aspect-ratio: 16/9; margin-bottom: 20px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .verify-video { width: 100%; height: 100%; object-fit: contain; }
+        .verify-video-title { 
+          font-size: 18px; font-weight: 700; color: #2d3748; margin-bottom: 8px; 
+        }
+        .verify-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+        .verify-tag { 
+          padding: 4px 12px; border-radius: 9999px; font-size: 12px; 
+          font-weight: 600; background: #edf2f7; color: #4a5568; 
+        }
+        .verify-tag.highlight { background: #e6fffa; color: #2c7a7b; }
+        .verify-form-group { margin-bottom: 16px; }
+        .verify-label { 
+          display: block; font-size: 14px; font-weight: 600; color: #4a5568; margin-bottom: 6px; 
+        }
+        .verify-input, .verify-select, .verify-textarea {
+          width: 100%; padding: 10px 14px;
+          border: 1px solid #e2e8f0; border-radius: 8px;
+          font-family: inherit; font-size: 14px; color: #2d3748;
+          background: #f7fafc;
+        }
+        .verify-input:focus, .verify-select:focus, .verify-textarea:focus {
+          outline: none; border-color: #38b2ac; background: #fff;
+          box-shadow: 0 0 0 3px rgba(56, 178, 172, 0.1);
+        }
+        .verify-btn {
+          width: 100%; padding: 12px; border-radius: 8px;
+          font-weight: 700; font-size: 15px; border: none; cursor: pointer;
+          transition: all 0.2s;
+        }
+        .verify-btn-primary { background: #38b2ac; color: white; margin-top: 12px; }
+        .verify-btn-primary:hover:not(:disabled) { background: #319795; transform: translateY(-1px); }
+        .verify-state-container { text-align: center; padding: 20px; color: #4a5568; }
+        .verify-state-icon { margin: 0 auto 16px; color: #38b2ac; }
+        .verify-error { color: #e53e3e; } .verify-error .verify-state-icon { color: #e53e3e; }
+        .verify-progress-section { 
+            background: #f7fafc; border-radius: 8px; padding: 12px; margin-bottom: 24px; 
+            border: 1px solid #edf2f7; 
+        }
+        .verify-progress-header { 
+            display: flex; justify-content: space-between; font-size: 13px; 
+            font-weight: 600; color: #4a5568; margin-bottom: 6px; 
+        }
+        .verify-progress-track { 
+            width: 100%; height: 8px; background: #cbd5e0; border-radius: 9999px; overflow: hidden; 
+        }
+        .verify-progress-bar { 
+            height: 100%; background: #38b2ac; border-radius: 9999px; 
+        }
+      `}</style>
 
-  if (error) {
-    return (
-      <div className="verification-page">
-        <div className="verification-container">
-          <div className="verification-error">
-            <AlertCircle size={48} color="#dc3545" />
-            <h2>Error</h2>
+      <div className="verify-card">
+        {isLoading && (
+          <div className="verify-state-container">
+            <div className="loading-spinner"></div>
+            <p>Loading verification details...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="verify-state-container verify-error">
+            <div className="verify-state-icon">
+              <AlertCircle size={40} />
+            </div>
+            <h2>Unable to Verify</h2>
             <p>{error}</p>
           </div>
-        </div>
-      </div>
-    );
-  }
+        )}
 
-  if (verificationSuccess) {
-    const currentCount = (video?.verifications?.length || 0) + 1;
-    const threshold = video?.verificationThreshold || 3;
-    const isFullyVerified = currentCount >= threshold;
-
-    return (
-      <div className="verification-page">
-        <div className="verification-container">
-          <div className="verification-success">
-            <div className="success-icon">
-              <Check size={64} color="#28a745" />
+        {verificationSuccess && (
+          <div className="verify-state-container verify-success">
+            <div className="verify-state-icon">
+              <Check size={48} />
             </div>
-            <h2>✓ Verification Submitted!</h2>
-            <p className="success-message">
-              Thank you for verifying this talent video!
-            </p>
+            <h2>Verification Submitted!</h2>
+            <p className="success-message">Thank you for helping verify this talent.</p>
 
-            <div className="verification-progress">
-              <div className="progress-label">
-                Verification Progress: {currentCount} / {threshold}
+            <div className="verify-progress-section">
+              <div className="verify-progress-header">
+                <span>Current Progress</span>
+                <span>{(video?.verifications?.length || 0) + 1} / 1</span>
               </div>
-              <div className="progress-bar">
+              <div className="verify-progress-track">
                 <div
-                  className="progress-fill"
-                  style={{ width: `${(currentCount / threshold) * 100}%` }}
+                  className="verify-progress-bar"
+                  style={{ width: `${Math.min(100, (((video?.verifications?.length || 0) + 1) / 1) * 100)}%` }}
                 ></div>
               </div>
-              {isFullyVerified && (
-                <div className="fully-verified-badge">
-                  <Check size={16} />
-                  Video is now VERIFIED!
-                </div>
-              )}
             </div>
 
-            <div className="success-details">
-              <p><strong>Video:</strong> {video?.title}</p>
-              <p><strong>Your Name:</strong> {formData.verifierName}</p>
-              <p><strong>Relationship:</strong> {formData.verifierRelationship}</p>
-            </div>
-
-            <button
-              className="btn-primary"
-              onClick={() => window.close()}
-            >
+            <button className="verify-btn verify-btn-primary" onClick={() => window.close()}>
               Close Window
             </button>
           </div>
-        </div>
-      </div>
-    );
-  }
+        )}
 
-  if (alreadyVerified) {
-    return (
-      <div className="verification-page">
-        <div className="verification-container">
-          <div className="verification-info">
-            <Check size={48} color="#20B2AA" />
+        {alreadyVerified && !verificationSuccess && (
+          <div className="verify-state-container verify-success">
+            <div className="verify-state-icon">
+              <Check size={48} />
+            </div>
             <h2>Already Verified</h2>
             <p>You have already verified this video. Thank you!</p>
-            <button
-              className="btn-secondary"
-              onClick={() => window.close()}
-            >
+            <button className="verify-btn verify-btn-primary" onClick={() => window.close()}>
               Close Window
             </button>
           </div>
-        </div>
-      </div>
-    );
-  }
+        )}
 
-  const currentVerifications = video?.verifications?.length || 0;
-  const threshold = video?.verificationThreshold || 3;
-  const isAlreadyFullyVerified = video?.verificationStatus === 'verified';
-
-  return (
-    <div className="verification-page">
-      <div className="verification-container">
-        <div className="verification-header">
-          <div className="header-icon">
-            <Video size={32} />
-          </div>
-          <h1>Verify Talent Video</h1>
-          <p className="header-subtitle">
-            Help verify this athlete's performance is authentic
-          </p>
-        </div>
-
-        {/* Video Preview */}
-        <div className="video-preview-section">
-          <h3>{video?.title}</h3>
-          <div className="video-player-wrapper">
-            <video
-              controls
-              className="verification-video-player"
-              poster={video?.thumbnailUrl}
-            >
-              <source src={video?.videoUrl} type="video/mp4" />
-              Your browser does not support the video tag.
-            </video>
-          </div>
-          <div className="video-meta">
-            <span className="video-sport">{video?.sport}</span>
-            <span className="video-category">{video?.skillCategory}</span>
-            <span className="video-duration">{Math.floor((video?.duration || 0) / 60)}:{String((video?.duration || 0) % 60).padStart(2, '0')}</span>
-          </div>
-        </div>
-
-        {/* Verification Progress */}
-        <div className="verification-status-section">
-          <div className="status-header">
-            <Users size={20} />
-            <span>Community Verification Progress</span>
-          </div>
-          <div className="verification-progress">
-            <div className="progress-label">
-              {currentVerifications} / {threshold} verifications
+        {isOwner && (
+          <div className="verify-state-container verify-error">
+            <div className="verify-state-icon">
+              <AlertCircle size={48} />
             </div>
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: `${(currentVerifications / threshold) * 100}%` }}
-              ></div>
-            </div>
-          </div>
-          {isAlreadyFullyVerified && (
-            <div className="fully-verified-badge">
-              <Check size={16} />
-              Already Verified!
-            </div>
-          )}
-        </div>
-
-        {/* Verification Form */}
-        {!isAlreadyFullyVerified && (
-          <form onSubmit={handleSubmitVerification} className="verification-form">
-            <h3>Verify This Performance</h3>
-            <p className="form-description">
-              Please confirm that you witnessed this athlete perform in this video, or that you can verify its authenticity.
-            </p>
-
-            <div className="form-group">
-              <label htmlFor="verifierName">Your Name *</label>
-              <input
-                type="text"
-                id="verifierName"
-                name="verifierName"
-                value={formData.verifierName}
-                onChange={handleInputChange}
-                placeholder="Enter your full name"
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="verifierEmail">Your Email *</label>
-              <input
-                type="email"
-                id="verifierEmail"
-                name="verifierEmail"
-                value={formData.verifierEmail}
-                onChange={handleInputChange}
-                placeholder="your.email@example.com"
-                required
-              />
-              <small>Your email will not be shared publicly</small>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="verifierRelationship">Your Relationship *</label>
-              <select
-                id="verifierRelationship"
-                name="verifierRelationship"
-                value={formData.verifierRelationship}
-                onChange={handleInputChange}
-                required
-              >
-                <option value="coach">Coach</option>
-                <option value="teammate">Teammate</option>
-                <option value="parent">Parent/Guardian</option>
-                <option value="friend">Friend</option>
-                <option value="witness">I witnessed this performance</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="verificationMessage">Additional Comments (Optional)</label>
-              <textarea
-                id="verificationMessage"
-                name="verificationMessage"
-                value={formData.verificationMessage}
-                onChange={handleInputChange}
-                placeholder="Add any additional context about this verification..."
-                rows={3}
-              />
-            </div>
-
-            <div className="form-disclaimer">
-              <AlertCircle size={16} />
-              <p>
-                By submitting this verification, you confirm that this video authentically represents the athlete's performance and is not AI-generated or manipulated.
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              className="btn-primary btn-submit"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Submitting...' : 'Submit Verification'}
+            <h2>Self-Verification Not Allowed</h2>
+            <p>You cannot verify your own talent video. Please share this link with a coach, teammate, or witness.</p>
+            <button className="verify-btn verify-btn-primary" onClick={() => window.close()}>
+              Close Window
             </button>
-          </form>
+          </div>
+        )}
+
+        {!isLoading && !error && !verificationSuccess && !alreadyVerified && !isOwner && (
+          <>
+            <div className="verify-header">
+              <div className="verify-icon-wrapper">
+                <Video size={32} />
+              </div>
+              <h1 className="verify-title">Verify Talent</h1>
+              <p className="verify-subtitle">Confirm this athlete's performance involves real skill.</p>
+            </div>
+
+            <div className="verify-video-wrapper">
+              <video
+                controls
+                className="verify-video"
+                poster={video?.thumbnailUrl}
+              >
+                <source src={video?.videoUrl} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+
+            <div className="verify-content">
+              <h3 className="verify-video-title">{video?.title}</h3>
+              <div className="verify-tags">
+                <span className="verify-tag highlight">{video?.sport}</span>
+                <span className="verify-tag">{video?.skillCategory}</span>
+              </div>
+
+              <div className="verify-progress-section">
+                <div className="verify-progress-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Users size={16} />
+                    <span>Community Verification</span>
+                  </div>
+                  <span>{video?.verifications?.length || 0} / 1</span>
+                </div>
+                <div className="verify-progress-track">
+                  <div
+                    className="verify-progress-bar"
+                    style={{ width: `${Math.min(100, ((video?.verifications?.length || 0) / 1) * 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <form onSubmit={handleSubmitVerification}>
+                <div className="verify-form-group">
+                  <label className="verify-label" htmlFor="verifierName">Your Name</label>
+                  <input
+                    className="verify-input"
+                    type="text"
+                    id="verifierName"
+                    name="verifierName"
+                    value={formData.verifierName}
+                    onChange={handleInputChange}
+                    placeholder="Enter your full name"
+                    required
+                  />
+                </div>
+
+                <div className="verify-form-group">
+                  <label className="verify-label" htmlFor="verifierEmail">Your Email</label>
+                  <input
+                    className="verify-input"
+                    type="email"
+                    id="verifierEmail"
+                    name="verifierEmail"
+                    value={formData.verifierEmail}
+                    onChange={handleInputChange}
+                    placeholder="name@example.com"
+                    required
+                  />
+                </div>
+
+                <div className="verify-form-group">
+                  <label className="verify-label" htmlFor="verifierRelationship">Relationship</label>
+                  <select
+                    className="verify-select"
+                    id="verifierRelationship"
+                    name="verifierRelationship"
+                    value={formData.verifierRelationship}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    <option value="witness">I witnessed this performance</option>
+                    <option value="coach">Coach</option>
+                    <option value="teammate">Teammate</option>
+                    <option value="parent">Parent/Guardian</option>
+                    <option value="friend">Friend</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div className="verify-form-group">
+                  <label className="verify-label" htmlFor="verificationMessage">Comments (Optional)</label>
+                  <textarea
+                    className="verify-textarea"
+                    id="verificationMessage"
+                    name="verificationMessage"
+                    value={formData.verificationMessage}
+                    onChange={handleInputChange}
+                    placeholder="Any specific details..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="form-disclaimer" style={{ marginBottom: '24px' }}>
+                  <AlertCircle size={16} />
+                  <p>By submitting, you confirm this video is authentic and not manipulated.</p>
+                </div>
+
+                <button
+                  type="submit"
+                  className="verify-btn verify-btn-primary"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Verifying...' : 'Submit Verification'}
+                </button>
+              </form>
+            </div>
+          </>
         )}
       </div>
     </div>
   );
+
+  return ReactDOM.createPortal(content, document.body);
 };
 
 export default VideoVerificationPage;

@@ -51,8 +51,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .video-error {
@@ -142,35 +147,25 @@
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-  padding: 20px 15px 15px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  padding: 24px 16px 16px;
+  /* Increased top padding for better separation */
   z-index: 7;
-}
-
-.progress-container {
-  margin-bottom: 15px;
-  cursor: pointer;
-}
-
-.progress-bar {
-  width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
-  border-radius: 3px;
-  transition: width 0.1s ease;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  /* Reduced gap since progress is simpler */
+  justify-content: flex-end;
 }
 
 .controls-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: relative;
+  z-index: 10;
+  margin-top: 4px;
+  /* Extra breathing room */
 }
 
 .controls-left {
@@ -252,39 +247,28 @@
   transform: scale(1.2);
 }
 
-.time-display {
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-  min-width: 100px;
-}
-
 /* Mobile responsive */
 @media (max-width: 768px) {
   .controls-bottom {
     padding: 15px 10px 10px;
   }
-  
+
   .controls-left {
     gap: 10px;
   }
-  
+
   .volume-container {
-    display: none; /* Hide volume controls on mobile */
+    display: none;
+    /* Hide volume controls on mobile */
   }
-  
+
   .play-button-center {
     width: 80px;
     height: 80px;
   }
-  
+
   .control-btn {
     padding: 6px;
-  }
-  
-  .time-display {
-    font-size: 12px;
-    min-width: 80px;
   }
 }
 
@@ -292,26 +276,18 @@
   .controls-bottom {
     padding: 10px 8px 8px;
   }
-  
+
   .controls-left {
     gap: 8px;
   }
-  
+
   .play-button-center {
     width: 60px;
     height: 60px;
   }
-  
-  .progress-bar {
-    height: 4px;
-  }
-  
+
   .control-btn {
     padding: 4px;
-  }
-  
-  .time-display {
-    display: none; /* Hide time display on very small screens */
   }
 }
 
@@ -339,6 +315,7 @@
     transform: scale(0.95);
     opacity: 0.9;
   }
+
   to {
     transform: scale(1);
     opacity: 1;
@@ -349,12 +326,6 @@
 .video-player:hover .video-controls {
   opacity: 1;
   pointer-events: all;
-}
-
-/* Custom scrollbar for progress */
-.progress-container:hover .progress-bar {
-  height: 8px;
-  transition: height 0.2s ease;
 }
 
 /* Animation for control visibility */
@@ -393,10 +364,12 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   50% {
     opacity: 1;
     transform: translateY(0);
   }
+
   100% {
     opacity: 0;
     transform: translateY(-10px);
@@ -419,8 +392,13 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* Smooth animation for fullscreen close button */
@@ -429,6 +407,7 @@
     opacity: 0;
     transform: scale(0.8) translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);

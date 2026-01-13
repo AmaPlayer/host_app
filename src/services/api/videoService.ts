@@ -1,5 +1,6 @@
-import { ref, uploadBytes, getDownloadURL, uploadBytesResumable, UploadTask } from 'firebase/storage';
-import { storage } from '../../lib/firebase';
+import { storageService } from '../storage/index';
+// Mock UploadTask for compatibility if needed, or remove
+type UploadTask = any;
 
 // Supported video file types
 export const SUPPORTED_VIDEO_TYPES = [
@@ -50,16 +51,16 @@ export const validateVideoFile = (file: File): ValidationResult => {
   }
 
   if (!SUPPORTED_VIDEO_TYPES.includes(file.type)) {
-    return { 
-      isValid: false, 
-      error: `Unsupported file type. Supported types: ${SUPPORTED_VIDEO_TYPES.map(type => type.split('/')[1]).join(', ')}` 
+    return {
+      isValid: false,
+      error: `Unsupported file type. Supported types: ${SUPPORTED_VIDEO_TYPES.map(type => type.split('/')[1]).join(', ')}`
     };
   }
 
   if (file.size > MAX_VIDEO_SIZE) {
-    return { 
-      isValid: false, 
-      error: `File size too large. Maximum size: ${MAX_VIDEO_SIZE / (1024 * 1024)}MB` 
+    return {
+      isValid: false,
+      error: `File size too large. Maximum size: ${MAX_VIDEO_SIZE / (1024 * 1024)}MB`
     };
   }
 
@@ -75,87 +76,35 @@ export const uploadVideoFile = async (
   category: string = VIDEO_PATHS.POSTS,
   onProgress: ((progress: number) => void) | null = null,
   onTaskCreated: ((task: UploadTask) => void) | null = null
-): Promise<string> => {// Validate file first
+): Promise<string> => {
+  // Validate file first
   const validation = validateVideoFile(file);
   if (!validation.isValid) {
     console.error('Video validation failed:', validation.error);
     throw new Error(validation.error);
-  }// Generate unique filename
+  }
+
+  // Generate unique filename
   const timestamp = Date.now();
   const fileName = `${timestamp}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-  const filePath = `${category}/${userId}/${fileName}`;// Create storage reference
-  const storageRef = ref(storage, filePath);
+  const filePath = `${category}/${userId}/${fileName}`;
 
   try {
-    if (onProgress) {// Upload with progress tracking
-      const uploadTask = uploadBytesResumable(storageRef, file);
-      
-      // Pass the upload task to the caller for cancellation
-      if (onTaskCreated) {
-        onTaskCreated(uploadTask);
-      }
-      
-      return new Promise((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;onProgress(progress);
-          },
-          (error) => {
-            console.error('Video upload error:', error);
-            console.error('Error code:', error.code);
-            console.error('Error message:', error.message);
-            
-            // Provide more specific error messages
-            let errorMessage = 'Failed to upload video. ';
-            switch (error.code) {
-              case 'storage/unauthorized':
-                errorMessage += 'You do not have permission to upload files.';
-                break;
-              case 'storage/canceled':
-                errorMessage += 'Upload was canceled.';
-                break;
-              case 'storage/quota-exceeded':
-                errorMessage += 'Storage quota exceeded.';
-                break;
-              case 'storage/invalid-format':
-                errorMessage += 'Invalid video format.';
-                break;
-              case 'storage/server-file-wrong-size':
-                errorMessage += 'File size mismatch.';
-                break;
-              default:
-                errorMessage += error.message || 'Please try again.';
-            }
-            
-            reject(new Error(errorMessage));
-          },
-          async () => {
-            try {const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);resolve(downloadURL);
-            } catch (error) {
-              console.error('Error getting download URL:', error);
-              reject(new Error('Upload completed but failed to get download URL. Please try again.'));
-            }
-          }
-        );
-      });
-    } else {// Simple upload without progress tracking
-      const snapshot = await uploadBytes(storageRef, file);const downloadURL = await getDownloadURL(snapshot.ref);return downloadURL;
-    }
+    if (onProgress) onProgress(10);
+
+    // Upload using R2 service
+    // Note: Simple upload via SDK v3 doesn't give granular XHR-style progress easily without lib-storage.
+    // We simulate some progress or just jump to completion.
+    if (onProgress) onProgress(30);
+
+    const result = await storageService.uploadFile(filePath, file);
+
+    if (onProgress) onProgress(100);
+
+    return result.url;
   } catch (error) {
     console.error('Error uploading video:', error);
-    console.error('Error details:', {
-      code: (error as any).code,
-      message: (error as Error).message,
-      stack: (error as Error).stack
-    });
-    
-    // Re-throw with more context
-    if ((error as Error).message.includes('Failed to upload video')) {
-      throw error; // Already processed
-    } else {
-      throw new Error(`Failed to upload video: ${(error as Error).message}`);
-    }
+    throw new Error(`Failed to upload video: ${(error as Error).message}`);
   }
 };
 
@@ -177,7 +126,7 @@ export const createVideoThumbnail = (videoFile: File): Promise<Blob> => {
       // Set canvas size
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
+
       // Seek to 1 second or 10% of video duration
       video.currentTime = Math.min(1, video.duration * 0.1);
     });
@@ -185,7 +134,7 @@ export const createVideoThumbnail = (videoFile: File): Promise<Blob> => {
     video.addEventListener('seeked', () => {
       // Draw video frame to canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
+
       // Convert canvas to blob
       canvas.toBlob((blob) => {
         if (blob) {
@@ -212,7 +161,7 @@ export const createVideoThumbnail = (videoFile: File): Promise<Blob> => {
 export const getVideoDuration = (videoFile: File): Promise<number> => {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
-    
+
     video.addEventListener('loadedmetadata', () => {
       resolve(video.duration);
     });
@@ -247,12 +196,11 @@ export const uploadThumbnail = async (
     // Generate unique filename for thumbnail
     const timestamp = Date.now();
     const thumbnailName = `thumb_${timestamp}_${originalFileName.replace(/\.[^/.]+$/, '')}.jpg`;
-    const thumbnailPath = `thumbnails/${userId}/${thumbnailName}`;// Create storage reference
-    const thumbnailRef = ref(storage, thumbnailPath);
-    
+    const thumbnailPath = `thumbnails/${userId}/${thumbnailName}`;
+
     // Upload thumbnail
-    const snapshot = await uploadBytes(thumbnailRef, thumbnailBlob);
-    const downloadURL = await getDownloadURL(snapshot.ref);return downloadURL;
+    const result = await storageService.uploadFile(thumbnailPath, thumbnailBlob);
+    return result.url;
   } catch (error) {
     console.error('Error uploading thumbnail:', error);
     throw error;
@@ -266,27 +214,31 @@ export const generateVideoMetadata = async (
   videoFile: File,
   downloadURL: string,
   userId: string | null = null
-): Promise<VideoMetadata> => {try {
+): Promise<VideoMetadata> => {
+  try {
     // Try to get duration, but don't fail if it doesn't work
     let duration: number | null = null;
     let durationFormatted: string | null = null;
-    
+
     try {
       duration = await getVideoDuration(videoFile);
-      durationFormatted = formatDuration(duration);} catch (durationError) {
+      durationFormatted = formatDuration(duration);
+    } catch (durationError) {
       console.warn('Could not get video duration:', (durationError as Error).message);
     }
-    
+
     // Try to create and upload thumbnail, but don't fail if it doesn't work
     let thumbnailURL: string | null = null;
     try {
-      const thumbnailBlob = await createVideoThumbnail(videoFile);// Upload thumbnail to Firebase Storage if userId is provided
+      const thumbnailBlob = await createVideoThumbnail(videoFile);
+      // Upload thumbnail to Firebase Storage if userId is provided
       if (thumbnailBlob && userId) {
-        thumbnailURL = await uploadThumbnail(thumbnailBlob, userId, videoFile.name);}
+        thumbnailURL = await uploadThumbnail(thumbnailBlob, userId, videoFile.name);
+      }
     } catch (thumbnailError) {
       console.warn('Could not create/upload video thumbnail:', (thumbnailError as Error).message);
     }
-    
+
     const metadata: VideoMetadata = {
       url: downloadURL,
       type: 'video',
@@ -295,20 +247,21 @@ export const generateVideoMetadata = async (
       fileName: videoFile.name,
       uploadedAt: new Date().toISOString()
     };
-    
+
     // Add optional fields if available
     if (duration !== null) {
       metadata.duration = duration;
       metadata.durationFormatted = durationFormatted!;
     }
-    
+
     if (thumbnailURL) {
       metadata.thumbnail = thumbnailURL;
-    }return metadata;
-    
+    }
+    return metadata;
+
   } catch (error) {
     console.error('Error generating video metadata:', error);
-    
+
     // Return basic metadata even if enhanced features fail
     const basicMetadata: VideoMetadata = {
       url: downloadURL,
@@ -317,6 +270,7 @@ export const generateVideoMetadata = async (
       size: videoFile.size,
       fileName: videoFile.name,
       uploadedAt: new Date().toISOString()
-    };return basicMetadata;
+    };
+    return basicMetadata;
   }
 };

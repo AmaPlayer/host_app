@@ -5,7 +5,7 @@
 
 import { db } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import errorHandler from '../../utils/errorHandler';
+import errorHandler from '../../utils/error/errorHandler';
 
 class ShareErrorLogger {
   constructor() {
@@ -13,7 +13,7 @@ class ShareErrorLogger {
     this.maxBufferSize = 100;
     this.flushInterval = 60000; // 1 minute
     this.isFlushingErrors = false;
-    
+
     // Start periodic flush
     this.startPeriodicFlush();
   }
@@ -183,7 +183,7 @@ class ShareErrorLogger {
    */
   categorizeError(error) {
     const message = error?.message?.toLowerCase() || '';
-    
+
     if (message.includes('network') || message.includes('fetch')) {
       return 'network';
     }
@@ -199,7 +199,7 @@ class ShareErrorLogger {
     if (message.includes('validation') || message.includes('invalid')) {
       return 'validation';
     }
-    
+
     return 'unknown';
   }
 
@@ -227,25 +227,25 @@ class ShareErrorLogger {
   getErrorStats(filters = {}) {
     try {
       const logs = JSON.parse(localStorage.getItem('share_error_logs') || '[]');
-      
+
       let filteredLogs = logs;
-      
+
       if (filters.shareType) {
-        filteredLogs = filteredLogs.filter(log => 
+        filteredLogs = filteredLogs.filter(log =>
           log.context?.shareType === filters.shareType
         );
       }
-      
+
       if (filters.severity) {
-        filteredLogs = filteredLogs.filter(log => 
+        filteredLogs = filteredLogs.filter(log =>
           log.severity === filters.severity
         );
       }
-      
+
       if (filters.timeRange) {
         const now = Date.now();
         const timeRangeMs = filters.timeRange * 60 * 60 * 1000; // hours to ms
-        filteredLogs = filteredLogs.filter(log => 
+        filteredLogs = filteredLogs.filter(log =>
           now - new Date(log.timestamp).getTime() < timeRangeMs
         );
       }
@@ -335,11 +335,11 @@ const shareErrorLogger = new ShareErrorLogger();
 export default shareErrorLogger;
 
 // Export utility functions
-export const logShareError = (error, context, severity) => 
+export const logShareError = (error, context, severity) =>
   shareErrorLogger.logShareError(error, context, severity);
 
-export const logShareSuccess = (shareData, result) => 
+export const logShareSuccess = (shareData, result) =>
   shareErrorLogger.logShareSuccess(shareData, result);
 
-export const getShareErrorStats = (filters) => 
+export const getShareErrorStats = (filters) =>
   shareErrorLogger.getErrorStats(filters);

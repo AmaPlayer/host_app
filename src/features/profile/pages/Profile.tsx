@@ -45,6 +45,11 @@ import userService from '../../../services/api/userService';
 import { COLLECTIONS } from '../../../constants/firebase';
 import '../styles/Profile.css';
 
+// Import Verification Badge
+import VerificationBadge from '../../../components/common/ui/VerificationBadge';
+import { talentVideoService } from '../../../services/api/talentVideoService';
+
+
 // Lazy load heavy components for better performance
 const TalentVideosSection = lazy(() => import('../components/TalentVideosSection'));
 const PostsSection = lazy(() => import('../components/PostsSection'));
@@ -249,6 +254,7 @@ const Profile: React.FC = React.memo(() => {
             setPersonalDetails({
               name: userData.displayName || (userData as any)?.organizationName || (userData as any)?.parentFullName || (userData as any)?.fullName || firebaseUser?.displayName || 'User',
               username: userData.username || '',
+              isVerified: userData.isVerified || (userData as any)?.is_verified || false,
               dateOfBirth: userData.dateOfBirth || (userData as any)?.child?.dateOfBirth,
               gender: userData.gender || (userData as any)?.child?.gender,
               mobile: userData.mobile || (userData as any)?.primaryPhone || (userData as any)?.mobileNumber || (userData as any)?.phone,
@@ -316,22 +322,17 @@ const Profile: React.FC = React.memo(() => {
             });
 
             // Load talent videos
-            const talentVideosRef = collection(db, 'talentVideos');
-            const talentVideoQuery = query(talentVideosRef, where('userId', '==', targetUserId));
-            const talentVideoSnapshot = await getDocs(talentVideoQuery);
-            const talentVideosList: TalentVideo[] = [];
-            talentVideoSnapshot.forEach((doc) => {
-              const data = doc.data();
-              talentVideosList.push({
-                ...data,
-                id: doc.id,
-                uploadDate: data.uploadDate?.toDate ? data.uploadDate.toDate() : data.uploadDate,
-                verificationDeadline: data.verificationDeadline?.toDate ? data.verificationDeadline.toDate() : undefined
-              } as TalentVideo);
-            });
-            
+            try {
+              const videos = await talentVideoService.getUserTalentVideos(targetUserId);
+              if (isMounted) {
+                setTalentVideos(videos);
+              }
+            } catch (videoError) {
+              console.error('Error loading talent videos:', videoError);
+            }
+
             if (isMounted) {
-              setTalentVideos(talentVideosList);
+              // setTalentVideos call is handled in the try-catch block above
               setTrackBest({});
               setProfilePicture(userData.photoURL || null);
               setCoverPhoto(null);
@@ -339,47 +340,44 @@ const Profile: React.FC = React.memo(() => {
             }
 
             // 2. Load User Posts
-            const postsQuery = query(
-              collection(db, 'posts'),
-              where('userId', '==', targetUserId),
-              orderBy('timestamp', 'desc')
-            );
+            try {
+              const postsService = (await import('../../../services/api/postsService')).default;
+              const serverPosts = await postsService.getUserPosts(targetUserId);
 
-            const postsSnapshot = await getDocs(postsQuery);
-            const userPosts: Post[] = [];
+              const userPosts: Post[] = serverPosts.map((post: any) => ({
+                id: post.id,
+                type: post.mediaType === 'image' || post.media_type === 'image' ? 'photo' :
+                  post.mediaType === 'video' || post.media_type === 'video' ? 'video' : 'text',
+                title: '',
+                content: post.caption || '',
+                mediaUrls: post.mediaUrl ? [post.mediaUrl] : [],
+                thumbnailUrl: post.thumbnailUrl || (post.mediaType === 'video' ? undefined : post.mediaUrl),
+                createdDate: post.createdAt ? new Date(post.createdAt) : new Date(),
+                likes: post.likesCount || 0,
+                comments: post.commentsCount || 0,
+                isPublic: post.visibility === 'public',
+                isRepost: post.isRepost,
+                sharerName: post.sharerName,
+                originalPost: post.originalPost ? {
+                  id: post.originalPost.id,
+                  type: post.originalPost.mediaType === 'image' ? 'photo' : post.originalPost.mediaType === 'video' ? 'video' : 'text',
+                  content: post.originalPost.caption || '',
+                  mediaUrls: post.originalPost.mediaUrl ? [post.originalPost.mediaUrl] : [],
+                  thumbnailUrl: post.originalPost.mediaType === 'video' ? undefined : post.originalPost.mediaUrl,
+                  userDisplayName: post.originalPost.userDisplayName,
+                  userPhotoURL: post.originalPost.userPhotoURL || undefined,
+                  createdDate: post.originalPost.createdAt ? new Date(post.originalPost.createdAt) : new Date()
+                } : undefined
+              }));
 
-            postsSnapshot.forEach((doc) => {
-              const postData = doc.data();
-              const mediaUrls: string[] = [];
-              if (postData.imageUrl) mediaUrls.push(postData.imageUrl);
-              if (postData.videoUrl) mediaUrls.push(postData.videoUrl);
-              if (postData.mediaUrl) mediaUrls.push(postData.mediaUrl);
-
-              let postType: 'photo' | 'video' | 'text' | 'mixed' = 'text';
-              if (postData.mediaType === 'image' || postData.imageUrl) {
-                postType = 'photo';
-              } else if (postData.mediaType === 'video' || postData.videoUrl) {
-                postType = 'video';
-              } else if (mediaUrls.length > 1) {
-                postType = 'mixed';
+              if (isMounted) {
+                setPosts(userPosts);
               }
-
-              userPosts.push({
-                id: doc.id,
-                type: postType,
-                title: postData.title || '',
-                content: postData.caption || postData.content || '',
-                mediaUrls: mediaUrls,
-                thumbnailUrl: postData.thumbnailUrl || postData.imageUrl || null,
-                createdDate: safeToDate(postData.timestamp || postData.createdAt),
-                likes: Array.isArray(postData.likes) ? postData.likes.length : (postData.likes || 0),
-                comments: Array.isArray(postData.comments) ? postData.comments.length : (postData.comments || 0),
-                isPublic: postData.isPublic !== undefined ? postData.isPublic : true
-              });
-            });
-
-            if (isMounted) {
-              setPosts(userPosts);
+            } catch (postsError) {
+              console.error('Error loading user posts:', postsError);
+              if (isMounted) {
+                setPosts([]);
+              }
             }
 
           } else if (isOwner) {
@@ -388,13 +386,13 @@ const Profile: React.FC = React.memo(() => {
               name: firebaseUser?.displayName || 'User',
               username: firebaseUser?.displayName?.replace(/\s+/g, '_').toLowerCase() || 'user'
             };
-            
+
             if (isMounted) {
               setPersonalDetails(defaultProfile);
             }
 
             const defaultRole: UserRole = 'athlete';
-            
+
             if (isMounted) {
               setCurrentRole(defaultRole);
               setPosts([]);
@@ -402,11 +400,11 @@ const Profile: React.FC = React.memo(() => {
 
             // Create profile using service (Supabase)
             try {
-               await userService.createRoleSpecificProfile(targetUserId, defaultRole, {
-                 ...defaultProfile,
-                 email: firebaseUser?.email,
-                 photoURL: firebaseUser?.photoURL
-               });
+              await userService.createRoleSpecificProfile(targetUserId, defaultRole, {
+                ...defaultProfile,
+                email: firebaseUser?.email,
+                photoURL: firebaseUser?.photoURL
+              });
             } catch (createError) {
               console.error("Error creating initial profile:", createError);
             }
@@ -590,7 +588,7 @@ const Profile: React.FC = React.memo(() => {
         window.dispatchEvent(new CustomEvent('userProfileUpdated', {
           detail: { role: newRole }
         }));
-announceToScreenReader(`Role changed to ${roleConfigurations[newRole].displayName}`);
+        announceToScreenReader(`Role changed to ${roleConfigurations[newRole].displayName}`);
       } catch (error) {
         console.error('Error saving role:', error);
         announceToScreenReader('Failed to save role change');
@@ -613,11 +611,11 @@ announceToScreenReader(`Role changed to ${roleConfigurations[newRole].displayNam
   const achievementHandlers = useMemo(() => ({
     onAddAchievement: () => {
       // Handle add achievement - would open add modal
-announceToScreenReader('Opening add achievement form');
+      announceToScreenReader('Opening add achievement form');
     },
     onEditAchievement: (achievement: Achievement) => {
       // Handle edit achievement - would open edit modal
-announceToScreenReader(`Editing achievement: ${achievement.title}`);
+      announceToScreenReader(`Editing achievement: ${achievement.title}`);
     },
     onDeleteAchievement: async (id: string) => {
       try {
@@ -643,11 +641,11 @@ announceToScreenReader(`Editing achievement: ${achievement.title}`);
   const certificateHandlers = useMemo(() => ({
     onAddCertificate: () => {
       // Handle add certificate - would open add modal
-announceToScreenReader('Opening add certificate form');
+      announceToScreenReader('Opening add certificate form');
     },
     onEditCertificate: (certificate: Certificate) => {
       // Handle edit certificate - would open edit modal
-announceToScreenReader(`Editing certificate: ${certificate.name}`);
+      announceToScreenReader(`Editing certificate: ${certificate.name}`);
     },
     onDeleteCertificate: async (id: string) => {
       try {
@@ -703,7 +701,7 @@ announceToScreenReader(`Editing certificate: ${certificate.name}`);
     onAddVideo: () => {
       // Handle add video - reload videos after upload
       // The TalentVideosSection handles the actual upload
-announceToScreenReader('Opening add video form');
+      announceToScreenReader('Opening add video form');
     },
     onEditVideo: async (video: TalentVideo) => {
       try {
@@ -715,7 +713,7 @@ announceToScreenReader('Opening add video form');
         if (firebaseUser?.uid) {
           // Talent Videos still use Firestore collection 'talentVideos', but we also update the user profile copy if it exists
           // For now, assuming talent videos are separate. If they were in profile:
-           await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { talentVideos: updatedVideos });
+          await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { talentVideos: updatedVideos });
         }
 
         announceToScreenReader(`Video ${video.title} updated`);
@@ -734,31 +732,20 @@ announceToScreenReader('Opening add video form');
 
         // Save to Firebase
         if (firebaseUser?.uid) {
-           await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { talentVideos: updatedVideos });
+          await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { talentVideos: updatedVideos });
 
           // Also try to delete video and thumbnail from storage
           try {
-            const { ref, deleteObject } = await import('firebase/storage');
-            const { storage } = await import('../../../lib/firebase');
+            const { storageService } = await import('../../../services/storage');
 
             // Extract filename from video URL
             if (video?.videoUrl) {
-              const videoPath = new URL(video.videoUrl).pathname;
-              const videoFileName = videoPath.split('/').pop();
-              if (videoFileName) {
-                const videoRef = ref(storage, `talent-videos/${firebaseUser.uid}/${decodeURIComponent(videoFileName)}`);
-                await deleteObject(videoRef).catch(() => {});
-              }
+              await storageService.deleteFile(video.videoUrl).catch(() => { });
             }
 
             // Delete thumbnail
             if (video?.thumbnailUrl) {
-              const thumbnailPath = new URL(video.thumbnailUrl).pathname;
-              const thumbnailFileName = thumbnailPath.split('/').pop();
-              if (thumbnailFileName) {
-                const thumbnailRef = ref(storage, `thumbnails/${firebaseUser.uid}/${decodeURIComponent(thumbnailFileName)}`);
-                await deleteObject(thumbnailRef).catch(() => {});
-              }
+              await storageService.deleteFile(video.thumbnailUrl).catch(() => { });
             }
           } catch (storageError) {
             console.warn('Error deleting video files from storage:', storageError);
@@ -773,7 +760,7 @@ announceToScreenReader('Opening add video form');
     },
     onVideoClick: (video: TalentVideo) => {
       // Handle video click - would open video player modal
-announceToScreenReader(`Playing video: ${video.title}`);
+      announceToScreenReader(`Playing video: ${video.title}`);
     }
   }), [announceToScreenReader, talentVideos, firebaseUser, currentRole]);
 
@@ -804,7 +791,7 @@ announceToScreenReader(`Playing video: ${video.title}`);
   const postHandlers = useMemo(() => ({
     onPostClick: (post: Post) => {
       // Handle post click - would navigate to post detail
-announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
+      announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
     },
     onEditPost: async (id: string, postData: Omit<Post, 'id' | 'createdDate' | 'likes' | 'comments'>) => {
       try {
@@ -1018,21 +1005,21 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
 
       // Save to Firebase
       if (firebaseUser?.uid) {
-         // Update base user
-         await userService.updateUserProfile(firebaseUser.uid, {
-            displayName: data.personalDetails.name,
-            username: data.personalDetails.username,
-            email: data.personalDetails.email
-         });
+        // Update base user
+        await userService.updateUserProfile(firebaseUser.uid, {
+          displayName: data.personalDetails.name,
+          username: data.personalDetails.username,
+          email: data.personalDetails.email
+        });
 
-         // Update role specific data
-         await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, {
-            ...data.personalDetails,
-            ...data.physicalAttributes,
-            achievements: data.achievements,
-            certificates: data.certificates,
-            talentVideos: data.talentVideos
-         });
+        // Update role specific data
+        await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, {
+          ...data.personalDetails,
+          ...data.physicalAttributes,
+          achievements: data.achievements,
+          certificates: data.certificates,
+          talentVideos: data.talentVideos
+        });
       }
 
       setIsEditModalOpen(false);
@@ -1054,13 +1041,8 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
         throw new Error('User not authenticated');
       }
 
-      // Upload to Firebase Storage
-      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const { storage } = await import('../../../lib/firebase');
-
-      const storageRef = ref(storage, `users/${firebaseUser.uid}/profile-picture.jpg`);
-      const uploadResult = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(uploadResult.ref);
+      // Upload to R2 via userService
+      const downloadURL = await userService.uploadProfilePicture(firebaseUser.uid, file);
 
       // Update profile picture in local state
       setProfilePicture(downloadURL);
@@ -1069,7 +1051,7 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
       await userService.updateUserProfile(firebaseUser.uid, {
         photoURL: downloadURL
       });
-      // Also update role specific profile to be safe (though not strictly required if userService merges)
+      // Also update role specific profile to be safe
       await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { photoURL: downloadURL });
 
       // Update Auth Profile to sync currentUser across the app (e.g. Stories)
@@ -1100,18 +1082,8 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
         throw new Error('User not authenticated');
       }
 
-      // Delete from Firebase Storage
-      try {
-        const { ref, deleteObject } = await import('firebase/storage');
-        const { storage } = await import('../../../lib/firebase');
-        const storageRef = ref(storage, `users/${firebaseUser.uid}/profile-picture.jpg`);
-        await deleteObject(storageRef);
-      } catch (storageError: any) {
-        // Ignore if file doesn't exist
-        if (storageError?.code !== 'storage/object-not-found') {
-          throw storageError;
-        }
-      }
+      // Delete from R2 via userService
+      await userService.deleteProfilePicture(firebaseUser.uid);
 
       // Update local state
       setProfilePicture(null);
@@ -1136,26 +1108,19 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
         throw new Error('User not authenticated');
       }
 
-      // Upload to Firebase Storage
-      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const { storage } = await import('../../../lib/firebase');
-
-      const storageRef = ref(storage, `users/${firebaseUser.uid}/cover-photo.jpg`);
-      const uploadResult = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(uploadResult.ref);
+      // Upload to R2 via userService
+      const downloadURL = await userService.uploadCoverPhoto(firebaseUser.uid, file);
 
       // Update cover photo in local state
       setCoverPhoto(downloadURL);
 
       // Update Firestore with the new URL
       await userService.updateRoleSpecificProfile(firebaseUser.uid, currentRole, { coverPhoto: downloadURL });
-      // or update user profile if cover photo is there? schema doesn't show cover photo on users table but athletes has it.
 
       announceToScreenReader('Cover photo updated successfully');
     } catch (error) {
       console.error('Error uploading cover photo:', error);
       alert('Failed to upload cover photo. Please try again.');
-      // Revert logic omitted for brevity
     } finally {
       setUploadingCoverPhoto(false);
     }
@@ -1168,18 +1133,8 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
         throw new Error('User not authenticated');
       }
 
-      // Delete from Firebase Storage
-      try {
-        const { ref, deleteObject } = await import('firebase/storage');
-        const { storage } = await import('../../../lib/firebase');
-        const storageRef = ref(storage, `users/${firebaseUser.uid}/cover-photo.jpg`);
-        await deleteObject(storageRef);
-      } catch (storageError: any) {
-        // Ignore if file doesn't exist
-        if (storageError?.code !== 'storage/object-not-found') {
-          throw storageError;
-        }
-      }
+      // Delete from R2 via userService
+      await userService.deleteCoverPhoto(firebaseUser.uid);
 
       // Update local state
       setCoverPhoto(null);
@@ -1352,7 +1307,20 @@ announceToScreenReader(`Opening post: ${post.title || 'Untitled post'}`);
 
           <div className="profile-info">
             <div className="profile-name-section">
-              <h1 className="profile-username">{personalDetails.name}</h1>
+              <div className="profile-name-container" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h1 className="profile-username">{personalDetails.name}</h1>
+                <VerificationBadge
+                  profile={{
+                    isVerified: personalDetails.isVerified || talentVideos.some(v => v.verificationStatus === 'verified'),
+                    role: currentRole
+                  }}
+                  isOwnProfile={isOwner}
+                  inline={true}
+                  onVerificationRequest={() => {
+                    alert("Please verify your profile by sharing the talent video link to others");
+                  }}
+                />
+              </div>
               {isOwner && (
                 <button
                   className="edit-profile-button"

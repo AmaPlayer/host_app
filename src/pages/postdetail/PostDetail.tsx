@@ -164,44 +164,44 @@ export default function PostDetail(): React.JSX.Element {
 
     try {
       // Execute the share using the post interactions hook
-      const result = await sharePost(post.id, shareData.type as "friends" | "groups" | "feeds", shareData.targets);
-      
+      const result = await sharePost(post.id, shareData.type as "friends" | "groups" | "feed", shareData.targets);
+
       // Update local share count optimistically
       updateShareCount(post.id, 1);
-      
+
       // Update post state with new share count
       setPost(prev => prev ? ({
         ...prev,
         sharesCount: (prev.sharesCount || 0) + 1
       }) : null);
-      
+
       // Show success notification
       setShareNotification({
         type: 'success',
         message: `Successfully shared to ${shareData.type}!`,
         timestamp: Date.now()
       });
-      
+
       // Clear notification after 3 seconds
       setTimeout(() => {
         setShareNotification(null);
         clearShareState(post.id);
       }, 3000);
-      
+
       // Close modal
       setShowShareModal(false);
-      
+
       return result;
     } catch (error) {
       console.error('Share failed:', error);
-      
+
       // Show error notification
       setShareNotification({
         type: 'error',
         message: (error as Error).message || 'Failed to share post. Please try again.',
         timestamp: Date.now()
       });
-      
+
       // Clear error notification after 5 seconds
       setTimeout(() => {
         setShareNotification(null);
@@ -209,7 +209,7 @@ export default function PostDetail(): React.JSX.Element {
           clearShareState(post.id);
         }
       }, 5000);
-      
+
       throw error;
     }
   }, [currentUser, post, sharePost, updateShareCount, clearShareState]);
@@ -236,14 +236,14 @@ export default function PostDetail(): React.JSX.Element {
             </div>
           </div>
         </nav>
-        
+
         <div className="main-content">
           <div className="loading-container">
             <div className="loading-spinner"></div>
             <span>Loading post...</span>
           </div>
         </div>
-        
+
         <FooterNav />
       </div>
     );
@@ -265,7 +265,7 @@ export default function PostDetail(): React.JSX.Element {
             </div>
           </div>
         </nav>
-        
+
         <div className="main-content">
           <div className="error-container">
             <h2>Post Not Found</h2>
@@ -275,7 +275,7 @@ export default function PostDetail(): React.JSX.Element {
             </button>
           </div>
         </div>
-        
+
         <FooterNav />
       </div>
     );
@@ -290,15 +290,15 @@ export default function PostDetail(): React.JSX.Element {
 
   const formatTimestamp = (timestamp: any): string => {
     if (!timestamp) return 'now';
-    
+
     if (timestamp?.toDate) {
       return timestamp.toDate().toLocaleDateString();
     }
-    
+
     if (timestamp instanceof Date) {
       return timestamp.toLocaleDateString();
     }
-    
+
     return new Date(timestamp).toLocaleDateString();
   };
 
@@ -351,13 +351,13 @@ export default function PostDetail(): React.JSX.Element {
                 {formatTimestamp(post.timestamp)}
               </span>
             </div>
-            
+
             {/* Media Display - Only render if media exists */}
             {(post.mediaUrl && post.mediaUrl.trim() !== '') && (
               <div className="post-media">
                 {post.mediaType === 'video' ? (
                   <div className="post-video-container">
-                    <VideoPlayer 
+                    <VideoPlayer
                       src={post.mediaUrl || ''}
                       poster={post.mediaMetadata?.thumbnail}
                       controls={true}
@@ -368,8 +368,8 @@ export default function PostDetail(): React.JSX.Element {
                   </div>
                 ) : (
                   <div className="post-image-container">
-                    <LazyImage 
-                      src={post.mediaUrl || ''} 
+                    <LazyImage
+                      src={post.mediaUrl || ''}
                       alt={post.caption || 'Post image'}
                       className="post-image"
                       style={{
@@ -384,44 +384,44 @@ export default function PostDetail(): React.JSX.Element {
                 )}
               </div>
             )}
-            
+
             <div className="post-actions">
-              <button 
+              <button
                 onClick={handleLike}
                 className={userLiked ? 'liked' : ''}
                 disabled={!currentUser || isLiking}
                 title={currentUser ? (userLiked ? 'Unlike this post' : 'Like this post') : 'Sign in to like'}
               >
-                <Heart 
-                  size={20} 
+                <Heart
+                  size={20}
                   fill={userLiked ? '#e74c3c' : 'none'}
                   color={userLiked ? '#e74c3c' : 'currentColor'}
                   className={userLiked ? 'heart-liked' : ''}
                 />
                 <span>{likesCount}</span>
-                {isLiking && <span style={{marginLeft: '5px'}}>...</span>}
+                {isLiking && <span style={{ marginLeft: '5px' }}>...</span>}
               </button>
-              <button 
+              <button
                 className="active"
                 title="View comments"
               >
                 <MessageCircle size={20} />
                 <span>{commentsCount}</span>
               </button>
-              <button 
+              <button
                 onClick={handleShare}
                 className={hasUserSharedPost(post.id, currentUser?.uid) ? 'shared' : ''}
                 disabled={!currentUser || getShareState(post.id).loading}
                 title={currentUser ? 'Share this post' : 'Sign in to share'}
               >
-                <Share2 
-                  size={20} 
+                <Share2
+                  size={20}
                   className={getShareState(post.id).loading ? 'spinning' : ''}
                 />
                 <span>{sharesCount}</span>
-                {getShareState(post.id).loading && <span style={{marginLeft: '5px'}}>...</span>}
+                {getShareState(post.id).loading && <span style={{ marginLeft: '5px' }}>...</span>}
               </button>
-              
+
               {/* Media type indicator */}
               {post.mediaType === 'video' && (
                 <div className="media-indicator">
@@ -432,10 +432,10 @@ export default function PostDetail(): React.JSX.Element {
                 </div>
               )}
             </div>
-            
+
             {/* Text-only content - render as main content if no media */}
             {!(post.mediaUrl && post.mediaUrl.trim() !== '') && post.caption && (
-              <div 
+              <div
                 className="post-text-content"
                 style={{
                   padding: '20px',
@@ -452,7 +452,7 @@ export default function PostDetail(): React.JSX.Element {
                 {post.caption}
               </div>
             )}
-            
+
             {/* Caption - only show for posts with media */}
             {(post.mediaUrl && post.mediaUrl.trim() !== '') && post.caption && (
               <div className="post-caption">
@@ -469,7 +469,7 @@ export default function PostDetail(): React.JSX.Element {
           </div>
         </div>
       </div>
-      
+
       {/* Share Modal */}
       <Suspense fallback={<LoadingFallback />}>
         {showShareModal && post && (
@@ -481,7 +481,7 @@ export default function PostDetail(): React.JSX.Element {
           />
         )}
       </Suspense>
-      
+
       <FooterNav />
     </div>
   );

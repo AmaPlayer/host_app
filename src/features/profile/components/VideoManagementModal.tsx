@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Upload, Video } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, Upload, Video, FileVideo, Trash2 } from 'lucide-react';
 import { TalentVideo, VideoFormData } from '../types/TalentVideoTypes';
 import { SPORTS_CONFIG } from '../../athlete-onboarding/data/sportsConfig';
 import {
@@ -7,6 +7,7 @@ import {
   hasSportSpecificSkills,
   genericSkillCategories
 } from '../data/videoSkillsConfig';
+import SearchableDropdown from '../../../components/common/ui/SearchableDropdown';
 import '../styles/VideoManagementModal.css';
 
 interface VideoManagementModalProps {
@@ -41,6 +42,7 @@ const VideoManagementModal: React.FC<VideoManagementModalProps> = ({
     editingVideo?.videoUrl || null
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isDragActive, setIsDragActive] = useState(false);
 
   // Dynamic options based on selections
   const [availableCategories, setAvailableCategories] = useState<any[]>([]);
@@ -52,14 +54,18 @@ const VideoManagementModal: React.FC<VideoManagementModalProps> = ({
 
   // Get available sports (athlete's sports + all sports from config)
   const availableSports = React.useMemo(() => {
+    let sports = [];
     if (athleteSports.length > 0) {
-      return athleteSports;
+      sports = athleteSports;
+    } else {
+      // Fallback to all sports if athlete hasn't selected any
+      sports = Object.values(SPORTS_CONFIG).map((sport: any) => ({
+        id: sport.id,
+        name: sport.name
+      }));
     }
-    // Fallback to all sports if athlete hasn't selected any
-    return Object.values(SPORTS_CONFIG).map((sport: any) => ({
-      id: sport.id,
-      name: sport.name
-    }));
+    // Format for SearchableDropdown
+    return sports.map(s => ({ id: s.id, name: s.name }));
   }, [athleteSports]);
 
   // Update available categories when sport changes
@@ -114,57 +120,89 @@ const VideoManagementModal: React.FC<VideoManagementModalProps> = ({
   }, [formData.mainCategory, useSportSpecific, availableCategories, editingVideo?.mainCategory]);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+  };
 
-    // Handle sport selection
-    if (name === 'sport') {
+  const handleDropdownChange = (field: string, value: string) => {
+    if (field === 'sport') {
       const selectedSport = availableSports.find(sport => sport.id === value);
       setFormData(prev => ({
         ...prev,
         sport: value,
         sportName: selectedSport?.name || value,
       }));
-    }
-    // Handle main category selection
-    else if (name === 'mainCategory') {
+    } else if (field === 'mainCategory') {
       const selectedCategory = availableCategories.find(cat => cat.id === value);
       setFormData(prev => ({
         ...prev,
         mainCategory: value,
         mainCategoryName: selectedCategory?.name || value,
       }));
-    }
-    // Handle other inputs normally
-    else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+    } else if (field === 'skillCategory') {
+      // Allow direct string value or find from generic categories
+      setFormData(prev => ({ ...prev, skillCategory: value }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
     }
 
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
   };
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setIsDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setIsDragActive(false);
+    }
+  }, []);
+
+  const validateAndSetFile = (file: File) => {
+    if (!file.type.startsWith('video/')) {
+      setErrors(prev => ({ ...prev, video: 'Please select a valid video file' }));
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, video: 'Video file must be less than 50MB' }));
+      return;
+    }
+
+    setVideoFile(file);
+    setVideoPreview(URL.createObjectURL(file));
+    setErrors(prev => ({ ...prev, video: '' }));
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      validateAndSetFile(e.dataTransfer.files[0]);
+    }
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
-      if (!file.type.startsWith('video/')) {
-        setErrors(prev => ({ ...prev, video: 'Please select a valid video file' }));
-        return;
-      }
-      
-      // Validate file size (50MB limit)
-      if (file.size > 50 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, video: 'Video file must be less than 50MB' }));
-        return;
-      }
-      
-      setVideoFile(file);
-      setVideoPreview(URL.createObjectURL(file));
-      setErrors(prev => ({ ...prev, video: '' }));
+      validateAndSetFile(file);
+    }
+  };
+
+  const removeVideo = () => {
+    if (videoPreview && !editingVideo) {
+      URL.revokeObjectURL(videoPreview);
+    }
+    setVideoFile(null);
+    setVideoPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -208,16 +246,16 @@ const VideoManagementModal: React.FC<VideoManagementModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     const submitData: VideoFormData = {
       ...formData,
       videoFile: videoFile || undefined
     };
-    
+
     onSave(submitData);
   };
 
@@ -253,7 +291,7 @@ const VideoManagementModal: React.FC<VideoManagementModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="video-management-overlay"
       ref={modalRef}
       onClick={handleBackdropClick}
@@ -263,7 +301,7 @@ const VideoManagementModal: React.FC<VideoManagementModalProps> = ({
           <h2 className="modal-title">
             {editingVideo ? 'Edit Video' : 'Add New Video'}
           </h2>
-          <button 
+          <button
             className="close-btn"
             onClick={handleClose}
             disabled={isLoading}
@@ -274,199 +312,149 @@ const VideoManagementModal: React.FC<VideoManagementModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="video-form">
-          <div className="form-section">
-            <div className="form-group">
-              <label htmlFor="title" className="form-label">
-                Video Title *
-              </label>
-              <input
-                type="text"
-                id="title"
-                name="title"
-                value={formData.title}
-                onChange={handleInputChange}
-                className={`form-input ${errors.title ? 'error' : ''}`}
-                placeholder="Enter video title"
-                disabled={isLoading}
-              />
-              {errors.title && <span className="error-message">{errors.title}</span>}
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="description" className="form-label">
-                Description *
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                className={`form-textarea ${errors.description ? 'error' : ''}`}
-                placeholder="Describe your video..."
-                rows={3}
-                disabled={isLoading}
-              />
-              {errors.description && <span className="error-message">{errors.description}</span>}
-            </div>
-
-            {/* Sport Selection */}
-            <div className="form-group">
-              <label htmlFor="sport" className="form-label">
-                Sport *
-              </label>
-              <select
-                id="sport"
-                name="sport"
-                value={formData.sport}
-                onChange={handleInputChange}
-                className={`form-select ${errors.sport ? 'error' : ''}`}
-                disabled={isLoading}
-              >
-                <option value="">Select sport</option>
-                {availableSports.map(sport => (
-                  <option key={sport.id} value={sport.id}>{sport.name}</option>
-                ))}
-              </select>
-              {errors.sport && <span className="error-message">{errors.sport}</span>}
-            </div>
-
-            {/* Conditional Rendering: Sport-Specific OR Generic Categories */}
-            {formData.sport && useSportSpecific ? (
-              // Sport-Specific Cascading Dropdowns
-              <>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="mainCategory" className="form-label">
-                      Main Category *
-                    </label>
-                    <select
-                      id="mainCategory"
-                      name="mainCategory"
-                      value={formData.mainCategory}
-                      onChange={handleInputChange}
-                      className={`form-select ${errors.mainCategory ? 'error' : ''}`}
-                      disabled={isLoading}
-                    >
-                      <option value="">Select category</option>
-                      {availableCategories.map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.mainCategory && (
-                      <span className="error-message">{errors.mainCategory}</span>
-                    )}
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="specificSkill" className="form-label">
-                      Specific Skill *
-                    </label>
-                    <select
-                      id="specificSkill"
-                      name="specificSkill"
-                      value={formData.specificSkill}
-                      onChange={handleInputChange}
-                      className={`form-select ${errors.specificSkill ? 'error' : ''}`}
-                      disabled={isLoading || !formData.mainCategory}
-                    >
-                      <option value="">
-                        {formData.mainCategory ? 'Select skill' : 'Select category first'}
-                      </option>
-                      {availableSkills.map(skill => (
-                        <option key={skill} value={skill}>
-                          {skill}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.specificSkill && (
-                      <span className="error-message">{errors.specificSkill}</span>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : formData.sport ? (
-              // Generic Categories for sports without specific skills
+          <div className="form-layout">
+            {/* Left Column - Details */}
+            <div className="form-column">
               <div className="form-group">
-                <label htmlFor="skillCategory" className="form-label">
-                  Category *
-                </label>
-                <select
-                  id="skillCategory"
-                  name="skillCategory"
-                  value={formData.skillCategory}
+                <label htmlFor="title" className="form-label">Title</label>
+                <input
+                  type="text"
+                  id="title"
+                  name="title"
+                  value={formData.title}
                   onChange={handleInputChange}
-                  className={`form-select ${errors.skillCategory ? 'error' : ''}`}
+                  className={`form-input modern-input ${errors.title ? 'error' : ''}`}
+                  placeholder="Give your video a catchy title"
                   disabled={isLoading}
-                >
-                  <option value="">Select category</option>
-                  {availableCategories.map(category => (
-                    <option key={category.id} value={category.name}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.skillCategory && (
-                  <span className="error-message">{errors.skillCategory}</span>
+                />
+                {errors.title && <span className="error-message">{errors.title}</span>}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Sport & Category</label>
+                <SearchableDropdown
+                  options={availableSports}
+                  value={formData.sport}
+                  onChange={(val) => handleDropdownChange('sport', val)}
+                  placeholder="Select Sport"
+                  disabled={isLoading}
+                  error={errors.sport}
+                  className="mb-3"
+                />
+
+                {/* Conditional Cascading Dropdowns */}
+                {formData.sport && useSportSpecific ? (
+                  <div className="nested-dropdowns">
+                    <SearchableDropdown
+                      options={availableCategories.map(c => ({ id: c.id, name: c.name }))}
+                      value={formData.mainCategory}
+                      onChange={(val) => handleDropdownChange('mainCategory', val)}
+                      placeholder="Select Category"
+                      disabled={isLoading}
+                      error={errors.mainCategory}
+                      className="mb-3"
+                    />
+
+                    <SearchableDropdown
+                      options={availableSkills.map(s => ({ id: s, name: s }))}
+                      value={formData.specificSkill}
+                      onChange={(val) => handleDropdownChange('specificSkill', val)}
+                      placeholder="Select Specific Skill"
+                      disabled={isLoading || !formData.mainCategory}
+                      error={errors.specificSkill}
+                    />
+                  </div>
+                ) : formData.sport ? (
+                  <SearchableDropdown
+                    options={availableCategories.map(c => ({ id: c.name, name: c.name }))} // generic categories
+                    value={formData.skillCategory}
+                    onChange={(val) => handleDropdownChange('skillCategory', val)}
+                    placeholder="Select Skill Category"
+                    disabled={isLoading}
+                    error={errors.skillCategory}
+                  />
+                ) : null}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="description" className="form-label">Description</label>
+                <textarea
+                  id="description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className={`form-textarea modern-textarea ${errors.description ? 'error' : ''}`}
+                  placeholder="Tell us about this clip..."
+                  rows={4}
+                  disabled={isLoading}
+                />
+                {errors.description && <span className="error-message">{errors.description}</span>}
+              </div>
+            </div>
+
+            {/* Right Column - Upload */}
+            <div className="form-column upload-column">
+              <label className="form-label">Video File</label>
+
+              <div
+                className={`drag-drop-zone ${isDragActive ? 'active' : ''} ${errors.video ? 'error' : ''} ${videoPreview ? 'has-file' : ''}`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+                onClick={() => !videoPreview && fileInputRef.current?.click()}
+              >
+                {videoPreview ? (
+                  <div className="video-preview-container">
+                    <video
+                      src={videoPreview}
+                      className="preview-video-element"
+                      controls
+                      preload="metadata"
+                    />
+                    <button
+                      type="button"
+                      className="remove-video-btn"
+                      onClick={(e) => { e.stopPropagation(); removeVideo(); }}
+                      title="Remove video"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="upload-placeholder-content">
+                    <div className="upload-icon-circle">
+                      <Upload size={24} color="#20B2AA" />
+                    </div>
+                    <p className="upload-title">Drag & Drop Video</p>
+                    <p className="upload-subtitle">or click to browse</p>
+                    <span className="upload-limits">MP4, MOV up to 50MB</span>
+                  </div>
+                )}
+
+                {isLoading && (
+                  <div className="upload-loading-overlay">
+                    <div className="spinner"></div>
+                    <span>Processing...</span>
+                  </div>
                 )}
               </div>
-            ) : null}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/*"
+                onChange={handleFileChange}
+                className="hidden-file-input"
+                disabled={isLoading}
+              />
+              {errors.video && <span className="error-message centered">{errors.video}</span>}
+            </div>
           </div>
 
-          <div className="form-section">
-            <label className="form-label">
-              Video File {!editingVideo && '*'}
-            </label>
-            
-            {videoPreview ? (
-              <div className="video-preview">
-                <video 
-                  src={videoPreview} 
-                  controls 
-                  className="preview-video"
-                  preload="metadata"
-                />
-                <button
-                  type="button"
-                  className="change-video-btn"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading}
-                >
-                  Change Video
-                </button>
-              </div>
-            ) : (
-              <div 
-                className={`file-upload-area ${errors.video ? 'error' : ''}`}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Video size={48} />
-                <p className="upload-text">
-                  Click to upload video or drag and drop
-                </p>
-                <p className="upload-hint">
-                  MP4, MOV, AVI up to 50MB
-                </p>
-              </div>
-            )}
-            
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*"
-              onChange={handleFileChange}
-              className="hidden-file-input"
-              disabled={isLoading}
-            />
-            
-            {errors.video && <span className="error-message">{errors.video}</span>}
-          </div>
-
-          <div className="modal-actions">
+          <div className="modal-actions modern-actions">
             <button
               type="button"
-              className="cancel-btn"
+              className="btn-text"
               onClick={handleClose}
               disabled={isLoading}
             >
@@ -474,17 +462,10 @@ const VideoManagementModal: React.FC<VideoManagementModalProps> = ({
             </button>
             <button
               type="submit"
-              className="save-btn"
+              className="btn-primary-gradient"
               disabled={isLoading}
             >
-              {isLoading ? (
-                <>
-                  <Upload size={16} className="spinning" />
-                  {editingVideo ? 'Updating...' : 'Uploading...'}
-                </>
-              ) : (
-                editingVideo ? 'Update Video' : 'Upload Video'
-              )}
+              {isLoading ? 'Uploading...' : (editingVideo ? 'Save Changes' : 'Upload Video')}
             </button>
           </div>
         </form>

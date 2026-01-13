@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Play, Calendar, MessageCircle, User, LucideIcon } from 'lucide-react';
 import { useUnreadMessages } from '@hooks/useUnreadMessages';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useScrollDirection } from '../../hooks/useScrollDirection';
 import './FooterNav.css';
 
 interface NavItem {
@@ -16,6 +17,7 @@ const FooterNav = memo(function FooterNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const isVisible = useScrollDirection(); // Track scroll visibility
 
   // Preload critical routes on component mount
   useEffect(() => {
@@ -121,7 +123,7 @@ const FooterNav = memo(function FooterNav() {
   };
 
   return (
-    <footer className="footer-nav">
+    <footer className={`footer-nav ${!isVisible ? 'footer-hidden' : ''}`}>
       <div className="footer-nav-container">
         {navItems.map((item) => (
           <button

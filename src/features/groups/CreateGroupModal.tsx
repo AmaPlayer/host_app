@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { X, Upload, Users, Lock, Globe } from 'lucide-react';
-import groupsService from '../../services/api/groupsService';
+import groupsService from '../../services/supabase/groupsService';
 import { useAuth } from '../../contexts/AuthContext';
 
 import './CreateGroupModal.css';

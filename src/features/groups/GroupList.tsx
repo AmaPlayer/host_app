@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, Users, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import groupsService from '../../services/api/groupsService';
+import groupsService from '../../services/supabase/groupsService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Group } from '../../types/models/group';
 import CreateGroupModal from './CreateGroupModal';

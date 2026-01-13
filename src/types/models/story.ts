@@ -21,6 +21,8 @@ export interface Story {
   expiresAt: Timestamp | Date | string;
   viewCount: number;
   viewers: string[];
+  likes?: string[];
+  likesCount?: number;
   isHighlight: boolean;
   highlightId: string | null;
   sharingEnabled: boolean;

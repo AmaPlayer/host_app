@@ -96,9 +96,9 @@ const FeedPage = memo(() => {
     comments: new Set()
   });
   const [scrollPosition, setScrollPosition] = useState<number>(0);
-  
+
   const debouncedSearch = useDebounce(searchQuery, 500);
-  
+
   // Initialize post interactions hook for sharing functionality
   const {
     sharePost,
@@ -115,7 +115,7 @@ const FeedPage = memo(() => {
     let type: FeedItemType = 'image';
     if (post.mediaType === 'video') type = 'video';
     // Logic for 'talent' or 'profile' types could be added here if backend supports distinguishing them
-    
+
     // Convert string timestamp to Date if needed
     let createdAt = new Date();
     if (post.createdAt instanceof Date) {
@@ -144,11 +144,11 @@ const FeedPage = memo(() => {
     };
 
     if (type === 'video') {
-       return {
-         ...baseItem,
-         type: 'video',
-         views: post.metadata?.views || 0
-       } as VideoFeedItem;
+      return {
+        ...baseItem,
+        type: 'video',
+        views: post.metadata?.views || 0
+      } as VideoFeedItem;
     }
 
     return baseItem;
@@ -173,7 +173,7 @@ const FeedPage = memo(() => {
           currentUserId: currentUser?.uid,
           includeEngagementMetrics: true
         });
-        
+
         return result.posts.map(mapPostToFeedItem);
       } catch (err) {
         console.error("Failed to fetch posts:", err);
@@ -243,9 +243,9 @@ const FeedPage = memo(() => {
   // Event handlers
   const handleLike = useCallback(async (itemId: string, liked: boolean) => {
     if (!currentUser) {
-       // Ideally show toast or login modal
-       console.warn('User must be logged in to like posts');
-       return;
+      // Ideally show toast or login modal
+      console.warn('User must be logged in to like posts');
+      return;
     }
 
     // Set loading state
@@ -279,7 +279,7 @@ const FeedPage = memo(() => {
   const handleComment = useCallback((itemId: string) => {
     // Save scroll position before opening modal
     saveScrollPosition();
-    
+
     // Set loading state
     setLoadingStates(prev => ({
       ...prev,
@@ -299,14 +299,14 @@ const FeedPage = memo(() => {
   }, [items, saveScrollPosition]);
 
   const handleCommentAdded = useCallback((itemId: string) => {
-      // Trigger a refresh or local update if needed
-      // With real-time engagement, this might be automatic
+    // Trigger a refresh or local update if needed
+    // With real-time engagement, this might be automatic
   }, []);
 
   const handleShare = useCallback((itemId: string) => {
     // Save scroll position before opening modal
     saveScrollPosition();
-    
+
     setSelectedItem(items.find(item => item.id === itemId) || null);
     setActiveModal('share');
   }, [items, saveScrollPosition]);
@@ -317,39 +317,39 @@ const FeedPage = memo(() => {
 
     try {
       // Execute the share using the post interactions hook
-      const result = await sharePost(selectedItem.id, shareData.type as 'friends' | 'feeds' | 'groups', shareData.targets);
-      
+      const result = await sharePost(selectedItem.id, shareData.type as 'friends' | 'feed' | 'groups', shareData.targets);
+
       // Update local share count optimistically
       updateShareCount(selectedItem.id, 1);
-      
+
       // Show success notification
       setShareNotification({
         type: 'success',
         message: `Successfully shared to ${shareData.type}!`,
         timestamp: Date.now()
       });
-      
+
       // Clear notification after 3 seconds
       setTimeout(() => {
         setShareNotification(null);
         clearShareState(selectedItem.id);
       }, 3000);
-      
+
       // Close modal
       setActiveModal(null);
       setSelectedItem(null);
-      
+
       return result;
     } catch (error) {
       console.error('Share failed:', error);
-      
+
       // Show error notification
       setShareNotification({
         type: 'error',
         message: (error as Error).message || 'Failed to share post. Please try again.',
         timestamp: Date.now()
       });
-      
+
       // Clear error notification after 5 seconds
       setTimeout(() => {
         setShareNotification(null);
@@ -357,7 +357,7 @@ const FeedPage = memo(() => {
           clearShareState(selectedItem.id);
         }
       }, 5000);
-      
+
       throw error;
     }
   }, [currentUser, selectedItem, sharePost, updateShareCount, clearShareState]);
@@ -415,7 +415,7 @@ const FeedPage = memo(() => {
     const shareState = getShareState(item.id);
     const hasShared = hasUserSharedPost(item.id, currentUser?.uid);
     const rateLimitInfo = getShareRateLimit(currentUser?.uid);
-    
+
     const commonProps = {
       key: item.id,
       item: {
@@ -463,11 +463,11 @@ const FeedPage = memo(() => {
   return (
     <div className="feed-page">
       {/* Toast Container */}
-      <ToastContainer 
-        toasts={toasts} 
+      <ToastContainer
+        toasts={toasts}
         position="top-right"
       />
-      
+
       {/* Header */}
       <div className="feed-header">
         <div className="feed-title">
@@ -476,7 +476,7 @@ const FeedPage = memo(() => {
             <RefreshCw size={20} className={loading ? 'spinning' : ''} />
           </button>
         </div>
-        
+
         {/* Search and Filters */}
         <div className="feed-controls">
           <div className="search-container">
@@ -489,7 +489,7 @@ const FeedPage = memo(() => {
               className="search-input"
             />
           </div>
-          
+
           <button className="filter-btn" onClick={openFilters}>
             <Filter size={20} />
             <span>Filters</span>
@@ -535,7 +535,7 @@ const FeedPage = memo(() => {
         {/* Feed Items */}
         <div className="feed-list">
           {filteredItems.map(renderFeedCard)}
-          
+
           {/* Loading Trigger for Infinite Scroll */}
           {hasMore && (
             <div className="loading-trigger">
@@ -558,7 +558,7 @@ const FeedPage = memo(() => {
             onClose={closeModal}
           />
         )}
-        
+
         {activeModal === 'comment' && selectedItem && 'id' in selectedItem && (
           <CommentModal
             post={selectedItem as any}
@@ -569,7 +569,7 @@ const FeedPage = memo(() => {
             }}
           />
         )}
-        
+
         {activeModal === 'share' && selectedItem && 'id' in selectedItem && (
           <ShareModal
             post={selectedItem as any}
@@ -578,7 +578,7 @@ const FeedPage = memo(() => {
             onShareComplete={handleShareComplete}
           />
         )}
-        
+
         {activeModal === 'filter' && (
           <FilterModal
             currentFilters={filters}

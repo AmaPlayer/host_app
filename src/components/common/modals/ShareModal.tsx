@@ -11,14 +11,9 @@ import { handleShareError, retryShareOperation } from '../../../utils/sharing/sh
 import { Post } from '../../../types/models';
 import { User } from 'firebase/auth';
 import './Modal.css';
+import './ShareModalMobile.css'; // Mobile-responsive styles
 
-const SHARE_TABS = {
-  FRIENDS: 'friends',
-  FEED: 'feed',
-  GROUPS: 'groups'
-} as const;
-
-type ShareTab = typeof SHARE_TABS[keyof typeof SHARE_TABS];
+import { SHARE_TABS, ShareTab } from '../../../constants/sharing';
 
 interface ShareData {
   type: string;
@@ -39,16 +34,18 @@ interface ShareModalProps {
   post: Post;
   currentUser: User | null;
   onClose: () => void;
-  onShareComplete?: (shareData: ShareData) => Promise<any>;
+  onShareComplete: (shareData: any) => Promise<void>;
+  initialTab?: string;
 }
 
-const ShareModal = memo<ShareModalProps>(({ 
-  post, 
-  currentUser, 
-  onClose, 
-  onShareComplete 
+const ShareModal: React.FC<ShareModalProps> = ({
+  post,
+  currentUser,
+  onClose,
+  onShareComplete,
+  initialTab = SHARE_TABS.FRIENDS
 }) => {
-  const [activeTab, setActiveTab] = useState<ShareTab>(SHARE_TABS.FRIENDS);
+  const [activeTab, setActiveTab] = useState<ShareTab>(initialTab as ShareTab);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [shareMessage, setShareMessage] = useState<string>('');
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
@@ -68,11 +65,11 @@ const ShareModal = memo<ShareModalProps>(({
   // Handle share completion with error handling and retry
   const handleShare = useCallback(async (shareData: ShareData) => {
     if (isSubmitting) return;
-    
+
     setIsSubmitting(true);
     setError(null);
     setShowNetworkFallback(false);
-    
+
     try {
       // Wrap share operation with retry logic
       await retryShareOperation(
@@ -83,35 +80,36 @@ const ShareModal = memo<ShareModalProps>(({
         {
           maxRetries: 3,
           initialDelay: 1000,
-          onRetry: (attempt: number, delay: number, retryError: Error) => {setRetryCount(attempt);
-            
+          onRetry: (attempt: number, delay: number, retryError: Error) => {
+            setRetryCount(attempt);
+
             // Show network fallback for network errors
             const errorInfo = handleShareError(retryError, {
               shareType: shareData.type,
               postId: shareData.postId
             });
-            
+
             if (errorInfo.category === 'network') {
               setShowNetworkFallback(true);
             }
           }
         }
       );
-      
+
       // Success - close modal
       onClose();
     } catch (error) {
       console.error('Share failed:', error);
-      
+
       // Handle error with user-friendly messages
       const errorInfo = handleShareError(error as Error, {
         shareType: shareData.type,
         postId: shareData.postId,
         targets: shareData.targets
       });
-      
+
       setError(errorInfo);
-      
+
       // Show network fallback for network errors
       if (errorInfo.category === 'network') {
         setShowNetworkFallback(true);
@@ -138,11 +136,11 @@ const ShareModal = memo<ShareModalProps>(({
     const now = new Date();
     const time = new Date(timestamp);
     const diff = now.getTime() - time.getTime();
-    
+
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
-    
+
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
     return `${days}d ago`;
@@ -226,13 +224,13 @@ const ShareModal = memo<ShareModalProps>(({
   // Handle error boundary errors
   const handleErrorBoundaryError = useCallback((error: Error, _errorInfo: React.ErrorInfo, errorType: string) => {
     console.error('ShareModal error boundary caught:', error, errorType);
-    
+
     const errorResult = handleShareError(error, {
       component: 'ShareModal',
       activeTab,
       postId: post?.id
     });
-    
+
     setError(errorResult);
   }, [activeTab, post]);
 
@@ -249,8 +247,8 @@ const ShareModal = memo<ShareModalProps>(({
           {/* Header */}
           <div className="modal-header">
             <h3>Share Post</h3>
-            <button 
-              className="close-btn" 
+            <button
+              className="close-btn"
               onClick={onClose}
               disabled={isSubmitting}
             >
@@ -261,11 +259,15 @@ const ShareModal = memo<ShareModalProps>(({
           {/* Error Display */}
           {error && !showNetworkFallback && (
             <div className="share-modal-error">
-              <div className="error-message">
-                {error.error}
+              <div className="error-icon">⚠️</div>
+              <div className="error-content">
+                <div className="error-title">Share Failed</div>
+                <div className="error-message">
+                  {error.error}
+                </div>
               </div>
               {error.canRetry && retryCount < 3 && (
-                <button 
+                <button
                   className="error-retry-btn"
                   onClick={handleRetryFromFallback}
                 >
@@ -275,62 +277,62 @@ const ShareModal = memo<ShareModalProps>(({
             </div>
           )}
 
-        {/* Post Preview */}
-        <div className="post-preview">
-          <div className="user-info">
-            <LazyImage
-              src={post.userPhotoURL || '/default-avatar.jpg'}
-              alt={post.userDisplayName || 'User'}
-              className="user-avatar small"
-              placeholder="/default-avatar.jpg"
-            />
-            <div className="user-details">
-              <h4>{post.userDisplayName}</h4>
-              <span className="post-time">{formatTime(post.createdAt && typeof (post.createdAt as any).toDate === 'function' ? (post.createdAt as any).toDate() : new Date(post.createdAt as any))}</span>
+          {/* Post Preview */}
+          <div className="post-preview">
+            <div className="user-info">
+              <LazyImage
+                src={post.userPhotoURL || '/default-avatar.jpg'}
+                alt={post.userDisplayName || 'User'}
+                className="user-avatar small"
+                placeholder="/default-avatar.jpg"
+              />
+              <div className="user-details">
+                <h4>{post.userDisplayName}</h4>
+                <span className="post-time">{formatTime(post.createdAt && typeof (post.createdAt as any).toDate === 'function' ? (post.createdAt as any).toDate() : new Date(post.createdAt as any))}</span>
+              </div>
+            </div>
+            {post.caption && <p className="post-caption">{post.caption}</p>}
+            <div className="share-stats">
+              <span>{post.shareCount || 0} shares</span>
             </div>
           </div>
-          {post.caption && <p className="post-caption">{post.caption}</p>}
-          <div className="share-stats">
-            <span>{post.shareCount || 0} shares</span>
+
+          {/* Tab Navigation */}
+          <div className="share-tabs">
+            {Object.values(SHARE_TABS).map((tab) => (
+              <button
+                key={tab}
+                className={`share-tab ${activeTab === tab ? 'active' : ''}`}
+                onClick={() => handleTabChange(tab)}
+                disabled={isSubmitting}
+              >
+                {getTabIcon(tab)}
+                <span>{tab === 'feed' ? 'Repost' : tab.charAt(0).toUpperCase() + tab.slice(1)}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="share-content">
+            {showNetworkFallback ? (
+              <ShareNetworkFallback
+                onRetry={handleRetryFromFallback}
+                onCancel={onClose}
+                isRetrying={isSubmitting}
+                retryCount={retryCount}
+                maxRetries={3}
+                autoRetry={true}
+                retryDelay={3000}
+              />
+            ) : (
+              renderTabContent()
+            )}
           </div>
         </div>
-
-        {/* Tab Navigation */}
-        <div className="share-tabs">
-          {Object.values(SHARE_TABS).map((tab) => (
-            <button
-              key={tab}
-              className={`share-tab ${activeTab === tab ? 'active' : ''}`}
-              onClick={() => handleTabChange(tab)}
-              disabled={isSubmitting}
-            >
-              {getTabIcon(tab)}
-              <span>{tab.charAt(0).toUpperCase() + tab.slice(1)}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Tab Content */}
-        <div className="share-content">
-          {showNetworkFallback ? (
-            <ShareNetworkFallback
-              onRetry={handleRetryFromFallback}
-              onCancel={onClose}
-              isRetrying={isSubmitting}
-              retryCount={retryCount}
-              maxRetries={3}
-              autoRetry={true}
-              retryDelay={3000}
-            />
-          ) : (
-            renderTabContent()
-          )}
-        </div>
       </div>
-    </div>
     </ShareErrorBoundary>
   );
-});
+};
 
 ShareModal.displayName = 'ShareModal';
 

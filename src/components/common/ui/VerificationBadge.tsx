@@ -1,5 +1,6 @@
 // Verification Badge Component - Shows verification status next to profile image
 import React, { useState, useEffect } from 'react';
+import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import VerificationService from '../../../services/api/verificationService';
 import ShareVerificationModal from '../modals/ShareVerificationModal';
@@ -17,6 +18,7 @@ interface VerificationBadgeProps {
   isOwnProfile?: boolean;
   onVerificationRequest?: () => void;
   showTooltip?: boolean;
+  inline?: boolean;
 }
 
 interface VerificationRequest {
@@ -25,11 +27,12 @@ interface VerificationRequest {
   verificationGoal: number;
 }
 
-const VerificationBadge: React.FC<VerificationBadgeProps> = ({ 
-  profile, 
-  isOwnProfile, 
+const VerificationBadge: React.FC<VerificationBadgeProps> = ({
+  profile,
+  isOwnProfile,
   onVerificationRequest,
-  showTooltip = true 
+  showTooltip = true,
+  inline = false
 }) => {
   const { currentUser, isGuest } = useAuth();
   const [verificationRequest, setVerificationRequest] = useState<VerificationRequest | null>(null);
@@ -103,10 +106,10 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
     remaining: number;
   } | null => {
     if (!verificationRequest) return null;
-    
+
     const { verificationCount, verificationGoal } = verificationRequest;
     const percentage = Math.min(100, (verificationCount / verificationGoal) * 100);
-    
+
     return {
       current: verificationCount,
       goal: verificationGoal,
@@ -118,12 +121,22 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
   // Verified user badge
   if (profile?.isVerified) {
     const badge = profile.verificationBadge || VerificationService.getRoleBadge(profile.role || 'athlete');
-    
+
     return (
-      <div className="verification-container verified">
-        <div className="verification-badge verified-badge" title={badge.label}>
-          <span className="badge-icon">{badge.icon}</span>
-          <span className="badge-checkmark">✓</span>
+      <div className={`verification-container verified ${inline ? 'inline' : ''}`}>
+        <div className="verification-badge verified-shield" title={badge.label}>
+          {/* Blue fill with white tick (lucide ShieldCheck has a tick cut-out or stroke) */}
+          <ShieldCheck size={28} color="#1D9BF0" fill="#1D9BF0" className="shield-icon" />
+          <div className="check-mark" style={{
+            position: 'absolute',
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none'
+          }}>✓</div>
         </div>
         {showTooltip && (
           <div className="verification-tooltip">
@@ -139,19 +152,19 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
     // Has pending verification request
     if (verificationRequest && verificationRequest.status === 'pending') {
       const progress = getVerificationProgress();
-      
+
       return (
         <>
           <div className="verification-container pending">
-            <button 
-              className="verification-badge pending-badge clickable" 
+            <button
+              className="verification-badge pending-badge clickable"
               title="Click to share verification link"
               onClick={handleShareVerification}
             >
               <span className="badge-icon">⏳</span>
               <div className="progress-ring">
-                <div 
-                  className="progress-fill" 
+                <div
+                  className="progress-fill"
                   style={{ '--progress': `${progress.percentage}%` } as React.CSSProperties}
                 ></div>
               </div>
@@ -165,8 +178,8 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
               </div>
             )}
           </div>
-          
-          <ShareVerificationModal 
+
+          <ShareVerificationModal
             isOpen={showShareModal}
             onClose={() => setShowShareModal(false)}
             verificationRequest={verificationRequest as any}
@@ -178,7 +191,7 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
     // Show request verification button
     return (
       <div className="verification-container request">
-        <button 
+        <button
           className="verification-badge request-badge"
           onClick={handleRequestVerification}
           disabled={loading}
@@ -188,7 +201,7 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
         </button>
         {showTooltip && (
           <div className="verification-tooltip">
-            {loading ? 'Checking eligibility...' : 'Request verification'}
+            {loading ? 'Checking eligibility...' : 'Please verify your profile by sharing the talent video link to others'}
           </div>
         )}
       </div>

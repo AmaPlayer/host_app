@@ -16,7 +16,7 @@ interface PostsQueryOptions {
  * Supabase implementation of PostsService
  */
 class PostsService {
-  
+
   /**
    * Get paginated posts with engagement status for current user
    */
@@ -65,7 +65,7 @@ class PostsService {
             .select('post_id')
             .eq('user_id', user.id)
             .in('post_id', postIds);
-          
+
           if (likes) {
             likes.forEach(l => likedPostIds.add(l.post_id));
           }
@@ -103,28 +103,28 @@ class PostsService {
       // Logic: Get IDs from 'followers' table (who I follow) and 'friendships'
       // Note: followingList passed from arguments might be Firebase UIDs. 
       // We should ideally resolve them or rely on Supabase relationships.
-      
+
       // Fetch internal IDs of people I follow
       const { data: following } = await supabase
         .from('followers')
         .select('following_id')
         .eq('follower_id', user.id);
-        
+
       const followingIds = following?.map(f => f.following_id) || [];
-      
+
       // Fetch internal IDs of friends
       const { data: friends1 } = await supabase
         .from('friendships')
         .select('user2_id')
         .eq('user1_id', user.id)
         .eq('status', 'active');
-        
+
       const { data: friends2 } = await supabase
         .from('friendships')
         .select('user1_id')
         .eq('user2_id', user.id)
         .eq('status', 'active');
-        
+
       const friendIds = [
         ...(friends1?.map(f => f.user2_id) || []),
         ...(friends2?.map(f => f.user1_id) || [])
@@ -157,7 +157,7 @@ class PostsService {
           .select('post_id')
           .eq('user_id', user.id)
           .in('post_id', postIds);
-        
+
         if (likes) {
           likes.forEach(l => likedPostIds.add(l.post_id));
         }
@@ -235,20 +235,25 @@ class PostsService {
       let mediaMetadata = null;
       let mediaType = 'text';
 
-      if (postData.mediaFile) {
+      if (postData.mediaUrl) {
+        // Use pre-uploaded media
+        mediaUrl = postData.mediaUrl;
+        mediaMetadata = postData.mediaMetadata || null;
+        mediaType = postData.mediaType || 'text';
+      } else if (postData.mediaFile) {
         const file = postData.mediaFile;
         const filename = `${Date.now()}_${file.name}`;
         const storageRef = ref(storage, `posts/${filename}`);
         const snapshot = await uploadBytes(storageRef, file);
         mediaUrl = await getDownloadURL(snapshot.ref);
-        
+
         mediaMetadata = {
           size: file.size,
           type: file.type,
           name: file.name,
           uploadedAt: new Date().toISOString(),
         };
-        
+
         if (file.type.startsWith('video/')) mediaType = 'video';
         else if (file.type.startsWith('image/')) mediaType = 'image';
       }
@@ -379,7 +384,8 @@ class PostsService {
   async toggleLike(
     postId: string,
     currentUserId: string,
-    userInfo?: { displayName?: string; photoURL?: string | null }
+    userInfo?: { displayName?: string; photoURL?: string | null },
+    intent?: 'like' | 'unlike'
   ): Promise<{ liked: boolean; likesCount: number }> {
     try {
       const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
@@ -394,11 +400,21 @@ class PostsService {
 
       let liked: boolean;
       if (existing) {
-        await supabase.from('post_likes').delete().eq('id', existing.id);
-        liked = false;
+        if (intent === 'like') {
+          // Already liked, do nothing
+          liked = true;
+        } else {
+          await supabase.from('post_likes').delete().eq('id', existing.id);
+          liked = false;
+        }
       } else {
-        await supabase.from('post_likes').insert({ post_id: postId, user_id: user.id });
-        liked = true;
+        if (intent === 'unlike') {
+          // Already unliked, do nothing
+          liked = false;
+        } else {
+          await supabase.from('post_likes').insert({ post_id: postId, user_id: user.id });
+          liked = true;
+        }
       }
 
       const { data: post } = await supabase
@@ -549,11 +565,11 @@ class PostsService {
 
       let isLiked = false;
       if (currentUserId) {
-         const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
-         if (user) {
-           const { data: like } = await supabase.from('post_likes').select('id').eq('post_id', postId).eq('user_id', user.id).maybeSingle();
-           isLiked = !!like;
-         }
+        const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
+        if (user) {
+          const { data: like } = await supabase.from('post_likes').select('id').eq('post_id', postId).eq('user_id', user.id).maybeSingle();
+          isLiked = !!like;
+        }
       }
 
       return this.mapSupabasePostToModel(data, isLiked);
@@ -592,12 +608,12 @@ class PostsService {
 
       let likedPostIds = new Set<string>();
       if (currentUserId && data && data.length > 0) {
-         const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
-         if (user) {
-           const postIds = data.map(p => p.id);
-           const { data: likes } = await supabase.from('post_likes').select('post_id').eq('user_id', user.id).in('post_id', postIds);
-           likes?.forEach(l => likedPostIds.add(l.post_id));
-         }
+        const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
+        if (user) {
+          const postIds = data.map(p => p.id);
+          const { data: likes } = await supabase.from('post_likes').select('post_id').eq('user_id', user.id).in('post_id', postIds);
+          likes?.forEach(l => likedPostIds.add(l.post_id));
+        }
       }
 
       return Promise.all((data || []).map(row => this.mapSupabasePostToModel(row, likedPostIds.has(row.id))));

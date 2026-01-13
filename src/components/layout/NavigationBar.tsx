@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { db } from '../../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { useScrollDirection } from '../../hooks/useScrollDirection';
 import './NavigationBar.css';
 
 interface NavigationBarProps {
@@ -30,6 +31,7 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
   const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
+  const isVisible = useScrollDirection(); // Track scroll visibility
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -47,7 +49,8 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
   };
 
   const handleNotificationsToggle = (e?: React.MouseEvent) => {
-    e?.stopPropagation();setSettingsOpen(false); // Close settings if open
+    e?.stopPropagation();
+    setSettingsOpen(false); // Close settings if open
     setNotificationsOpen(!notificationsOpen);
   };
 
@@ -98,7 +101,11 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
   }, [currentUser, authIsGuest]);
 
   return (
-    <nav className="nav-bar" role="navigation" aria-label="Main navigation">
+    <nav
+      className={`nav-bar ${!isVisible ? 'nav-hidden' : ''}`}
+      role="navigation"
+      aria-label="Main navigation"
+    >
       <div className="nav-content">
         {showBackButton && onBackClick && (
           <button
@@ -110,8 +117,8 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
             <ArrowLeft size={24} aria-hidden="true" />
           </button>
         )}
-        
-        <h1 
+
+        <h1
           className={`app-title ${showBackButton ? 'with-back-button' : ''}`}
           onClick={onTitleClick}
           role="button"
@@ -124,9 +131,9 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
             }
           }}
         >
-          {title}
+          <img src="/logo2.png" alt={title} className="app-logo" />
         </h1>
-        
+
         <div className="nav-links">
           {isGuest && (
             <span
@@ -137,7 +144,7 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
               {t('guestMode')}
             </span>
           )}
-          
+
           <div className="nav-actions">
             {/* Search */}
             <button
@@ -207,7 +214,7 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
                 <Settings size={24} aria-hidden="true" />
                 <span className="sr-only">Settings</span>
               </button>
-              
+
               <SettingsMenu
                 isOpen={settingsOpen}
                 onClose={handleSettingsClose}

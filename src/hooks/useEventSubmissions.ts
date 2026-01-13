@@ -1,10 +1,9 @@
 /**
- * Hook for real-time event submissions
+ * Hook for event submissions (Supabase)
  */
 
 import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { eventsDb as db } from '../lib/firebase-events';
+import { supabase } from '../lib/supabase';
 import { EventSubmission } from '../types/models/submission';
 
 interface UseEventSubmissionsOptions {
@@ -14,7 +13,7 @@ interface UseEventSubmissionsOptions {
 
 /**
  * Real-time submissions hook
- * Listens to changes in event submissions
+ * Lists event submissions
  */
 export function useEventSubmissions(
   eventId: string,
@@ -33,86 +32,72 @@ export function useEventSubmissions(
     }
 
     setLoading(true);
-    let unsubscribe: (() => void) | null = null;
 
-    // Build query
-    let queryConstraints: any[] = [where('eventId', '==', eventId)];
-    if (onlySubmitted) {
-      queryConstraints.push(where('status', '==', 'submitted'));
-    }
+    const fetchSubmissions = async () => {
+      try {
+        let query = supabase
+          .from('event_submissions')
+          .select('*')
+          .eq('event_id', eventId);
 
-    const q = query(collection(db, 'eventSubmissions'), ...queryConstraints);
-
-    // Debounce timer for updates
-    let debounceTimer: NodeJS.Timeout;
-
-    // Set up real-time listener
-    try {
-      unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          // Clear previous debounce
-          if (debounceTimer) {
-            clearTimeout(debounceTimer);
-          }
-
-          // Debounce the state update
-          debounceTimer = setTimeout(() => {
-            const submissionData: EventSubmission[] = [];
-
-            snapshot.forEach((doc) => {
-              const data = doc.data();
-              submissionData.push({
-                id: doc.id,
-                ...data,
-                uploadedAt: data.uploadedAt?.toDate?.() || data.uploadedAt,
-                updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
-              } as EventSubmission);
-            });
-
-            // Sort by upload time (newest first)
-            submissionData.sort((a, b) => {
-              let timeA = 0;
-              let timeB = 0;
-              if (a.uploadedAt) {
-                timeA = typeof a.uploadedAt === 'string'
-                  ? new Date(a.uploadedAt).getTime()
-                  : (a.uploadedAt as any).toDate?.().getTime?.() || 0;
-              }
-              if (b.uploadedAt) {
-                timeB = typeof b.uploadedAt === 'string'
-                  ? new Date(b.uploadedAt).getTime()
-                  : (b.uploadedAt as any).toDate?.().getTime?.() || 0;
-              }
-              return timeB - timeA;
-            });
-
-            setSubmissions(submissionData);
-            setLoading(false);
-            setError(null);}, debounceMs);
-        },
-        (err) => {
-          console.error('❌ Error listening to submissions:', err);
-          setError(err as Error);
-          setLoading(false);
+        if (onlySubmitted) {
+          query = query.eq('status', 'submitted');
         }
-      );
-    } catch (err) {
-      console.error('❌ Error setting up submissions listener:', err);
-      setError(err as Error);
-      setLoading(false);
-    }
 
-    // Cleanup
-    return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
+        const { data, error } = await query.order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const mapped: EventSubmission[] = (data || []).map(sub => ({
+          id: sub.id,
+          eventId: sub.event_id,
+          userId: sub.user_id,
+          videoUrl: sub.video_url,
+          thumbnailUrl: sub.thumbnail_url,
+          status: sub.status,
+          score: sub.score,
+          title: sub.title,
+          description: sub.description,
+          uploadedAt: new Date(sub.created_at),
+          updatedAt: new Date(sub.updated_at),
+          // Additional checks
+          userName: sub.user_name || 'User', // If these exist on view?
+          userAvatar: sub.user_avatar
+        }));
+
+        setSubmissions(mapped);
+      } catch (err) {
+        console.error('❌ Error fetching submissions:', err);
+        setError(err as Error);
+      } finally {
+        setLoading(false);
       }
     };
-  }, [eventId, debounceMs, onlySubmitted]);
+
+    fetchSubmissions();
+
+    // Set up Realtime subscription
+    const subscription = supabase
+      .channel(`submissions:${eventId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'event_submissions',
+          filter: `event_id=eq.${eventId}`
+        },
+        () => {
+          // Simple re-fetch on change
+          fetchSubmissions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [eventId, onlySubmitted]);
 
   return {
     submissions,

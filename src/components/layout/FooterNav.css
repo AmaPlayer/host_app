@@ -9,49 +9,67 @@
   box-shadow: none;
   padding-bottom: 20px;
   pointer-events: none;
+  transition: transform 0.3s ease-in-out;
+}
+
+.footer-nav.footer-hidden {
+  transform: translateY(100%) !important;
+  opacity: 0 !important;
 }
 
 .footer-nav-container {
   display: flex;
-  justify-content: space-between; /* Spread items to edges */
+  justify-content: space-between;
+  /* Spread items to edges */
   align-items: center;
   height: 60px;
   padding: 0 16px;
-  max-width: 800px; /* Match header width */
+  max-width: 800px;
+  /* Match header width */
   margin: 0 auto;
-  gap: 0; /* Let space-between handle spacing */
-  
+  gap: 0;
+  /* Let space-between handle spacing */
+
   /* Removed container styling to make items float individually */
   background: transparent;
   border: none;
   border-radius: 0;
   box-shadow: none;
-  pointer-events: none; /* Container passes clicks */
+  pointer-events: none;
+  /* Container passes clicks */
 }
 
 .footer-nav-item {
   display: flex;
-  flex-direction: row; /* Icon and text side-by-side */
+  flex-direction: row;
+  /* Icon and text side-by-side */
   align-items: center;
   justify-content: center;
-  padding: 0; /* Reset padding */
-  
+  padding: 0;
+  /* Reset padding */
+
   /* Individual Island Styling */
   width: 44px;
   height: 44px;
-  border-radius: 22px; /* Circle by default */
-  background: var(--bg-card); /* Fallback */
-  background: var(--glass-bg); /* Glass effect */
+  border-radius: 22px;
+  /* Circle by default */
+  background: var(--bg-card);
+  /* Fallback */
+  background: var(--glass-bg);
+  /* Glass effect */
   border: 1px solid var(--glass-border);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  
+
   color: var(--text-color-secondary);
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth spring-like transition */
-  pointer-events: auto; /* Re-enable clicks on items */
-  overflow: hidden; /* Hide label when collapsed */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Smooth spring-like transition */
+  pointer-events: auto;
+  /* Re-enable clicks on items */
+  overflow: hidden;
+  /* Hide label when collapsed */
 }
 
 .footer-nav-item:hover {
@@ -61,12 +79,15 @@
 }
 
 .footer-nav-item.active {
-  width: auto; /* Expand width */
-  padding: 0 16px; /* Add padding for text */
+  width: auto;
+  /* Expand width */
+  padding: 0 16px;
+  /* Add padding for text */
   background: var(--primary-color);
   color: white;
   border-color: transparent;
-  box-shadow: 0 44px 12px rgba(var(--accent-primary-rgb), 0.4); /* Colored glow */
+  box-shadow: 0 44px 12px rgba(var(--accent-primary-rgb), 0.4);
+  /* Colored glow */
 }
 
 .footer-nav-item.active:hover {
@@ -78,8 +99,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0; /* Reset margin */
-  flex-shrink: 0; /* Prevent icon shrinking */
+  margin: 0;
+  /* Reset margin */
+  flex-shrink: 0;
+  /* Prevent icon shrinking */
 }
 
 .footer-nav-item svg {
@@ -102,7 +125,8 @@
 .footer-nav-item.active .footer-nav-label {
   margin-left: 8px;
   opacity: 1;
-  width: auto; /* Let it expand */
+  width: auto;
+  /* Let it expand */
 }
 
 /* Badge styling - Updated for circles */
@@ -126,32 +150,47 @@
 }
 
 @keyframes pulse {
-  0% { transform: scale(0.8); opacity: 0.7; }
-  50% { transform: scale(1.1); opacity: 1; }
-  100% { transform: scale(0.8); opacity: 0.7; }
+  0% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
 }
 
 /* Media queries for responsiveness */
 @media (max-width: 600px) {
   .footer-nav {
-    padding-bottom: 16px; /* Maintain float on mobile */
+    padding-bottom: 16px;
+    /* Maintain float on mobile */
   }
-  
+
   .footer-nav-container {
     height: auto;
-    justify-content: space-between; /* Ensure consistency on mobile */
-    gap: 0; /* Let space-between handle it */
+    justify-content: space-between;
+    /* Ensure consistency on mobile */
+    gap: 0;
+    /* Let space-between handle it */
   }
 
   .footer-nav-item {
-    width: 40px; /* Slightly smaller base size */
+    width: 40px;
+    /* Slightly smaller base size */
     height: 40px;
   }
-  
+
   .footer-nav-item.active {
     padding: 0 12px;
   }
-  
+
   .footer-nav-label {
     font-size: 0.75rem;
   }

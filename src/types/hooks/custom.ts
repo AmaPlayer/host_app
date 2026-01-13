@@ -1,6 +1,7 @@
 import { Post, User, Comment, Group, Friend } from '../models';
 import { ApiError } from '../api/responses';
 import { UpdatePostData, ShareMetadata } from '../models/post';
+import { ShareType } from '../../constants/sharing';
 
 // usePostOperations return type
 export interface UsePostOperationsReturn {
@@ -26,7 +27,7 @@ export interface UsePostOperationsReturn {
   updatePostShareData: (
     postId: string,
     userId: string,
-    shareType: 'friends' | 'feeds' | 'groups',
+    shareType: ShareType,
     isAdding?: boolean
   ) => Promise<void>;
   getPostShareInfo: (postId: string) => {
@@ -93,7 +94,7 @@ export interface UsePostInteractionsReturn {
   likePost: (postId: string) => Promise<void>;
   unlikePost: (postId: string) => Promise<void>;
   toggleLike: (postId: string, isLiked: boolean) => Promise<void>;
-  sharePost: (postId: string, shareType: 'friends' | 'feeds' | 'groups', targets?: string[]) => Promise<void>;
+  sharePost: (postId: string, shareType: ShareType, targets?: string[]) => Promise<void>;
   unsharePost: (postId: string) => Promise<void>;
   isLiking: boolean;
   isSharing: boolean;

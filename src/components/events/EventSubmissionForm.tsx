@@ -7,8 +7,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { Upload, AlertCircle, CheckCircle } from 'lucide-react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { eventsStorage as storage } from '../../lib/firebase-events';
+import { storageService } from '../../services/storage';
 import submissionService from '../../services/api/submissionService';
 import { EventSubmission } from '../../types/models/submission';
 import './EventSubmissionForm.css';
@@ -117,12 +116,8 @@ export function EventSubmissionForm({
 
     try {
       const storagePath = `events/${eventId}/submissions/${userId}/${Date.now()}-${videoFile.name}`;
-      const fileRef = ref(storage, storagePath);
-
-      const snapshot = await uploadBytes(fileRef, videoFile);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-
-      return downloadURL;
+      const result = await storageService.uploadFile(storagePath, videoFile);
+      return result.url;
     } catch (err) {
       console.error('❌ Error uploading video:', err);
       throw new Error('Failed to upload video');
@@ -176,10 +171,12 @@ export function EventSubmissionForm({
           ...submissionData,
           status: 'submitted',
         });
-        setSuccess(true);} else {
+        setSuccess(true);
+      } else {
         // Create new submission
         await submissionService.createSubmission(submissionData);
-        setSuccess(true);}
+        setSuccess(true);
+      }
 
       // Reset form
       setVideoFile(null);

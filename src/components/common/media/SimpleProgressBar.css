@@ -1,0 +1,69 @@
+.simple-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.simple-progress-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+}
+
+.simple-progress-track.non-interactive {
+  cursor: default;
+}
+
+.simple-progress-fill {
+  height: 100%;
+  background: var(--accent-primary);
+  transition: width 0.1s linear;
+  border-radius: 2px;
+}
+
+.simple-progress-time {
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 90px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.simple-progress-percentage {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.8));
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .simple-progress-track {
+    height: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .simple-progress-track {
+    height: 8px;
+    /* Larger touch target for mobile */
+  }
+
+  .simple-progress-time {
+    display: none;
+    /* Hide time on very small screens to save space */
+  }
+
+  .simple-progress-percentage {
+    font-size: 12px;
+    min-width: 35px;
+  }
+}

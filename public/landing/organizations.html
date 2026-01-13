@@ -9,9 +9,19 @@
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
-<body>
+<body style="background-color: transparent;">
 
 	<!-- Header -->
+
+	<!-- Fixed Background Image -->
+	<div
+		style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('images/organisation.jpg') top center/cover no-repeat; opacity: 0.8; z-index: -2;">
+	</div>
+	<!-- Fixed Dark Overlay for text readability -->
+	<div
+		style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 25, 47, 0.85); z-index: -1;">
+	</div>
+
 	<header class="main-header flex-center">
 		<div class="container flex-between">
 			<div class="logo">
@@ -25,10 +35,12 @@
 				<a href="index.html">Home</a>
 				<a href="coaches.html">Coaches</a>
 				<a href="organizations.html" class="active">Organizations</a>
+				<a href="stories.html">Stories</a>
 				<a href="index.html#talent">Talent</a>
 			</nav>
 			<div class="auth-buttons flex" style="gap: 1rem;">
-				<a href="/" class="btn btn-primary" style="padding: 0.5rem 1.5rem; font-size: 0.8rem;">Explore App</a>
+				<a href="/?entered=true" class="btn btn-primary"
+					style="padding: 0.5rem 1.5rem; font-size: 0.8rem;">Explore App</a>
 			</div>
 			<div class="mobile-menu-btn">
 				<i class="fas fa-bars"></i>
@@ -36,13 +48,9 @@
 		</div>
 	</header>
 
-	<!-- Mini Hero -->
-	<section class="hero-wrapper" style="min-height: 50vh;">
+	<section class="hero-wrapper" style="min-height: 50vh; background: transparent;">
 		<div
-			style="position: absolute; top:0; left:0; width:100%; height:100%; background: url('images/organisation.jpg') center/cover no-repeat; opacity: 0.4; z-index: 0;">
-		</div>
-		<div
-			style="position: absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(180deg, rgba(10,25,47,0.7) 0%, var(--color-bg-dark) 100%); z-index: 1;">
+			style="position: absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(180deg, rgba(10,25,47,0.7) 0%, rgba(10, 25, 47, 0) 100%); z-index: 1;">
 		</div>
 
 		<div class="container hero-content text-center">
@@ -77,7 +85,7 @@
 						<li>Youth Programs</li>
 						<li>Elite Training</li>
 					</ul>
-					<a href="#" class="btn btn-outline" style="width: 100%;">Join Organization</a>
+					<a href="/?entered=true" class="btn btn-outline" style="width: 100%;">Join Organization</a>
 				</div>
 
 				<!-- Org 2 -->
@@ -99,7 +107,7 @@
 						<li>College Pathway</li>
 						<li>Competitive League</li>
 					</ul>
-					<a href="#" class="btn btn-outline" style="width: 100%;">Join Organization</a>
+					<a href="/?entered=true" class="btn btn-outline" style="width: 100%;">Join Organization</a>
 				</div>
 
 				<!-- Org 3 -->
@@ -119,7 +127,7 @@
 						<li>All Skill Levels</li>
 						<li>Youth Development</li>
 					</ul>
-					<a href="#" class="btn btn-outline" style="width: 100%;">Join Organization</a>
+					<a href="/?entered=true" class="btn btn-outline" style="width: 100%;">Join Organization</a>
 				</div>
 
 			</div>
@@ -129,7 +137,7 @@
 	<!-- Footer -->
 	<footer class="main-footer">
 		<div class="container">
-			<p style="font-size: 0.8rem; opacity: 0.5;">&copy; 2024 AmaPlayer. All rights reserved.</p>
+			<p style="font-size: 0.8rem; opacity: 0.5;">&copy; 2026 AmaPlayer. All rights reserved.</p>
 		</div>
 	</footer>
 

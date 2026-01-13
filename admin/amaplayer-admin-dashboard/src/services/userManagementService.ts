@@ -38,7 +38,7 @@ export class UserManagementService {
         .from('users')
         .update({ is_active: false })
         .in('id', userIds);
-      
+
       if (error) throw error;
       result.processedCount = userIds.length;
     } catch (error: any) {
@@ -77,7 +77,7 @@ export class UserManagementService {
         .from('users')
         .update({ is_verified: true })
         .in('id', userIds);
-      
+
       if (error) throw error;
       result.processedCount = userIds.length;
     } catch (error: any) {
@@ -97,7 +97,7 @@ export class UserManagementService {
         .from('users')
         .update({ is_active: true, status: 'active', suspended_at: null, suspension_reason: null })
         .in('id', userIds);
-      
+
       if (error) throw error;
       result.processedCount = userIds.length;
     } catch (error: any) {
@@ -109,14 +109,50 @@ export class UserManagementService {
 
   /**
    * Activate a single user
-
+   */
+  async activateUser(userId: string): Promise<void> {
     const { error } = await supabase.from('users').update({ is_active: true }).eq('id', userId);
     if (error) throw error;
   }
 
   async deleteUser(userId: string, reason?: string): Promise<void> {
-    const { error } = await supabase.from('users').delete().eq('id', userId);
-    if (error) throw error;
+    try {
+      // 1. Try Hard Delete first
+      const { error } = await supabase.from('users').delete().eq('id', userId);
+
+      if (error) {
+        // Check for Foreign Key Violation (Postgres Error 23503)
+        // Note: Supabase JS might return a specific error structure
+        if (error.code === '23503' || error.message?.includes('foreign key constraint')) {
+          console.warn('Hard delete blocked by dependencies. Falling back to Secure Soft Delete (PII Redaction).');
+
+          // 2. Fallback: Secure Soft Delete (Scrub PII)
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({
+              is_active: false,
+              display_name: 'Deleted User',
+              email: `deleted_${userId.substring(0, 8)}@deleted.amaplayer.com`, // Pseudo-anonymize
+              photo_url: null,
+              bio: null,
+              location: null,
+              is_verified: false,
+              username: `deleted_${userId.substring(0, 8)}`,
+              status: 'deleted',
+              suspension_reason: reason || 'Account deleted by admin',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId);
+
+          if (updateError) throw updateError;
+          return; // Soft delete successful
+        }
+        throw error; // Throw other errors
+      }
+    } catch (error) {
+      console.error('Delete user failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -213,10 +249,19 @@ export class UserManagementService {
       isActive: data.is_active,
       isVerified: data.is_verified,
       photoURL: data.photo_url,
-      location: data.location,
       bio: data.bio,
+      postsCount: data.posts_count || 0,
+      followersCount: data.followers_count || 0,
+      followingCount: data.following_count || 0,
+      storiesCount: data.stories_count || 0,
+      sports: data.sports || [],
+      location: data.location || '',
+      dateOfBirth: data.date_of_birth,
+      gender: data.gender,
       createdAt: new Date(data.created_at),
-      updatedAt: new Date(data.updated_at)
+      updatedAt: new Date(data.updated_at),
+      status: data.status,
+      suspension_reason: data.suspension_reason
     } as any;
   }
 }

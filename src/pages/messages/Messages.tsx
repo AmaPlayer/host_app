@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useRealtimeFriendRequests } from '../../hooks/useRealtimeFriendRequests';
@@ -67,9 +67,20 @@ type TabType = 'friends' | 'requests' | 'groups';
 
 export default function Messages() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { userId } = useParams<{ userId: string }>();
   const { currentUser, isGuest } = useAuth();
   const { t } = useLanguage();
+
+  // DEBUG: Log Messages component mount and auth state
+  useEffect(() => {
+    console.log('📱 Messages Page Mounted/Updated', {
+      currentUserUid: currentUser?.uid,
+      isGuest: isGuest(),
+      isAnonymous: currentUser?.isAnonymous,
+      location: location.search
+    });
+  }, [currentUser, location.search]);
 
   const handleTitleClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -104,6 +115,16 @@ export default function Messages() {
   const [sendButtonError, setSendButtonError] = useState<boolean>(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState<boolean>(false);
 
+  // Read tab from URL parameter and set active tab
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+
+    if (tabParam === 'requests' || tabParam === 'friends' || tabParam === 'groups') {
+      setActiveTab(tabParam as TabType);
+    }
+  }, [location.search]);
+
   useEffect(() => {
     if (userId) {
       if (friends.length > 0) {
@@ -123,7 +144,7 @@ export default function Messages() {
     if (currentUser && !isGuest()) {
       try {
         // Friend requests now handled by useRealtimeFriendRequests hook
-        const unsubscribeFriends = fetchFriends();
+        fetchFriends(); // Now async, no unsubscribe needed (service handles caching)
         fetchFollowedUsers();
         // Notifications moved to NavigationBar
 
@@ -132,11 +153,6 @@ export default function Messages() {
           setLoading(false);
         }, 1000);
 
-        // Return cleanup function
-        return () => {
-          if (unsubscribeFriends) unsubscribeFriends();
-          // Notifications cleanup moved to NavigationBar
-        };
       } catch (error) {
         console.error('Error initializing data:', error);
         setLoading(false);
@@ -261,130 +277,37 @@ export default function Messages() {
 
   // Notification handling moved to NavigationBar
 
-  const fetchFriends = () => {
+  const fetchFriends = async () => {
     if (!currentUser) return;
 
-    // Standard Friendships (Legacy)
-    const q1 = query(
-      collection(db, 'friendships'),
-      where('user1', '==', currentUser.uid)
-    );
-    const q2 = query(
-      collection(db, 'friendships'),
-      where('user2', '==', currentUser.uid)
-    );
+    try {
+      console.log('👥 Fetching friends list from Supabase...');
 
-    // Organization Connections (Accepted)
-    const q3 = query(
-      collection(db, 'organizationConnections'),
-      where('senderId', '==', currentUser.uid),
-      where('status', '==', 'accepted')
-    );
-    const q4 = query(
-      collection(db, 'organizationConnections'),
-      where('recipientId', '==', currentUser.uid),
-      where('status', '==', 'accepted')
-    );
+      // Use friendsService to get friends (already handles Supabase queries)
+      const friendsList = await friendsService.getFriendsList(currentUser.uid);
 
-    // Debounce updates to prevent duplicate calls
-    let updateTimeout: NodeJS.Timeout | null = null;
+      // Map to Friend interface (friendsService returns slightly different structure)
+      const mappedFriends: Friend[] = friendsList.map(friend => ({
+        id: friend.userId || friend.id,
+        displayName: friend.displayName,
+        photoURL: friend.photoURL,
+        friendshipId: friend.friendshipId,
+        isOnline: false // Can be enhanced later with presence system
+      }));
 
-    // Function to combine results from all queries with deduplication
-    async function updateFriendsList() {
-      // Clear any pending updates
-      if (updateTimeout) {
-        clearTimeout(updateTimeout);
-      }
+      console.log('👥 Friends loaded:', mappedFriends.length);
 
-      // Debounce the update by 100ms to prevent race conditions
-      updateTimeout = setTimeout(async () => {
-        try {
-          const friendsList: Friend[] = [];
-          const addedFriendIds = new Set<string>(); // Track added friends to prevent duplicates
-
-          // Helper to process friend/partner ID
-          const processPartner = async (partnerId: string, connectionId: string) => {
-            if (addedFriendIds.has(partnerId)) return;
-
-            try {
-              const friendProfile = await userService.getUserProfile(partnerId);
-              if (friendProfile) {
-                // Normalize name field
-                const displayName = friendProfile.displayName ||
-                  (friendProfile as any).organizationName ||
-                  (friendProfile as any).fullName ||
-                  (friendProfile as any).name ||
-                  'Unknown User';
-
-                const friendData: Friend = {
-                  id: partnerId,
-                  ...friendProfile,
-                  displayName: displayName,
-                  friendshipId: connectionId
-                } as Friend;
-                friendsList.push(friendData);
-                addedFriendIds.add(partnerId);
-              }
-            } catch (error) {
-              console.error('❌ Error fetching profile for:', partnerId, error);
-            }
-          };
-
-          // 1. Process Standard Friendships (I am user1)
-          const snapshot1 = await getDocs(q1);
-          for (const docSnap of snapshot1.docs) {
-            await processPartner(docSnap.data().user2, docSnap.id);
-          }
-
-          // 2. Process Standard Friendships (I am user2)
-          const snapshot2 = await getDocs(q2);
-          for (const docSnap of snapshot2.docs) {
-            await processPartner(docSnap.data().user1, docSnap.id);
-          }
-
-          // 3. Process Org Connections (I am sender)
-          const snapshot3 = await getDocs(q3);
-          for (const docSnap of snapshot3.docs) {
-            await processPartner(docSnap.data().recipientId, docSnap.id);
-          }
-
-          // 4. Process Org Connections (I am recipient)
-          const snapshot4 = await getDocs(q4);
-          for (const docSnap of snapshot4.docs) {
-            await processPartner(docSnap.data().senderId, docSnap.id);
-          }
-
-          console.log('📱 Messages: Total connections found:', friendsList.length);
-
-          setFriends(prevFriends => {
-            // Deep comparison to prevent unnecessary re-renders (which cause image reload loops)
-            if (JSON.stringify(prevFriends) === JSON.stringify(friendsList)) {
-              return prevFriends;
-            }
-            return friendsList;
-          });
-        } catch (error) {
-          console.error('❌ Error in updateFriendsList:', error);
+      setFriends(prevFriends => {
+        // Deep comparison to prevent unnecessary re-renders
+        if (JSON.stringify(prevFriends) === JSON.stringify(mappedFriends)) {
+          return prevFriends;
         }
-      }, 100);
+        return mappedFriends;
+      });
+    } catch (error) {
+      console.error('❌ Error fetching friends:', error);
+      setFriends([]);
     }
-
-    const unsubscribe1 = onSnapshot(q1, () => updateFriendsList(), (e) => console.error('Error q1', e));
-    const unsubscribe2 = onSnapshot(q2, () => updateFriendsList(), (e) => console.error('Error q2', e));
-    const unsubscribe3 = onSnapshot(q3, () => updateFriendsList(), (e) => console.error('Error q3', e));
-    const unsubscribe4 = onSnapshot(q4, () => updateFriendsList(), (e) => console.error('Error q4', e));
-
-    // Update friends list initially
-    updateFriendsList();
-
-    // Return cleanup function
-    return () => {
-      if (updateTimeout) clearTimeout(updateTimeout);
-      unsubscribe1();
-      unsubscribe2();
-      unsubscribe3();
-      unsubscribe4();
-    };
   };
 
 

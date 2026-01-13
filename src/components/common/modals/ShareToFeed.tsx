@@ -71,7 +71,7 @@ const ShareToFeed = memo<ShareToFeedProps>(({
   // Handle share submission
   const handleSubmit = useCallback(async () => {
     if (isSubmitting) return;
-    
+
     const shareData: ShareData = {
       type: SHARE_TYPES.FEED,
       postId: post.id,
@@ -80,7 +80,7 @@ const ShareToFeed = memo<ShareToFeedProps>(({
       privacy: privacyLevel,
       originalPost: post
     };
-    
+
     await onShare(shareData);
   }, [isSubmitting, post, shareMessage, privacyLevel, onShare]);
 
@@ -89,11 +89,11 @@ const ShareToFeed = memo<ShareToFeedProps>(({
     const now = new Date();
     const time = new Date(timestamp);
     const diff = now.getTime() - time.getTime();
-    
+
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
-    
+
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
     return `${days}d ago`;
@@ -198,13 +198,13 @@ const ShareToFeed = memo<ShareToFeedProps>(({
                 <span className="original-post-time">{formatTime(post.createdAt && typeof (post.createdAt as any).toDate === 'function' ? (post.createdAt as any).toDate() : new Date(post.createdAt as any))}</span>
               </div>
             </div>
-            
+
             {post.caption && (
               <div className="original-post-content">
                 <p>{post.caption}</p>
               </div>
             )}
-            
+
             {/* Mock engagement stats */}
             <div className="original-post-stats">
               <span className="stat">
@@ -227,9 +227,9 @@ const ShareToFeed = memo<ShareToFeedProps>(({
       {/* Share Actions */}
       <div className="share-actions">
         <div className="share-info">
-          <p>This will appear on your feed and be visible to your selected audience.</p>
+          <p>This will repost this content to your profile and feed.</p>
         </div>
-        
+
         <button
           className="share-submit-btn"
           onClick={handleSubmit}
@@ -238,11 +238,11 @@ const ShareToFeed = memo<ShareToFeedProps>(({
           {isSubmitting ? (
             <>
               <Loader2 size={16} className="spinning" />
-              Sharing to Feed...
+              Reposting...
             </>
           ) : (
             <>
-              Share to My Feed
+              Repost
             </>
           )}
         </button>

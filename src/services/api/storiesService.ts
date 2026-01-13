@@ -16,9 +16,11 @@ import {
   onSnapshot,
   Timestamp,
   getDoc,
-  setDoc
+  setDoc,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { storageService } from '../storage';
 
 interface StoryCreationResult extends Omit<Story, 'timestamp' | 'expiresAt'> {
   timestamp: any;
@@ -122,9 +124,9 @@ export class StoriesService {
   static async uploadStoryMedia(mediaFile: File, userId: string, mediaType: 'image' | 'video'): Promise<string> {
     try {
       const safeFileName = mediaFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const storageRef = ref(storage, `stories/${mediaType}s/${userId}/${Date.now()}-${safeFileName}`);
-      const uploadResult = await uploadBytes(storageRef, mediaFile);
-      return await getDownloadURL(uploadResult.ref);
+      const path = `stories/${mediaType}s/${userId}/${Date.now()}-${safeFileName}`;
+      const result = await storageService.uploadFile(path, mediaFile);
+      return result.url;
     } catch (error) {
       console.error('❌ Error uploading story media:', error);
       throw error;
@@ -192,47 +194,24 @@ export class StoriesService {
 
       // If user exists in Supabase
       if (user) {
-        // 2. Insert into Supabase story_views
-        const { error } = await supabase
-          .from('story_views')
-          .insert({
-            story_id: storyId, // Assuming storyId is compatible (UUID vs Firestore ID might be concern if schema strictly enforces UUID)
-            // CRITICAL: Supabase 'story_views' references 'stories' table. 
-            // If stories are NOT in Supabase, this insert will FAIL with Foreign Key constraint violation.
-            // Since we moved stories to Firestore, we cannot insert into 'story_views' if it has a foreign key to 'stories'.
-            // WE MUST CHECK IF THE USER MIGRATED THE SCHEMA TO REMOVE FK OR IF WE NEED TO SYNC STORY TO SUPABASE TOO.
-            // Assumption: User asked to fetch from Firestore, views in Supabase. 
-            // This implies a loose coupling or that 'story_views' story_id column is just TEXT/UUID without FK to a non-existent table?
-            // Actually, the schema.sql showed `story_id UUID REFERENCES public.stories(id)`.
-            // THIS IS A PROBLEM. 
-            // FIX: We must insert a "shadow" story record in Supabase OR the schema needs to be relaxed.
-            // User said: "fetch data from firestore... story views is in supabase".
-            // Ideally, we should sync the Story creation to Supabase as well (shadow record) so the FK works.
+        // 2. Validate Story ID format (Must be UUID for Supabase)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storyId);
 
-            viewer_id: user.id
-          });
+        if (isUuid) {
+          // 3. Insert into Supabase story_views
+          const { error } = await supabase
+            .from('story_views')
+            .insert({
+              story_id: storyId,
+              viewer_id: user.id
+            });
 
-        if (error) {
-          // If FK Error, it means story missing in Supabase.
-          // We should arguably quietly fail or try to sync? 
-          // For this specific 'Execute' step, I will assume the table constraints might block us unless I sync.
-          // STRATEGY: I will try to insert the shadow story first if it's missing? No, that's too slow.
-          // I will implement the View recording. If it fails due to FK, it fails. 
-          // But wait, createStory creates in Firestore. It does NOT currently create in Supabase.
-          // So View recording WILL fail if I don't sync.
-          // I will ADD a sync step to `createStory` to ensure `stories` table has the ID.
-          // But Firestore IDs are strings, Supabase IDs are UUIDs. 
-          // Firestore IDs (20 chars) are not valid UUIDs.
-          // This is a MAJOR conflict.
-
-          // Re-evaluating User Request: "fetch the data from the firestore for now and its story views is in the supabase story_views table".
-          // If the schema requires UUID for story_id, we can't use Firestore IDs.
-          // UNLESS we use UUIDs for Firestore IDs too?
-          // createStory in Firestore generates an ID.
-
-          // Workaround: I will generate a UUID for the Firestore document ID? 
-          // Or I will modify `createStory` to generate a UUID first, use that as Firestore ID, AND insert a shadow record in Supabase.
-          console.error('❌ Error recording story view in Supabase:', error);
+          if (error) {
+            // Log but don't crash - likely FK constraint if story sync failed or delay
+            console.warn('⚠️ Could not record story view in Supabase:', error.message);
+          }
+        } else {
+          console.log('ℹ️ Skipping Supabase view tracking for legacy story ID (Not UUID):', storyId);
         }
       }
 
@@ -272,8 +251,7 @@ export class StoriesService {
       // Delete media
       if (story.mediaUrl) {
         try {
-          const mediaRef = ref(storage, story.mediaUrl);
-          await deleteObject(mediaRef);
+          await storageService.deleteFile(story.mediaUrl);
         } catch (e) {
           console.warn('Failed to delete media', e);
         }
@@ -335,6 +313,83 @@ export class StoriesService {
     return 0;
   }
 
+  /**
+   * Toggle like on a story (Firestore)
+   */
+  static async toggleLike(storyId: string, userId: string, isLiked: boolean): Promise<{ likesCount: number; isLiked: boolean }> {
+    try {
+      const storyRef = doc(db, 'stories', storyId);
+
+      if (isLiked) {
+        // Unlike
+        await updateDoc(storyRef, {
+          likes: arrayRemove(userId),
+          likesCount: increment(-1)
+        });
+        return { likesCount: -1, isLiked: false }; // Return change delta or absolute? Returning delta is safer for UI count
+      } else {
+        // Like
+        await updateDoc(storyRef, {
+          likes: arrayUnion(userId),
+          likesCount: increment(1)
+        });
+        return { likesCount: 1, isLiked: true };
+      }
+    } catch (error) {
+      console.error('❌ Error toggling like:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get story comments (Firestore)
+   */
+  static async getStoryComments(storyId: string): Promise<any[]> {
+    try {
+      const commentsQuery = query(
+        collection(db, 'storyComments'),
+        where('storyId', '==', storyId)
+      );
+      const commentsSnapshot = await getDocs(commentsQuery);
+      return commentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('❌ Error fetching story comments:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Add a comment to a story (Firestore)
+   */
+  static async addComment(storyId: string, commentData: any): Promise<string> {
+    try {
+      const docRef = await addDoc(collection(db, 'storyComments'), {
+        storyId,
+        ...commentData,
+        timestamp: serverTimestamp() // Use server timestamp
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('❌ Error adding story comment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a story comment (Firestore)
+   */
+  static async deleteComment(commentId: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'storyComments', commentId));
+    } catch (error) {
+      console.error('❌ Error deleting story comment:', error);
+      throw error;
+    }
+  }
+
   // Mapper
   private static mapFirestoreStoryToModel(doc: any): Story {
     const data = doc.data();
@@ -351,6 +406,8 @@ export class StoriesService {
       expiresAt: data.expiresAt?.toDate() || new Date(),
       viewCount: data.viewCount || 0,
       viewers: data.viewers || [],
+      likes: data.likes || [], // Ensure likes array exists
+      likesCount: data.likesCount || 0,
       isHighlight: false,
       highlightId: null,
       sharingEnabled: data.sharingEnabled,

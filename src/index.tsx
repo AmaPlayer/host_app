@@ -13,13 +13,13 @@ window.addEventListener('error', (event: ErrorEvent) => {
     console.error('🚨 Error message:', event.error.message);
     console.error('🚨 Stack trace:', event.error.stack);
     console.error('🚨 Event details:', event);
-    
+
     // Try to extract object information from error message
     const errorUrl = event.error.message.match(/visit (https:\/\/[^\s]+)/);
     if (errorUrl) {
       console.error('🚨 React error URL:', errorUrl[1]);
     }
-    
+
     // Log current page state
     console.error('🚨 Current page:', window.location.href);
     console.error('🚨 Time:', new Date().toISOString());
@@ -45,7 +45,7 @@ console.error = (...args: unknown[]) => {
     console.error('🚨 REACT ERROR #31 DETAILED DEBUG:');
     console.error('🚨 Args:', args);
     console.error('🚨 Stack trace:', new Error().stack);
-    
+
     // Try to extract the object information from the error URL
     const errorMessage = args[0];
     const urlMatch = errorMessage.match(/visit (https:\/\/[^\s]+)/);
@@ -77,10 +77,12 @@ const initializeOfflineFeatures = async (): Promise<void> => {
   try {
     // Initialize IndexedDB for offline storage
     const { idbStore } = await import('./utils/caching/indexedDB');
-    await idbStore.init();// Initialize smart cache invalidation system after IndexedDB is ready
+    await idbStore.init();
+    // Initialize smart cache invalidation system after IndexedDB is ready
     try {
       const { smartCacheInvalidator } = await import('./utils/caching/smartCacheInvalidation');
-      await smartCacheInvalidator.init();} catch (cacheError) {
+      await smartCacheInvalidator.init();
+    } catch (cacheError) {
       console.warn('⚠️ Phase 3: Smart cache invalidation initialization failed (non-critical):', cacheError);
     }
   } catch (error) {
@@ -97,13 +99,15 @@ if ('serviceWorker' in navigator) {
     
     navigator.serviceWorker
       .register('/sw-phase3.js')
-      .then((registration) => {// Listen for updates
+      .then((registration) => {
+// Listen for updates
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
           if (newWorker) {
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New version available, show update notificationif (window.confirm('New version available! Refresh to update?')) {
+                // New version available, show update notification
+if (window.confirm('New version available! Refresh to update?')) {
                   window.location.reload();
                 }
               }
@@ -111,11 +115,13 @@ if ('serviceWorker' in navigator) {
           }
         });
       })
-      .catch((error) => {});
+      .catch((error) => {
+});
       
     // Listen for service worker messages
     navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data.type === 'BACKGROUND_SYNC') {// Handle background sync completion
+      if (event.data.type === 'BACKGROUND_SYNC') {
+// Handle background sync completion
       }
     });
   });
@@ -128,7 +134,7 @@ if (process.env.NODE_ENV === 'development') {
   import('./utils/performance/PerformanceMonitoringUtils').then(({ performanceMonitoringUtils }) => {
     // Auto-start performance monitoring
     performanceMonitoringUtils.startMonitoring(5000); // Check every 5 seconds
-    
+
     // Add performance debug utilities to window
     (window as any).performanceDebug = {
       start: () => performanceMonitoringUtils.startMonitoring(),
@@ -137,7 +143,12 @@ if (process.env.NODE_ENV === 'development') {
       clear: () => performanceMonitoringUtils.resetAllData(),
       export: () => performanceMonitoringUtils.exportPerformanceData(),
       alerts: () => performanceMonitoringUtils.getRecentAlerts()
-    };console.log('🔍 Performance debug tools available at window.performanceDebug');console.log('  - stop() - Stop monitoring');console.log('  - clear() - Clear all data');console.log('  - alerts() - Get recent alerts');}).catch(err => {
+    };
+    console.log('🔍 Performance debug tools available at window.performanceDebug');
+    console.log('  - stop() - Stop monitoring');
+    console.log('  - clear() - Clear all data');
+    console.log('  - alerts() - Get recent alerts');
+  }).catch(err => {
     console.warn('Failed to initialize performance monitoring:', err);
   });
 
@@ -145,7 +156,8 @@ if (process.env.NODE_ENV === 'development') {
     resetIndexedDB: async () => {
       try {
         const { idbStore } = await import('./utils/caching/indexedDB');
-        await idbStore.reset();return true;
+        await idbStore.reset();
+        return true;
       } catch (error) {
         console.error('❌ Failed to reset IndexedDB:', error);
         return false;
@@ -154,13 +166,16 @@ if (process.env.NODE_ENV === 'development') {
     clearCache: async () => {
       try {
         const { smartCacheInvalidator } = await import('./utils/caching/smartCacheInvalidation');
-        await smartCacheInvalidator.clearInvalidationData();return true;
+        await smartCacheInvalidator.clearInvalidationData();
+        return true;
       } catch (error) {
         console.error('❌ Failed to clear cache data:', error);
         return false;
       }
     }
-  };console.log('  - window.debugUtils.resetIndexedDB() - Reset IndexedDB');}
+  };
+  console.log('  - window.debugUtils.resetIndexedDB() - Reset IndexedDB');
+}
 
 // Load non-critical styles after initial render
 const loadNonCriticalStyles = () => {
@@ -197,15 +212,17 @@ window.addEventListener('load', () => {
         value: value,
         rating: score < 0.5 ? 'poor' : score < 0.8 ? 'needs-improvement' : 'good'
       };
-      
+
       // Send to analytics (only in production)
       if (process.env.NODE_ENV === 'production') {
         webVitalsCollector.sendToAnalytics(vitalsData);
       }
-      
+
       // Log in development
-      if (process.env.NODE_ENV === 'development') {}
-    });}).catch(err => {
+      if (process.env.NODE_ENV === 'development') {
+      }
+    });
+  }).catch(err => {
     console.warn('Performance monitoring failed:', err);
   });
 });

@@ -1,10 +1,9 @@
 import { supabase } from '../../lib/supabase';
 import { TalentVideo, VideoVerification } from '../../features/profile/types/TalentVideoTypes';
-import { storage } from '../../lib/firebase';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { storageService } from '../storage';
 
 class TalentVideoService {
-  
+
   /**
    * Add a new talent video
    */
@@ -20,7 +19,7 @@ class TalentVideoService {
       // We assume the file upload happened before or is not part of this service method?
       // Wait, previous `addTalentVideo` just did `setDoc`. It did NOT upload.
       // So we assume `videoData.videoUrl` is populated.
-      
+
       const { data, error } = await supabase
         .from('talent_videos')
         .insert({
@@ -55,7 +54,7 @@ class TalentVideoService {
       if (updates.title) updateData.title = updates.title;
       if (updates.description) updateData.description = updates.description;
       if (updates.skills) updateData.skills = updates.skills;
-      
+
       const { error } = await supabase
         .from('talent_videos')
         .update(updateData)
@@ -75,11 +74,10 @@ class TalentVideoService {
     try {
       // Get URL to delete from storage
       const { data } = await supabase.from('talent_videos').select('video_url').eq('id', videoId).single();
-      
+
       if (data?.video_url) {
         try {
-          const videoRef = ref(storage, data.video_url);
-          await deleteObject(videoRef);
+          await storageService.deleteFile(data.video_url);
         } catch (e) {
           console.warn('Failed to delete video from storage', e);
         }
@@ -103,7 +101,12 @@ class TalentVideoService {
 
       const { data, error } = await supabase
         .from('talent_videos')
-        .select('*')
+        .select(`
+          *,
+          user:users!user_id (
+            uid
+          )
+        `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -126,7 +129,7 @@ class TalentVideoService {
   ): () => void {
     // Basic implementation: fetch once then return dummy unsub
     this.getUserTalentVideos(userId).then(onVideosUpdate).catch(e => onError?.(e));
-    return () => {};
+    return () => { };
   }
 
   /**
@@ -136,7 +139,12 @@ class TalentVideoService {
     try {
       const { data, error } = await supabase
         .from('talent_videos')
-        .select('*')
+        .select(`
+          *,
+          user:users!user_id (
+            uid
+          )
+        `)
         .eq('id', videoId)
         .single();
 
@@ -152,21 +160,15 @@ class TalentVideoService {
    */
   async addVerification(videoId: string, verification: VideoVerification): Promise<void> {
     try {
-      const { data } = await supabase.from('talent_videos').select('verifications').eq('id', videoId).single();
-      const currentVerifications = (data?.verifications as any[]) || [];
-      
-      const newVerification = {
-        ...verification,
-        verifiedAt: new Date().toISOString()
-      };
+      // Calls the secure Postgres function (RPC)
+      // This handles: Locking, Duplicate Check, Append, Status Update, and User Profile Sync
+      const { data, error } = await supabase.rpc('verify_talent_video_secure', {
+        p_video_id: videoId,
+        p_verifier_data: verification
+      });
 
-      await supabase
-        .from('talent_videos')
-        .update({ 
-          verifications: [...currentVerifications, newVerification],
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', videoId);
+      if (error) throw error;
+
     } catch (error) {
       console.error('❌ Error adding verification:', error);
       throw error;
@@ -181,13 +183,15 @@ class TalentVideoService {
     status: 'pending' | 'verified' | 'rejected'
   ): Promise<void> {
     try {
-      await supabase
+      const { error } = await supabase
         .from('talent_videos')
-        .update({ 
+        .update({
           verification_status: status,
           updated_at: new Date().toISOString()
         })
         .eq('id', videoId);
+
+      if (error) throw error;
     } catch (error) {
       console.error('❌ Error updating verification status:', error);
       throw error;
@@ -198,20 +202,14 @@ class TalentVideoService {
     // RPC or fetch-update
     // Using simple update
     const { data } = await supabase.from('talent_videos').select('views_count').eq('id', videoId).single();
-    await supabase.from('talent_videos').update({ views_count: (data?.views_count || 0) + 1 }).eq('id', videoId);
+    const { error } = await supabase.from('talent_videos').update({ views_count: (data?.views_count || 0) + 1 }).eq('id', videoId);
+    if (error) console.error('Error incrementing view count:', error);
   }
 
   private mapSupabaseToTalentVideo(data: any): TalentVideo {
     return {
       id: data.id,
-      userId: data.user_id, // Note: This is internal ID. If app needs UID, we might need join. 
-      // Assuming for now user_id is sufficient OR we should have joined.
-      // TalentVideo type likely expects UID string.
-      // We should ideally fetch UID.
-      // Let's assume the caller knows the UID or we fix the query.
-      // FIX: getUserTalentVideos fetched user by UID, so we know the UID.
-      // But map function is generic.
-      // For now, mapping internal ID. If UI breaks, we need to join users table.
+      userId: data.user?.uid || data.user_id, // Prefer joined UID, fallback to internal ID
       title: data.title,
       description: data.description,
       videoUrl: data.video_url,

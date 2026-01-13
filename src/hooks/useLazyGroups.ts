@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import groupsService from '../services/api/groupsService';
+import groupsService from '../services/supabase/groupsService';
 import { UI_CONSTANTS } from '../constants/sharing';
 import { UseLazyGroupsReturn } from '../types/hooks/custom';
 import { Group } from '../types/models';
@@ -26,7 +26,7 @@ export const useLazyGroups = (userId: string, options: UseLazyGroupsOptions = {}
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [page, setPage] = useState<number>(1);
   const [hasMore, setHasMore] = useState<boolean>(true);
-  
+
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const allGroupsRef = useRef<Group[]>([]);
 
@@ -37,17 +37,18 @@ export const useLazyGroups = (userId: string, options: UseLazyGroupsOptions = {}
     setError(null);
 
     try {
-      const groupsList = await groupsService.getGroupsList(userId, { 
+      const groupsList = await groupsService.getGroupsList(userId, {
         skipCache,
-        includePrivate 
+        includePrivate
       });
       allGroupsRef.current = groupsList;
       setGroups(groupsList);
-      
+
       const paginatedGroups = groupsList.slice(0, pageSize);
       setFilteredGroups(paginatedGroups);
       setHasMore(groupsList.length > pageSize);
-      setPage(1);} catch (err: any) {
+      setPage(1);
+    } catch (err: any) {
       console.error('❌ Error loading groups:', err);
       setError(err.message || 'Failed to load groups');
     } finally {
@@ -60,26 +61,26 @@ export const useLazyGroups = (userId: string, options: UseLazyGroupsOptions = {}
 
     const nextPage = page + 1;
     const endIndex = nextPage * pageSize;
-    
-    const currentList = searchTerm ? 
-      allGroupsRef.current.filter(g => 
+
+    const currentList = searchTerm ?
+      allGroupsRef.current.filter(g =>
         g.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (g.description && g.description.toLowerCase().includes(searchTerm.toLowerCase()))
-      ) : 
+      ) :
       allGroupsRef.current;
 
     const paginatedGroups = currentList.slice(0, endIndex);
     setFilteredGroups(paginatedGroups);
     setPage(nextPage);
     setHasMore(currentList.length > endIndex);
-    
+
     return Promise.resolve();
   }, [page, pageSize, hasMore, loading, searchTerm]);
 
   const searchGroups = useCallback((query: string): Group[] => {
     const trimmedQuery = query.trim().toLowerCase();
     if (!trimmedQuery) return allGroupsRef.current;
-    
+
     return allGroupsRef.current.filter(group =>
       group.name.toLowerCase().includes(trimmedQuery) ||
       (group.description && group.description.toLowerCase().includes(trimmedQuery))

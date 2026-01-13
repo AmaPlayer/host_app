@@ -657,6 +657,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -667,6 +668,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -717,5 +719,81 @@
   .cancel-btn {
     padding: 0.4rem 0.9rem;
     font-size: 0.8rem;
+  }
+}
+
+/* Threaded Replies Styling */
+.comment-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.comment-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Indentation Logic */
+/* Depth 0: Root comment (no indent) */
+.reply-depth-0 {
+  margin-left: 0;
+}
+
+/* Depth 1+: Indented with visual guide */
+.reply-depth-1 {
+  margin-left: 1.5rem;
+  border-left: 2px solid var(--border-color, #e0e0e0);
+  padding-left: 0.75rem;
+}
+
+.reply-depth-2 {
+  margin-left: 1.5rem;
+  border-left: 2px solid var(--border-color, #e0e0e0);
+  padding-left: 0.75rem;
+}
+
+/* Depth 3+: Reduced indent to prevent infinite squeeze */
+.reply-depth-3,
+.reply-depth-max {
+  margin-left: 0.75rem;
+  border-left: 2px solid var(--border-color, #e0e0e0);
+  padding-left: 0.5rem;
+}
+
+/* Dark theme borders */
+[data-theme="dark"] .reply-depth-1,
+[data-theme="dark"] .reply-depth-2,
+[data-theme="dark"] .reply-depth-3,
+[data-theme="dark"] .reply-depth-max {
+  border-left-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Mobile Adjustments for Threaded Replies */
+@media (max-width: 640px) {
+
+  /* Tighter indentation on mobile */
+  .reply-depth-1 {
+    margin-left: 0.75rem;
+    padding-left: 0.5rem;
+  }
+
+  .reply-depth-2 {
+    margin-left: 0.5rem;
+    padding-left: 0.4rem;
+  }
+
+  .reply-depth-3,
+  .reply-depth-max {
+    margin-left: 0.25rem;
+    padding-left: 0.25rem;
+  }
+
+  /* Make reply indicator cleaner on mobile */
+  .replying-to-indicator {
+    margin-left: 0 !important;
+    font-size: 0.7rem !important;
   }
 }

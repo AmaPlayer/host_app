@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 import ThemeToggle from '../../../components/common/ui/ThemeToggle';
 import LanguageSelector from '../../../components/common/forms/LanguageSelector';
+import SimpleProgressBar from '../../../components/common/media/SimpleProgressBar';
 import { useOnboardingNavigation } from '../hooks/useOnboardingNavigation';
 import { useOnboardingStore } from '../store/onboardingStore';
 import OnboardingErrorBoundary from './OnboardingErrorBoundary';
@@ -23,29 +24,15 @@ const AthleteOnboardingLayout: React.FC<AthleteOnboardingLayoutProps> = ({
 }) => {
   const navigation = useOnboardingNavigation();
   const { error, setError, isLoading } = useOnboardingStore();
-  const [previousProgress, setPreviousProgress] = useState(0);
-  const [isProgressUpdating, setIsProgressUpdating] = useState(false);
-  
+
   const currentStep = navigation.getCurrentStep();
   const currentStepNumber = navigation.getCurrentStepNumber();
   const totalSteps = navigation.getTotalSteps();
   const canGoBack = navigation.canGoBack();
-  
+
   const progressPercentage = (currentStepNumber / totalSteps) * 100;
   const displayTitle = title || currentStep?.title || 'Athlete Onboarding';
   const shouldShowBackButton = showBackButton === true || (showBackButton !== false && canGoBack);
-
-  // Animate progress changes
-  useEffect(() => {
-    if (progressPercentage !== previousProgress) {
-      setIsProgressUpdating(true);
-      const timer = setTimeout(() => {
-        setIsProgressUpdating(false);
-        setPreviousProgress(progressPercentage);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [progressPercentage, previousProgress]);
 
   const handleBack = () => {
     if (onBack) {
@@ -116,17 +103,14 @@ const AthleteOnboardingLayout: React.FC<AthleteOnboardingLayoutProps> = ({
               Step {currentStepNumber} of {totalSteps}
             </span>
           </div>
-          
+
           <div className="progress-bar-container">
-            <div className="progress-bar">
-              <div 
-                className="progress-fill"
-                style={{ width: `${progressPercentage}%` }}
-              />
-            </div>
-            <span className={`progress-percentage ${isProgressUpdating ? 'updating' : ''}`}>
-              {Math.round(progressPercentage)}%
-            </span>
+            <SimpleProgressBar
+              percentage={progressPercentage}
+              showPercentage={true}
+              interactive={false}
+              className="onboarding-progress"
+            />
           </div>
         </div>
 

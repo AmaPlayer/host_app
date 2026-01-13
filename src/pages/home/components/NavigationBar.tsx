@@ -31,8 +31,8 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
   return (
     <nav className="nav-bar" role="navigation" aria-label="Main navigation">
       <div className="nav-content">
-        <h1 
-          className="app-title" 
+        <h1
+          className="app-title"
           onClick={onTitleClick}
           role="button"
           tabIndex={0}
@@ -44,12 +44,12 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
             }
           }}
         >
-          {title}
+          <img src="/logo2.png" alt={title} className="app-logo" />
         </h1>
-        
+
         <div className="nav-links">
           {isGuest && (
-            <span 
+            <span
               className="guest-indicator"
               role="status"
               aria-label="Currently in guest mode"
@@ -57,7 +57,7 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
               Guest Mode
             </span>
           )}
-          
+
           <div className="settings-container">
             <button
               ref={settingsButtonRef}
@@ -72,7 +72,7 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
               <Settings size={24} aria-hidden="true" />
               <span className="sr-only">Settings</span>
             </button>
-            
+
             <SettingsMenu
               isOpen={settingsOpen}
               onClose={handleSettingsClose}

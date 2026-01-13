@@ -12,9 +12,9 @@ const translations: Translations = {
     subtitle: "LET'S PLAY TOGETHER AND RISE",
     letsPlay: "Let's Play",
     vision: "Our Vision",
-    visionText: "To create a global platform that connects athletes, coaches, and sports enthusiasts, empowering them to showcase their talent and achieve their dreams.",
+    visionText: "To unlock India's untapped sporting talent by creating a platform that connects players with national and global sports ecosystems. Strengthening India's sporting future by turning potential into performance.",
     mission: "Our Mission",
-    missionText: "To provide innovative tools and opportunities for athletes to connect, grow, and succeed in their sporting journey while building a vibrant community.",
+    missionText: "To help India produce champions by connecting talent with the right opportunities. We build the bridge between aspiration and achievement.",
     joinForFree: "Join for Free",
 
     // Common
@@ -37,14 +37,14 @@ const translations: Translations = {
     loginFunctionalityComingSoon: "Login functionality will be implemented next.",
     dontHaveAccount: "Don't have an account?",
     signUp: "Sign up",
-    
+
     // Role Selection Page
     welcomeToAmaplayer: "Welcome to AmaPlayer",
     chooseYourRole: "Choose your role to continue",
     chooseRole: "Choose Your Role",
-    
+
     // Roles
-    athlete: "Player",
+    athlete: "Athlete",
     coach: "Coach",
     organization: "Organization",
     parent: "Parent",
@@ -55,7 +55,7 @@ const translations: Translations = {
     coachDescription: "Discover and train the next generation",
     organizationDescription: "Manage teams and competitions",
     parentDescription: "Track your child's athletic journey",
-    
+
     // About Page
     welcomeTo: "Welcome to",
     yourJourney: "Your journey to athletic excellence starts here",
@@ -69,14 +69,14 @@ const translations: Translations = {
     continueToLogin: "Continue to Login",
     chooseDifferentRole: "Choose Different Role"
   },
-  
+
   // Hindi
   hi: {
     welcome: "अमाप्लेयर में आपका स्वागत है",
     tagline: "जुड़ें, प्रतिस्पर्धा करें और जीतें",
     subtitle: "आओ साथ खेलें और आगे बढ़ें",
     letsPlay: "चलो खेलें",
-    
+
     // Common
     login: "लॉगिन",
     logout: "लॉगआउट",
@@ -97,12 +97,12 @@ const translations: Translations = {
     loginFunctionalityComingSoon: "लॉगिन कार्यक्षमता जल्द ही उपलब्ध होगी।",
     dontHaveAccount: "खाता नहीं है?",
     signUp: "साइन अप करें",
-    
+
     // Role Selection Page
     welcomeToAmaplayer: "अमाप्लेयर में आपका स्वागत है",
     chooseYourRole: "जारी रखने के लिए अपनी भूमिका चुनें",
     chooseRole: "अपनी भूमिका चुनें",
-    
+
     // Roles
     athlete: "खिलाड़ी",
     coach: "कोच",
@@ -116,7 +116,7 @@ const translations: Translations = {
     organizationDescription: "टीमों और प्रतियोगिताओं का प्रबंधन करें",
     parentDescription: "अपने बच्चे की एथलेटिक यात्रा को ट्रैक करें",
     spouseDescription: "अपने एथलीट साथी का समर्थन करें",
-    
+
     // About Page
     welcomeTo: "आपका स्वागत है",
     yourJourney: "एथलेटिक उत्कृष्टता की आपकी यात्रा यहाँ से शुरू होती है",
@@ -137,7 +137,7 @@ const translations: Translations = {
     missionText: "एथलीटों को जुड़ने, बढ़ने और अपनी खेल यात्रा में सफल होने के लिए नवीन उपकरण और अवसर प्रदान करना, साथ ही एक जीवंत समुदाय का निर्माण करना।",
     joinForFree: "मुफ्त में शामिल हों"
   },
-  
+
   // Bengali
   bn: {
     // Welcome Page
@@ -145,7 +145,7 @@ const translations: Translations = {
     tagline: "সংযুক্ত হোন, প্রতিযোগিতা করুন এবং বিজয়ী হোন",
     subtitle: "আসুন একসাথে খেলি এবং এগিয়ে যাই",
     letsPlay: "চলো খেলি",
-    
+
     // Common
     login: "লগইন",
     logout: "লগআউট",
@@ -166,12 +166,12 @@ const translations: Translations = {
     loginFunctionalityComingSoon: "লগইন কার্যকারিতা শীঘ্রই চালু করা হবে।",
     dontHaveAccount: "অ্যাকাউন্ট নেই?",
     signUp: "সাইন আপ করুন",
-    
+
     // Role Selection Page
     welcomeToAmaplayer: "আমাপ্লেয়ারে স্বাগতম",
     chooseYourRole: "চালিয়ে যেতে আপনার ভূমিকা নির্বাচন করুন",
     chooseRole: "আপনার ভূমিকা নির্বাচন করুন",
-    
+
     // Roles
     athlete: "খেলোয়াড়",
     coach: "কোচ",
@@ -185,7 +185,7 @@ const translations: Translations = {
     organizationDescription: "দল এবং প্রতিযোগিতা পরিচালনা করুন",
     parentDescription: "আপনার সন্তানের অ্যাথলেটিক যাত্রা ট্র্যাক করুন",
     spouseDescription: "আপনার অ্যাথলেট সঙ্গীকে সমর্থন করুন",
-    
+
     // About Page
     welcomeTo: "স্বাগতম",
     yourJourney: "অ্যাথলেটিক শ্রেষ্ঠত্বের দিকে আপনার যাত্রা এখান থেকে শুরু হয়",
@@ -206,7 +206,7 @@ const translations: Translations = {
     missionText: "অ্যাথলেটদের সংযুক্ত হতে, বৃদ্ধি পেতে এবং তাদের ক্রীড়া যাত্রায় সফল হওয়ার জন্য উদ্ভাবনী সরঞ্জাম এবং সুযোগ প্রদান করা এবং একটি প্রাণবন্ত সম্প্রদায় গড়ে তোলা।",
     joinForFree: "বিনামূল্যে যোগ দিন"
   },
-  
+
   // Tamil
   ta: {
     // Welcome Page
@@ -214,7 +214,7 @@ const translations: Translations = {
     tagline: "இணைந்து போட்டியிட்டு வெல்லுங்கள்",
     subtitle: "ஒன்றாக விளையாடி உயர்வோம்",
     letsPlay: "விளையாடுவோம்",
-    
+
     // Common
     login: "உள்நுழைய",
     logout: "வெளியேறு",
@@ -235,12 +235,12 @@ const translations: Translations = {
     loginFunctionalityComingSoon: "உள்நுழைவு செயல்பாடு விரைவில் வரும்.",
     dontHaveAccount: "கணக்கு இல்லையா?",
     signUp: "பதிவு செய்க",
-    
+
     // Role Selection Page
     welcomeToAmaplayer: "அமாபிளேயருக்கு வரவேற்கிறோம்",
     chooseYourRole: "தொடர உங்கள் பங்கைத் தேர்ந்தெடுக்கவும்",
     chooseRole: "உங்கள் பங்கைத் தேர்ந்தெடுக்கவும்",
-    
+
     // Roles
     athlete: "விளையாட்டு வீரர்",
     coach: "பயிற்சியாளர்",
@@ -254,7 +254,7 @@ const translations: Translations = {
     organizationDescription: "அணிகள் மற்றும் போட்டிகளை நிர்வகிக்கவும்",
     parentDescription: "உங்கள் குழந்தையின் விளையாட்டு பயணத்தை கண்காணிக்கவும்",
     spouseDescription: "உங்கள் விளையாட்டு வீரர் துணையை ஆதரிக்கவும்",
-    
+
     // About Page
     welcomeTo: "வரவேற்கிறோம்",
     yourJourney: "விளையாட்டு சாதனையாளராக உங்கள் பயணம் இங்கே தொடங்குகிறது",
@@ -275,7 +275,7 @@ const translations: Translations = {
     missionText: "விளையாட்டு வீரர்கள் இணைய, வளர மற்றும் அவர்களின் விளையாட்டு பயணத்தில் வெற்றிபெற புதுமையான கருவிகள் மற்றும் வாய்ப்புகளை வழங்குதல் மற்றும் ஒரு துடிப்பான சமூகத்தை உருவாக்குதல்.",
     joinForFree: "இலவசமாக சேருங்கள்"
   },
-  
+
   // Telugu
   te: {
     // Welcome Page
@@ -283,7 +283,7 @@ const translations: Translations = {
     tagline: "కనెక్ట్ అవ్వండి, పోటీపడండి మరియు గెలవండి",
     subtitle: "కలిసి ఆడి ముందుకు సాగండి",
     letsPlay: "ఆడుకుందాం",
-    
+
     // Common
     login: "లాగిన్",
     logout: "లాగ్‌అవుట్",
@@ -304,12 +304,12 @@ const translations: Translations = {
     loginFunctionalityComingSoon: "లాగిన్ కార్యాచరణ త్వరలో అందుబాటులోకి వస్తుంది.",
     dontHaveAccount: "ఖాతా లేదా?",
     signUp: "సైన్ అప్",
-    
+
     // Role Selection Page
     welcomeToAmaplayer: "అమాప్లేయర్‌కు స్వాగతం",
     chooseYourRole: "కొనసాగించడానికి మీ పాత్రను ఎంచుకోండి",
     chooseRole: "మీ పాత్రను ఎంచుకోండి",
-    
+
     // Roles
     athlete: "క్రీడాకారుడు",
     coach: "కోచ్",
@@ -323,7 +323,7 @@ const translations: Translations = {
     organizationDescription: "టీమ్లు మరియు పోటీలను నిర్వహించండి",
     parentDescription: "మీ పిల్లల అథ్లెటిక్ ప్రయాణాన్ని ట్రాక్ చేయండి",
     spouseDescription: "మీ అథ్లెట్ భాగస్వామికి మద్దతు ఇవ్వండి",
-    
+
     // About Page
     welcomeTo: "స్వాగతం",
     yourJourney: "అథ్లెటిక్ శ్రేష్టతకు మీ ప్రయాణం ఇక్కడ నుండి ప్రారంభమవుతుంది",

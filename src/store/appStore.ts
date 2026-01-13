@@ -18,88 +18,89 @@ const postsStoreCreator: StateCreator<
   [],
   PostsStore
 > = (set, get) => ({
-        // State
-        posts: [],
-        loading: false,
-        hasMore: true,
-        lastDoc: null,
-        error: null,
+  // State
+  posts: [],
+  loading: false,
+  hasMore: true,
+  lastDoc: null,
+  error: null,
 
-        // Actions
-        setPosts: (posts: Post[]) => set({ posts }),
-        addPosts: (newPosts: Post[]) => set((state) => {
-          // Edge case: if no new posts, return current state
-          if (!newPosts || newPosts.length === 0) {
-            return state;
-          }
+  // Actions
+  setPosts: (posts: Post[]) => set({ posts }),
+  addPosts: (newPosts: Post[]) => set((state) => {
+    // Edge case: if no new posts, return current state
+    if (!newPosts || newPosts.length === 0) {
+      return state;
+    }
 
-          // Create a Set of existing post IDs for O(1) lookup
-          const existingIds = new Set(state.posts.map(post => post.id).filter(Boolean));
+    // Create a Set of existing post IDs for O(1) lookup
+    const existingIds = new Set(state.posts.map(post => post.id).filter(Boolean));
 
-          // Filter out duplicates from new posts
-          // Also deduplicate within the new posts array itself
-          const seenIds = new Set<string>();
-          const uniqueNewPosts = newPosts.filter(post => {
-            // Skip posts without valid IDs
-            if (!post || !post.id) {
-              return false;
-            }
+    // Filter out duplicates from new posts
+    // Also deduplicate within the new posts array itself
+    const seenIds = new Set<string>();
+    const uniqueNewPosts = newPosts.filter(post => {
+      // Skip posts without valid IDs
+      if (!post || !post.id) {
+        return false;
+      }
 
-            // Skip if already exists in current posts
-            if (existingIds.has(post.id)) {
-              return false;
-            }
+      // Skip if already exists in current posts
+      if (existingIds.has(post.id)) {
+        return false;
+      }
 
-            // Skip if already seen in this batch
-            if (seenIds.has(post.id)) {
-              return false;
-            }
+      // Skip if already seen in this batch
+      if (seenIds.has(post.id)) {
+        return false;
+      }
 
-            // Mark as seen and include
-            seenIds.add(post.id);
-            return true;
-          });
+      // Mark as seen and include
+      seenIds.add(post.id);
+      return true;
+    });
 
-          // Development logging for duplicate detection
-          if (process.env.NODE_ENV === 'development') {
-            const duplicateCount = newPosts.length - uniqueNewPosts.length;
-            if (duplicateCount > 0) {
-              console.warn(`[PostsStore] Filtered out ${duplicateCount} duplicate post(s)`);
-            }
-          }
+    // Development logging for duplicate detection
+    if (process.env.NODE_ENV === 'development') {
+      const duplicateCount = newPosts.length - uniqueNewPosts.length;
+      // Only warn if ALL new posts were duplicates (might indicate a loop or bad pagination)
+      if (duplicateCount > 0 && uniqueNewPosts.length === 0) {
+        console.warn(`[PostsStore] All ${duplicateCount} fetched posts were duplicates. Checking pagination...`);
+      }
+    }
 
-          return {
-            posts: [...state.posts, ...uniqueNewPosts]
-          };
-        }),
-        addPost: (post: Post) => set((state) => ({
-          posts: [post, ...state.posts]
-        })),
-        updatePost: (postId: string, updates: Partial<Post>) => set((state) => ({
-          posts: state.posts.map(post =>
-            post.id === postId ? { ...post, ...updates } : post
-          )
-        })),
-        removePost: (postId: string) => set((state) => ({
-          posts: state.posts.filter(post => post.id !== postId)
-        })),
-        setLoading: (loading: boolean) => set({ loading }),
-        setHasMore: (hasMore: boolean) => set({ hasMore }),
-        setLastDoc: (lastDoc: any | null) => set({ lastDoc }),
-        setError: (error: string | null) => set({ error }),
+    return {
+      posts: [...state.posts, ...uniqueNewPosts]
+    };
+  }),
+  addPost: (post: Post) => set((state) => ({
+    posts: [post, ...state.posts]
+  })),
+  updatePost: (postId: string, updates: Partial<Post>) => set((state) => ({
+    posts: state.posts.map(post =>
+      post.id === postId ? { ...post, ...updates } : post
+    )
+  })),
+  removePost: (postId: string) => set((state) => ({
+    posts: state.posts.filter(post => post.id !== postId)
+  })),
+  setLoading: (loading: boolean) => set({ loading }),
+  setHasMore: (hasMore: boolean) => set({ hasMore }),
+  setLastDoc: (lastDoc: any | null) => set({ lastDoc }),
+  setError: (error: string | null) => set({ error }),
 
-        // Computed values
-        getPostById: (postId: string) => get().posts.find(post => post.id === postId),
-        getPostsByUser: (userId: string) => get().posts.filter(post => post.userId === userId),
+  // Computed values
+  getPostById: (postId: string) => get().posts.find(post => post.id === postId),
+  getPostsByUser: (userId: string) => get().posts.filter(post => post.userId === userId),
 
-        // Reset
-        reset: () => set({
-          posts: [],
-          loading: false,
-          hasMore: true,
-          lastDoc: null,
-          error: null
-        })
+  // Reset
+  reset: () => set({
+    posts: [],
+    loading: false,
+    hasMore: true,
+    lastDoc: null,
+    error: null
+  })
 });
 
 export const usePostsStore = create<PostsStore>()(
@@ -121,100 +122,100 @@ const uiStoreCreator: StateCreator<
   [],
   UIStore
 > = (set, get) => ({
-    // State
-    showComments: {},
-    showPostMenus: {},
-    selectedMedia: null,
-    mediaPreview: null,
-    uploading: false,
-    uploadProgress: 0,
+  // State
+  showComments: {},
+  showPostMenus: {},
+  selectedMedia: null,
+  mediaPreview: null,
+  uploading: false,
+  uploadProgress: 0,
 
-    // Modal states
-    modals: {
-      profile: false,
-      settings: false,
-      imageViewer: false,
-      videoPlayer: false
-    },
+  // Modal states
+  modals: {
+    profile: false,
+    settings: false,
+    imageViewer: false,
+    videoPlayer: false
+  },
 
-    // Form states
+  // Form states
+  forms: {
+    newComment: {},
+    postText: '',
+    postViolation: null,
+    showPostWarning: false
+  },
+
+  // Actions
+  toggleComments: (postId: string) => set((state) => ({
+    showComments: {
+      ...state.showComments,
+      [postId]: !state.showComments[postId]
+    }
+  })),
+
+  togglePostMenu: (postId: string) => set((state) => ({
+    showPostMenus: {
+      ...state.showPostMenus,
+      [postId]: !state.showPostMenus[postId]
+    }
+  })),
+
+  closeAllMenus: () => set({ showPostMenus: {} }),
+
+  setSelectedMedia: (media: any | null) => set({ selectedMedia: media }),
+  setMediaPreview: (preview: string | null) => set({ mediaPreview: preview }),
+  setUploading: (uploading: boolean) => set({ uploading }),
+  setUploadProgress: (progress: number) => set({ uploadProgress: progress }),
+
+  // Modal actions
+  openModal: (modalName: string) => set((state) => ({
+    modals: { ...state.modals, [modalName]: true }
+  })),
+  closeModal: (modalName: string) => set((state) => ({
+    modals: { ...state.modals, [modalName]: false }
+  })),
+  closeAllModals: () => set((state) => {
+    const modals = Object.keys(state.modals).reduce((acc, key) => {
+      acc[key] = false;
+      return acc;
+    }, {} as Record<string, boolean>);
+    return { modals } as Partial<UIStore>;
+  }),
+
+  // Form actions
+  setNewComment: (postId: string, comment: string) => set((state) => ({
     forms: {
-      newComment: {},
+      ...state.forms,
+      newComment: { ...state.forms.newComment, [postId]: comment }
+    }
+  })),
+
+  setPostText: (text: string) => set((state) => ({
+    forms: { ...state.forms, postText: text }
+  })),
+
+  setPostViolation: (violation: string | null) => set((state) => ({
+    forms: { ...state.forms, postViolation: violation }
+  })),
+
+  setShowPostWarning: (show: boolean) => set((state) => ({
+    forms: { ...state.forms, showPostWarning: show }
+  })),
+
+  // Reset form
+  resetPostForm: () => set((state) => ({
+    forms: {
+      ...state.forms,
       postText: '',
       postViolation: null,
       showPostWarning: false
     },
-
-    // Actions
-    toggleComments: (postId: string) => set((state) => ({
-      showComments: {
-        ...state.showComments,
-        [postId]: !state.showComments[postId]
-      }
-    })),
-
-    togglePostMenu: (postId: string) => set((state) => ({
-      showPostMenus: {
-        ...state.showPostMenus,
-        [postId]: !state.showPostMenus[postId]
-      }
-    })),
-
-    closeAllMenus: () => set({ showPostMenus: {} }),
-
-    setSelectedMedia: (media: any | null) => set({ selectedMedia: media }),
-    setMediaPreview: (preview: string | null) => set({ mediaPreview: preview }),
-    setUploading: (uploading: boolean) => set({ uploading }),
-    setUploadProgress: (progress: number) => set({ uploadProgress: progress }),
-
-    // Modal actions
-    openModal: (modalName: string) => set((state) => ({
-      modals: { ...state.modals, [modalName]: true }
-    })),
-    closeModal: (modalName: string) => set((state) => ({
-      modals: { ...state.modals, [modalName]: false }
-    })),
-    closeAllModals: () => set((state) => {
-      const modals = Object.keys(state.modals).reduce((acc, key) => {
-        acc[key] = false;
-        return acc;
-      }, {} as Record<string, boolean>);
-      return { modals } as Partial<UIStore>;
-    }),
-
-    // Form actions
-    setNewComment: (postId: string, comment: string) => set((state) => ({
-      forms: {
-        ...state.forms,
-        newComment: { ...state.forms.newComment, [postId]: comment }
-      }
-    })),
-
-    setPostText: (text: string) => set((state) => ({
-      forms: { ...state.forms, postText: text }
-    })),
-
-    setPostViolation: (violation: string | null) => set((state) => ({
-      forms: { ...state.forms, postViolation: violation }
-    })),
-
-    setShowPostWarning: (show: boolean) => set((state) => ({
-      forms: { ...state.forms, showPostWarning: show }
-    })),
-
-    // Reset form
-    resetPostForm: () => set((state) => ({
-      forms: {
-        ...state.forms,
-        postText: '',
-        postViolation: null,
-        showPostWarning: false
-      },
-      selectedMedia: null,
-      mediaPreview: null,
-      uploading: false,
-      uploadProgress: 0
-    }))
+    selectedMedia: null,
+    mediaPreview: null,
+    uploading: false,
+    uploadProgress: 0
+  }))
 });
 
 export const useUIStore = create<UIStore>()(
@@ -228,40 +229,40 @@ const userStoreCreator: StateCreator<
   [],
   UserStore
 > = (set, get) => ({
-        // State
-        users: new Map<string, User>(),
-        currentUser: null,
-        loading: false,
+  // State
+  users: new Map<string, User>(),
+  currentUser: null,
+  loading: false,
 
-        // Actions
-        setCurrentUser: (user: User | null) => set({ currentUser: user }),
-        addUser: (user: User) => set((state) => {
-          const newUsers = new Map(state.users);
-          newUsers.set(user.uid, user);
-          return { users: newUsers };
-        }),
-        addUsers: (users: User[]) => set((state) => {
-          const newUsers = new Map(state.users);
-          users.forEach(user => newUsers.set(user.uid, user));
-          return { users: newUsers };
-        }),
-        updateUser: (userId: string, updates: Partial<User>) => set((state) => {
-          const newUsers = new Map(state.users);
-          const existingUser = newUsers.get(userId);
-          if (existingUser) {
-            newUsers.set(userId, { ...existingUser, ...updates });
-          }
-          return { users: newUsers };
-        }),
+  // Actions
+  setCurrentUser: (user: User | null) => set({ currentUser: user }),
+  addUser: (user: User) => set((state) => {
+    const newUsers = new Map(state.users);
+    newUsers.set(user.uid, user);
+    return { users: newUsers };
+  }),
+  addUsers: (users: User[]) => set((state) => {
+    const newUsers = new Map(state.users);
+    users.forEach(user => newUsers.set(user.uid, user));
+    return { users: newUsers };
+  }),
+  updateUser: (userId: string, updates: Partial<User>) => set((state) => {
+    const newUsers = new Map(state.users);
+    const existingUser = newUsers.get(userId);
+    if (existingUser) {
+      newUsers.set(userId, { ...existingUser, ...updates });
+    }
+    return { users: newUsers };
+  }),
 
-        // Getters
-        getUser: (userId: string) => get().users.get(userId),
-        getUsersArray: () => Array.from(get().users.values()),
+  // Getters
+  getUser: (userId: string) => get().users.get(userId),
+  getUsersArray: () => Array.from(get().users.values()),
 
-        setLoading: (loading: boolean) => set({ loading }),
+  setLoading: (loading: boolean) => set({ loading }),
 
-        // Clear cache
-        clearUserCache: () => set({ users: new Map<string, User>() })
+  // Clear cache
+  clearUserCache: () => set({ users: new Map<string, User>() })
 });
 
 export const useUserStore = create<UserStore>()(
@@ -335,31 +336,31 @@ const settingsStoreCreator: StateCreator<
   [],
   SettingsStore
 > = (set, get) => ({
-      // State
-      theme: 'light',
-      language: 'en',
-      notifications: {
-        enabled: false,
-        likes: true,
-        comments: true,
-        follows: true
-      },
-      performance: {
-        enableAnimations: true,
-        enableAutoplay: true,
-        imageQuality: 'high',
-        cacheSize: 100
-      },
+  // State
+  theme: 'light',
+  language: 'en',
+  notifications: {
+    enabled: false,
+    likes: true,
+    comments: true,
+    follows: true
+  },
+  performance: {
+    enableAnimations: true,
+    enableAutoplay: true,
+    imageQuality: 'high',
+    cacheSize: 100
+  },
 
-      // Actions
-      setTheme: (theme: 'light' | 'dark') => set({ theme }),
-      setLanguage: (language: string) => set({ language }),
-      updateNotificationSettings: (settings) => set((state) => ({
-        notifications: { ...state.notifications, ...settings }
-      })),
-      updatePerformanceSettings: (settings) => set((state) => ({
-        performance: { ...state.performance, ...settings }
-      }))
+  // Actions
+  setTheme: (theme: 'light' | 'dark') => set({ theme }),
+  setLanguage: (language: string) => set({ language }),
+  updateNotificationSettings: (settings) => set((state) => ({
+    notifications: { ...state.notifications, ...settings }
+  })),
+  updatePerformanceSettings: (settings) => set((state) => ({
+    performance: { ...state.performance, ...settings }
+  }))
 });
 
 export const useSettingsStore = create<SettingsStore>()(

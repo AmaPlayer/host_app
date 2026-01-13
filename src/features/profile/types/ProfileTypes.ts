@@ -9,6 +9,7 @@ export interface PersonalDetails {
   username: string;
   dateOfBirth?: string;
   gender?: string;
+  isVerified?: boolean;
 
   // Contact Details
   mobile?: string;
@@ -114,27 +115,27 @@ export interface TrackBest {
   runs?: string;
   overs?: string;
   strikeRate?: string;
-  
+
   // Football specific
   goals?: string;
   minutes?: string;
   assists?: string;
-  
+
   // Basketball specific
   points?: string;
   rebounds?: string;
   gameTime?: string;
-  
+
   // Tennis specific
   aces?: string;
   winners?: string;
   matchDuration?: string;
-  
+
   // Generic fields for other sports
   field1?: string;
   field2?: string;
   field3?: string;
-  
+
   // Meta info
   sport?: string;
   matchDate?: string;
@@ -173,6 +174,19 @@ export interface Post {
   likes: number;
   comments: number;
   isPublic: boolean;
+  // Repost fields
+  isRepost?: boolean;
+  sharerName?: string;
+  originalPost?: {
+    id: string;
+    type: 'photo' | 'video' | 'text' | 'mixed';
+    content: string;
+    mediaUrls: string[];
+    thumbnailUrl?: string;
+    userDisplayName?: string;
+    userPhotoURL?: string;
+    createdDate: Date;
+  };
 }
 
 export interface ProfileEnhancedState {
@@ -211,7 +225,7 @@ export const roleConfigurations: Record<UserRole, RoleConfig> = {
     role: 'athlete',
     sections: ['personal', 'physicalAttributes', 'achievements', 'certificates', 'talentVideos', 'posts'],
     editableFields: ['name', 'username', 'dateOfBirth', 'gender', 'mobile', 'email', 'city', 'state', 'country'],
-    displayName: 'Player'
+    displayName: 'Athlete'
   },
   organization: {
     role: 'organization',

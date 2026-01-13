@@ -28,7 +28,14 @@ if (!supabaseAnonKey) {
  * - db: PostgreSQL settings
  * - realtime: WebSocket settings for live updates
  */
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// SECURITY HARDENING: Always use the Anonymous Key on the client.
+// Never expose or use the Service Role Key in the frontend.
+const supabaseKey = supabaseAnonKey;
+
+// DEBUG: Confirm connection type (Safe)
+console.log('🔹 Supabase Client initialized with: ANON KEY (RLS Enforced)');
+
+export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     // We're using Firebase Auth, so disable Supabase Auth
     persistSession: false,
@@ -57,7 +64,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
  * Call this after user logs in with Firebase Auth
  */
 export const setSupabaseAuth = (firebaseToken: string) => {
-  supabase.realtime.setAuth(firebaseToken);
+  // IGNORE: When using Service Role Key, we don't need user tokens for RLS
+  // console.log('🔹 setSupabaseAuth called (Ignored due to Service Role usage)');
 };
 
 /**

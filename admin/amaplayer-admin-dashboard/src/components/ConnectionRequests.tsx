@@ -10,7 +10,9 @@ import {
   Timestamp,
   QueryConstraint
 } from 'firebase/firestore';
+
 import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 import './ConnectionRequests.css';
 
 interface OrganizationConnection {
@@ -94,184 +96,229 @@ export const ConnectionRequests: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  const loadData = () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log('📍 Setting up real-time listener for tab:', activeTab);
+      console.log('📍 Loading data for tab:', activeTab);
 
-      // Clear previous listeners
+      // Clear previous listeners (if any)
       unsubscribersRef.current.forEach(unsub => unsub());
       unsubscribersRef.current = [];
 
-      // Set up listener for organizationConnections (peer-to-peer model)
-      console.log('📍 Setting up real-time listener for organizationConnections...');
-      const constraints: QueryConstraint[] = [];
+      console.log('🔥 Fetching connections from BOTH Supabase (Active) and Firestore (Legacy)...');
 
+      // 1. Fetch Supabase Data (The Source of Truth for New App Usage)
+      let supabaseQuery = supabase
+        .from('organization_connections')
+        .select(`
+          *,
+          sender:users!sender_id (uid, display_name, photo_url, role),
+          recipient:users!recipient_id (uid, display_name, photo_url, role)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      // Apply Supabase Filters
       if (activeTab === 'pending') {
-        constraints.push(where('status', '==', 'pending'));
+        supabaseQuery = supabaseQuery.eq('status', 'pending');
       } else if (activeTab === 'accepted') {
-        constraints.push(where('status', '==', 'accepted'));
+        supabaseQuery = supabaseQuery.eq('status', 'accepted');
       } else if (activeTab === 'rejected') {
-        constraints.push(where('status', '==', 'rejected'));
-      } else if (activeTab === 'org_to_athlete') {
-        constraints.push(where('connectionType', '==', 'org_to_athlete'));
-      } else if (activeTab === 'athlete_to_org') {
-        constraints.push(where('connectionType', '==', 'athlete_to_org'));
-      } else if (activeTab === 'org_to_coach') {
-        constraints.push(where('connectionType', '==', 'org_to_coach'));
-      } else if (activeTab === 'coach_to_org') {
-        constraints.push(where('connectionType', '==', 'coach_to_org'));
+        supabaseQuery = supabaseQuery.eq('status', 'rejected');
+      } else if (activeTab !== 'all') {
+        supabaseQuery = supabaseQuery.eq('connection_type', activeTab);
       }
 
-      constraints.push(orderBy('createdAt', 'desc'));
-      constraints.push(limit(1000));
+      const { data: supabaseData, error: supabaseError } = await supabaseQuery;
+      if (supabaseError) throw supabaseError;
 
-      const connectionsQuery = query(collection(db, 'organizationConnections'), ...constraints);
-      const unsubscribe = onSnapshot(
-        connectionsQuery,
-        (snapshot) => {
-          console.log('✅ Real-time update from organizationConnections, found', snapshot.size, 'documents');
-          const connectionsData = snapshot.docs.map(doc => {
-            const docData = doc.data();
-            return {
-              id: doc.id,
-              ...docData,
-              createdAt: docData.createdAt,
-              source: 'current' as const,
-            } as OrganizationConnection;
-          });
+      const supabaseConnections = (supabaseData || []).map(row => ({
+        id: row.id,
+        connectionType: row.connection_type,
+        senderId: row.sender_id, // Internal ID or UID depending on schema, usually internal ID in Supabase
+        senderName: row.sender?.display_name || 'Unknown',
+        senderPhotoURL: row.sender?.photo_url,
+        senderRole: (row.sender?.role || 'organization') as any,
+        recipientId: row.recipient_id,
+        recipientName: row.recipient?.display_name || 'Unknown',
+        recipientPhotoURL: row.recipient?.photo_url,
+        recipientRole: (row.recipient?.role || 'athlete') as any,
+        status: row.status,
+        createdAt: row.created_at,
+        acceptedAt: row.accepted_at,
+        rejectedAt: row.rejected_at,
+        source: 'current' as const // Marked as Current/Active
+      }));
 
-          // Apply pagination
-          const startIdx = (currentPage - 1) * pageSize;
-          const endIdx = startIdx + pageSize;
-          const paginatedData = connectionsData.slice(startIdx, endIdx);
-
-          console.log('📊 Real-time update - Total connections:', connectionsData.length, 'Current page:', currentPage, 'Showing:', paginatedData.length);
-          setConnections(paginatedData);
-          setLoading(false);
-        },
-        (error) => {
-          console.error('❌ Error setting up listener:', error);
-          setError('Failed to load connections');
-          setLoading(false);
-        }
+      // 2. Fetch Firestore Data (Legacy / Migrated Data)
+      let firestoreQ = query(
+        collection(db, 'organizationConnections'),
+        orderBy('createdAt', 'desc'),
+        limit(100)
       );
 
-      unsubscribersRef.current.push(unsubscribe);
+      // Apply Firestore Filters
+      if (activeTab === 'pending') {
+        firestoreQ = query(firestoreQ, where('status', '==', 'pending'));
+      } else if (activeTab === 'accepted') {
+        firestoreQ = query(firestoreQ, where('status', '==', 'accepted'));
+      } else if (activeTab === 'rejected') {
+        firestoreQ = query(firestoreQ, where('status', '==', 'rejected'));
+      } else if (activeTab !== 'all') {
+        firestoreQ = query(firestoreQ, where('connectionType', '==', activeTab));
+      }
+
+      const firestoreSnapshot = await getDocs(firestoreQ);
+      const firestoreConnections = firestoreSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          source: 'migrated' as const // Marked as Migrated/Legacy
+        } as OrganizationConnection;
+      });
+
+      console.log(`✅ Loaded: ${supabaseConnections.length} Active (Supabase) + ${firestoreConnections.length} Legacy (Firestore)`);
+
+      // 3. Merge and Sort
+      // We prioritize Supabase. If IDs happen to match (unlikely), Supabase wins.
+      const allConnections = [...supabaseConnections, ...firestoreConnections].sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA; // Descending
+      });
+
+      setConnections(allConnections);
+      setLoading(false);
+
+      // OPTIONAL: Set up Realtime Listener for the LIST view as well
+      // (For now, we just fetch once on tab change to avoid complexity/flicker, 
+      // but stats are realtime)
+
     } catch (err: any) {
-      console.error('❌ Error setting up listeners:', err);
-      setError(err.message || 'Failed to set up real-time listeners');
+      console.error('❌ Load Info Error:', err);
+      setError(`Failed to load connections: ${err.message}`);
       setLoading(false);
     }
   };
 
   const loadStats = () => {
     try {
-      console.log('📊 Setting up real-time listeners for connection statistics...');
+      console.log('📊 Setting up listeners for Hybrid Stats (Supabase + Firestore)...');
 
       // Clear previous stats listeners
       statsUnsubscribersRef.current.forEach(unsub => unsub());
       statsUnsubscribersRef.current = [];
 
-      // Store counts
-      let pendingSize = 0;
-      let acceptedSize = 0;
-      let rejectedSize = 0;
-      let totalSize = 0;
+      // State to hold counts from both sources
+      const counts = {
+        firestore: { pending: 0, accepted: 0, rejected: 0, total: 0 },
+        supabase: { pending: 0, accepted: 0, rejected: 0, total: 0 }
+      };
 
-      // Store documents for average days calculation
-      let acceptedDocs: any[] = [];
+      // Store documents for average days calculation (Firestore Only for now, Supabase calc is heavier)
+      let firestoreAcceptedDocs: any[] = [];
 
       // Function to update stats display
       const updateStats = () => {
-        const total = pendingSize + acceptedSize + rejectedSize;
-        const acceptanceRate = total > 0 ? (acceptedSize / total) * 100 : 0;
+        const totalPending = counts.firestore.pending + counts.supabase.pending;
+        const totalAccepted = counts.firestore.accepted + counts.supabase.accepted;
+        const totalRejected = counts.firestore.rejected + counts.supabase.rejected;
+        const totalConnections = counts.firestore.total + counts.supabase.total;
 
-        // Calculate average days to accept
+        const acceptanceRate = totalConnections > 0 ? (totalAccepted / totalConnections) * 100 : 0;
+
+        // Calculate average days to accept (Mixed calculation is strict, mostly relying on Firestore for legacy)
+        // For robustness, simply using Firestore docs for avg days is acceptable as legacy data is most likely to have history.
         let totalDays = 0;
-        let acceptedCount = 0;
+        let acceptedTimeCount = 0;
 
-        acceptedDocs.forEach(doc => {
+        firestoreAcceptedDocs.forEach(doc => {
           const data = doc.data();
           if (data.createdAt && data.acceptedAt) {
             const createdTime = data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : new Date(data.createdAt).getTime();
             const acceptedTime = data.acceptedAt instanceof Timestamp ? data.acceptedAt.toMillis() : new Date(data.acceptedAt).getTime();
             const days = (acceptedTime - createdTime) / (1000 * 60 * 60 * 24);
             totalDays += days;
-            acceptedCount++;
+            acceptedTimeCount++;
           }
         });
 
-        const averageDaysToAccept = acceptedCount > 0 ? Math.round(totalDays / acceptedCount * 10) / 10 : 0;
+        const averageDaysToAccept = acceptedTimeCount > 0 ? Math.round(totalDays / acceptedTimeCount * 10) / 10 : 0;
 
-        console.log('✅ Real-time stats updated:', { totalPending: pendingSize, totalAccepted: acceptedSize, totalRejected: rejectedSize, totalConnections: totalSize });
         setStats({
-          totalPending: pendingSize,
-          totalAccepted: acceptedSize,
-          totalRejected: rejectedSize,
+          totalPending,
+          totalAccepted,
+          totalRejected,
           acceptanceRate: Math.round(acceptanceRate * 100) / 100,
           averageDaysToAccept,
-          totalConnections: totalSize
+          totalConnections
         });
       };
 
-      // Set up listeners for organizationConnections
+      // 1. Fetch Initial Supabase Counts
+      const fetchSupabaseCounts = async () => {
+        try {
+          // We use HEAD requests to get counts efficiently
+          const { count: pending } = await supabase.from('organization_connections').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+          const { count: accepted } = await supabase.from('organization_connections').select('*', { count: 'exact', head: true }).eq('status', 'accepted');
+          const { count: rejected } = await supabase.from('organization_connections').select('*', { count: 'exact', head: true }).eq('status', 'rejected');
+
+          counts.supabase.pending = pending || 0;
+          counts.supabase.accepted = accepted || 0;
+          counts.supabase.rejected = rejected || 0;
+          counts.supabase.total = (pending || 0) + (accepted || 0) + (rejected || 0);
+
+          updateStats();
+        } catch (e) {
+          console.error('Error fetching Supabase stats:', e);
+        }
+      };
+
+      fetchSupabaseCounts();
+
+      // 2. Set up Firestore Listeners (Realtime)
       const pendingUnsub = onSnapshot(
         query(collection(db, 'organizationConnections'), where('status', '==', 'pending')),
         (snapshot) => {
-          pendingSize = snapshot.size;
-          console.log('📊 Real-time update - pending:', pendingSize);
+          counts.firestore.pending = snapshot.size;
           updateStats();
-        },
-        (error) => console.error('❌ Error in pending listener:', error)
+        }
       );
       statsUnsubscribersRef.current.push(pendingUnsub);
 
       const acceptedUnsub = onSnapshot(
         query(collection(db, 'organizationConnections'), where('status', '==', 'accepted')),
         (snapshot) => {
-          acceptedSize = snapshot.size;
-          acceptedDocs = snapshot.docs;
-          console.log('📊 Real-time update - accepted:', acceptedSize);
+          counts.firestore.accepted = snapshot.size;
+          firestoreAcceptedDocs = snapshot.docs;
           updateStats();
-        },
-        (error) => console.error('❌ Error in accepted listener:', error)
+        }
       );
       statsUnsubscribersRef.current.push(acceptedUnsub);
 
       const rejectedUnsub = onSnapshot(
         query(collection(db, 'organizationConnections'), where('status', '==', 'rejected')),
         (snapshot) => {
-          rejectedSize = snapshot.size;
-          console.log('📊 Real-time update - rejected:', rejectedSize);
+          counts.firestore.rejected = snapshot.size;
           updateStats();
-        },
-        (error) => console.error('❌ Error in rejected listener:', error)
+        }
       );
       statsUnsubscribersRef.current.push(rejectedUnsub);
 
       const allUnsub = onSnapshot(
         collection(db, 'organizationConnections'),
         (snapshot) => {
-          totalSize = snapshot.size;
-          console.log('📊 Real-time update - total:', totalSize);
+          counts.firestore.total = snapshot.size;
           updateStats();
-        },
-        (error) => console.error('❌ Error in all docs listener:', error)
+        }
       );
       statsUnsubscribersRef.current.push(allUnsub);
+
     } catch (err: any) {
       console.error('❌ Error setting up stats listeners:', err);
-      setStats({
-        totalPending: 0,
-        totalAccepted: 0,
-        totalRejected: 0,
-        acceptanceRate: 0,
-        averageDaysToAccept: 0,
-        totalConnections: 0
-      });
     }
   };
 
@@ -331,6 +378,9 @@ export const ConnectionRequests: React.FC = () => {
 
   const getStatusLabel = (status: string): string => {
     if (status === 'approved') return 'accepted';
+    if (status?.includes('sent')) return 'pending';
+    if (status?.includes('accepted')) return 'accepted';
+    if (status?.includes('rejected')) return 'rejected';
     return status;
   };
 

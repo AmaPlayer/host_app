@@ -55,10 +55,10 @@ const LikeButton: React.FC<LikeButtonProps> = memo(({
     // 1. Optimistic Update
     const newLiked = !liked;
     const newCount = newLiked ? count + 1 : Math.max(0, count - 1);
-    
+
     setLiked(newLiked);
     setCount(newCount);
-    
+
     // Notify parent immediately
     if (onLikeChange) {
       onLikeChange(newLiked, newCount);
@@ -75,7 +75,8 @@ const LikeButton: React.FC<LikeButtonProps> = memo(({
         {
           displayName: currentUser.displayName || 'User',
           photoURL: currentUser.photoURL
-        }
+        },
+        newLiked ? 'like' : 'unlike'
       );
 
       // 3. Sync with Server Result (Optional, but good for consistency)

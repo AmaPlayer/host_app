@@ -22,31 +22,41 @@ export interface EventSubmission {
 }
 
 class EventsService {
-  
+
   // Create new event
   async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt' | 'participants'>): Promise<string> {
     try {
+      // Map to Supabase column names (snake_case)
+      const dbPayload: any = {
+        title: eventData.title,
+        description: eventData.description,
+        date: eventData.date,
+        time: eventData.time,
+        location: eventData.location,
+        image_url: eventData.imageUrl,
+        category: eventData.category,
+        max_participants: eventData.maxParticipants,
+        winner_count: eventData.winnerCount,
+        submission_deadline: eventData.submissionDeadline,
+        event_requirements: eventData.eventRequirements,
+        is_active: eventData.isActive ?? true,
+        status: eventData.status ?? 'upcoming',
+        organizer: eventData.organizer || 'Admin',
+        contact_email: eventData.contactEmail || 'admin@amaplayer.com',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
       // Remove undefined values
-      const cleanedData: any = {};
-      Object.keys(eventData).forEach(key => {
-        const value = (eventData as any)[key];
-        if (value !== undefined) {
-          cleanedData[key] = value;
+      Object.keys(dbPayload).forEach(key => {
+        if (dbPayload[key] === undefined) {
+          delete dbPayload[key];
         }
       });
 
       const { data, error } = await supabase
         .from('events')
-        .insert({
-          ...cleanedData,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          organizer: cleanedData.organizer || 'Admin',
-          contact_email: cleanedData.contactEmail || 'admin@amaplayer.com',
-          // Default fields
-          is_active: true,
-          status: 'upcoming'
-        })
+        .insert(dbPayload)
         .select('id')
         .single();
 
@@ -65,11 +75,11 @@ class EventsService {
     try {
       const { data, error } = await supabase
         .from('events')
-        .select('*')
+        .select('*, event_participations(user_id)')
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
-      
+
       return data.map(this.mapToModel);
     } catch (error) {
       console.error('Error fetching events:', error);
@@ -85,9 +95,9 @@ class EventsService {
         .select('*')
         .eq('is_active', true)
         .order('date', { ascending: true });
-      
+
       if (error) throw error;
-      
+
       return data.map(this.mapToModel);
     } catch (error) {
       console.error('Error fetching active events:', error);
@@ -100,7 +110,7 @@ class EventsService {
     try {
       // Map camelCase to snake_case for Supabase
       const dbUpdates: any = { updated_at: new Date().toISOString() };
-      
+
       if (updates.title) dbUpdates.title = updates.title;
       if (updates.description) dbUpdates.description = updates.description;
       if (updates.date) dbUpdates.date = updates.date;
@@ -130,7 +140,7 @@ class EventsService {
         .from('events')
         .delete()
         .eq('id', eventId);
-        
+
       if (error) throw error;
       console.log('Event deleted successfully:', eventId);
     } catch (error) {
@@ -146,7 +156,7 @@ class EventsService {
         .from('events')
         .update({ is_active: isActive })
         .eq('id', eventId);
-        
+
       if (error) throw error;
     } catch (error) {
       console.error('Error toggling event status:', error);
@@ -162,7 +172,7 @@ class EventsService {
         .from('events')
         .update({ is_active: true, activation_reason: reason })
         .in('id', eventIds);
-        
+
       if (error) throw error;
       result.processedCount = eventIds.length;
     } catch (e: any) {
@@ -180,7 +190,7 @@ class EventsService {
         .from('events')
         .update({ is_active: false, deactivation_reason: reason })
         .in('id', eventIds);
-        
+
       if (error) throw error;
       result.processedCount = eventIds.length;
     } catch (e: any) {
@@ -233,12 +243,12 @@ class EventsService {
         .select('*')
         .eq('id', eventId)
         .single();
-        
+
       if (eventError || !eventData) return { event: null, submissions: [] };
-      
+
       const event = this.mapToModel(eventData);
       const submissions = await this.getEventSubmissions(eventId);
-      
+
       return { event, submissions };
     } catch (error) {
       console.error('Error fetching event with submissions:', error);
@@ -252,7 +262,7 @@ class EventsService {
       // Logic for declaring winners via Supabase
       // 1. Clear existing winners
       await supabase.from('event_winners').delete().eq('event_id', eventId);
-      
+
       // 2. Insert new winners
       // Need to map user IDs (UID -> UUID)
       // For now assume winners has UIDs.
@@ -266,19 +276,19 @@ class EventsService {
         user_id: uidMap.get(w.userId),
         rank: w.rank
       }));
-      
+
       await supabase.from('event_winners').insert(winnersInsert);
-      
+
       // 3. Update event status
       const { data: updated, error } = await supabase
         .from('events')
-        .update({ status: 'completed', event_state: 'results_declared' })
+        .update({ status: 'completed' })
         .eq('id', eventId)
         .select()
         .single();
-        
+
       if (error) throw error;
-      
+
       return this.mapToModel(updated);
     } catch (error) {
       console.error('Error declaring winners:', error);
@@ -299,7 +309,7 @@ class EventsService {
       isActive: data.is_active,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
-      // ... map other fields
+      participants: data.event_participations?.map((p: any) => p.user_id) || [],
       organizer: data.organizer,
       contactEmail: data.contact_email
     } as Event;

@@ -1,29 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
-    <meta name="theme-color" content="#000000" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2.1.0" />
-    <meta name="build-time" content="2025-08-22T04:56:00Z" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="app-version" content="2.1.0" />
+  <meta name="build-time" content="2025-08-22T04:56:00Z" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="description" content="Web site created using create-react-app" />
+  <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+  <!--
       manifest.json provides metadata used when your web app is installed on a
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
     -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
+  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+  <!--
       Notice the use of %PUBLIC_URL% in the tags above.
       It will be replaced with the URL of the `public` folder during the build.
       Only files inside the `public` folder can be referenced from the HTML.
@@ -32,62 +31,63 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <title>AmaPlayer - Sports Social Media Platform v2.1</title>
-    
-    <!-- Theme initialization script - prevents flash of unstyled content -->
-    <script>
-      (function() {
+  <title>AmaPlayer - Sports Social Media Platform v2.1</title>
+
+  <!-- Theme initialization script - prevents flash of unstyled content -->
+  <script>
+    (function () {
+      try {
+        const savedTheme = localStorage.getItem('amaplayer-theme');
+        const isDark = savedTheme ? JSON.parse(savedTheme) : true; // Default to dark mode
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      } catch (e) {
+        // Fallback to dark theme if localStorage fails
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <script>
+    // Conservative cache busting for Chrome - prevent infinite reload
+    (function () {
+      const currentVersion = '2.1.0';
+
+      // Only clear cache if we haven't done it recently (within last 5 seconds)
+      const lastClear = localStorage.getItem('amaplayer-last-clear');
+      const now = Date.now();
+
+      if (!lastClear || (now - parseInt(lastClear)) > 5000) {
+        // Clear service workers and caches only once per 5 seconds
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (registrations) {
+            for (let registration of registrations) {
+              registration.unregister();
+            }
+          });
+        }
+
+        if ('caches' in window) {
+          caches.keys().then(function (names) {
+            for (let name of names) {
+              caches.delete(name);
+            }
+          });
+        }
+
+        // Set version and timestamp
         try {
-          const savedTheme = localStorage.getItem('amaplayer-theme');
-          const isDark = savedTheme ? JSON.parse(savedTheme) : true; // Default to dark mode
-          document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-        } catch (e) {
-          // Fallback to dark theme if localStorage fails
-          document.documentElement.setAttribute('data-theme', 'dark');
-        }
-      })();
-    </script>
-    
-    <script>
-      // Conservative cache busting for Chrome - prevent infinite reload
-      (function() {
-        const currentVersion = '2.1.0';
-        
-        // Only clear cache if we haven't done it recently (within last 5 seconds)
-        const lastClear = localStorage.getItem('amaplayer-last-clear');
-        const now = Date.now();
-        
-        if (!lastClear || (now - parseInt(lastClear)) > 5000) {
-          // Clear service workers and caches only once per 5 seconds
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-              for(let registration of registrations) {
-                registration.unregister();
-              }
-            });
-          }
-          
-          if ('caches' in window) {
-            caches.keys().then(function(names) {
-              for (let name of names) {
-                caches.delete(name);
-              }
-            });
-          }
-          
-          // Set version and timestamp
-          try {
-            localStorage.setItem('amaplayer-version', currentVersion);
-            localStorage.setItem('amaplayer-last-clear', now.toString());
-          } catch (e) {}
-        }
-      })();
-    </script>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <!--
+          localStorage.setItem('amaplayer-version', currentVersion);
+          localStorage.setItem('amaplayer-last-clear', now.toString());
+        } catch (e) { }
+      }
+    })();
+  </script>
+</head>
+
+<body>
+  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <div id="root"></div>
+  <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
 
@@ -97,5 +97,6 @@
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
-  </body>
+</body>
+
 </html>

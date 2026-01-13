@@ -3,6 +3,7 @@ import { Bell, X, Heart, MessageCircle, UserPlus, Eye, CheckCheck, Trash2, Megap
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { db } from '../../../lib/firebase';
+import { supabase } from '../../../lib/supabase'; // Import Supabase
 import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp } from 'firebase/firestore';
 import notificationManagementService from '../../../services/api/notificationManagementService';
 import { Announcement } from '../../../types/models/announcement';
@@ -26,7 +27,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
+
   // Use the new hook for notifications
   const { notifications, loading: notificationsLoading } = useRealtimeNotifications(isExpanded ? 50 : 10);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
@@ -38,55 +39,11 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       return;
     }
 
-    let unsubscribeAnnouncements: (() => void) | null = null;
+    setLoadingAnnouncements(false);
 
-    try {
-      // Fetch global announcements (active and non-expired only)
-      const announcementsRef = collection(db, 'announcements');
-      const announcementsQuery = query(
-        announcementsRef,
-        where('isActive', '==', true)
-      );
 
-      unsubscribeAnnouncements = onSnapshot(announcementsQuery, (snapshot) => {
-        const announcementsList: Announcement[] = [];
-        const now = Timestamp.now();
-
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          // Filter out expired announcements on client side
-          if (data.expiresAt && data.expiresAt.toMillis() > now.toMillis()) {
-            announcementsList.push({ id: doc.id, ...data } as Announcement);
-          }
-        });
-
-        // Sort by priority (high first) then by expiresAt (soonest first)
-        announcementsList.sort((a, b) => {
-          if (a.priority === 'high' && b.priority !== 'high') return -1;
-          if (a.priority !== 'high' && b.priority === 'high') return 1;
-
-          const aExpiry = (a.expiresAt as any).toMillis();
-          const bExpiry = (b.expiresAt as any).toMillis();
-          return aExpiry - bExpiry;
-        });
-
-        setAnnouncements(announcementsList);
-        setLoadingAnnouncements(false);
-      }, (error) => {
-        console.error('Error fetching announcements:', error);
-        setLoadingAnnouncements(false);
-      });
-
-    } catch (error) {
-      console.error('Error setting up announcement listener:', error);
-      setLoadingAnnouncements(false);
-    }
-
-    return () => {
-      if (unsubscribeAnnouncements) {
-        unsubscribeAnnouncements();
-      }
-    };
+    // Legacy Firebase code removed - verified by Antigravity
+    // Announcements are now fetched via useRealtimeNotifications hook (Supabase)
   }, [currentUser, isGuest]);
 
   // Handle click outside to close
@@ -111,61 +68,140 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     };
   }, [isOpen, onClose, triggerButtonRef]);
 
-  // Mark notification as read
+  // Mark notification as read (Hybrid Support: Auto-detects Supabase vs Firebase if needed, but we prefer Supabase now)
   const markAsRead = async (notificationId: string) => {
     try {
-      const notificationRef = doc(db, 'notifications', notificationId);
-      await updateDoc(notificationRef, { read: true });
+      // 1. Try Supabase first (Primary Source)
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId);
+
+      if (error) {
+        // If error is strictly "relation not found" or similar, maybe it's old Firebase data?
+        // But we migrated. Let's just log error.
+        console.error('Error marking notification as read (Supabase):', error);
+      }
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
   };
 
   // Handle notification click
-  const handleNotificationClick = async (notification: Notification) => {
+  // Handle notification click with robust navigation
+  const handleNotificationClick = async (notification: Notification, e?: React.MouseEvent) => {
+    // Prevent default browser behavior (full page reload) and bubbling
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    console.log('🖱️ Notification Clicked! Type:', notification.type, 'Data:', notification);
+
     try {
-      // Mark as read
+      // 1. Mark as read immediately (non-blocking for UX)
       if (!notification.read) {
-        await markAsRead(notification.id);
+        markAsRead(notification.id).catch(err =>
+          console.error('Failed to mark notification as read in background:', err)
+        );
       }
 
-      // Close dropdown
-      onClose();
+      // 2. PRIORITIZE Type-based handling
+      switch (notification.type) {
+        // --- Admin & System ---
+        case 'announcement' as any: // Cast to avoid TS issues if type not fully propagated yet
+          if (notification.actionUrl) {
+            onClose();
+            const url = notification.actionUrl.startsWith('/') ? notification.actionUrl : `/${notification.actionUrl}`;
+            navigate(url);
+          } else {
+            // Just close if no URL
+            onClose();
+          }
+          return;
 
-      // Navigate based on notification type or actionUrl
+        // --- Friend Requests & Connections ---
+        // --- Friend Requests & Connections ---
+        case 'friend_request':
+        case 'connection_request':
+          console.log('🔔 Clicking friend request notification - Using HARD NAVIGATION');
+          onClose();
+          window.location.href = '/messages?tab=requests';
+          return;
+
+        case 'connection_accepted':
+        case 'connection_rejected':
+          onClose();
+          window.location.href = '/messages?tab=friends';
+          return;
+
+        // --- Messages ---
+        case 'message':
+          onClose();
+          if (notification.actorId) {
+            window.location.href = `/messages?user=${notification.actorId}`;
+          } else {
+            window.location.href = '/messages';
+          }
+          return;
+
+        // --- Events ---
+        case 'event':
+          onClose();
+          if (notification.relatedId) {
+            navigate(`/events/${notification.relatedId}`);
+          } else {
+            navigate('/events');
+          }
+          return;
+      }
+
+      // 3. Fallback: Explicit Action URL
+      // Use this for types that don't have special handling above
       if (notification.actionUrl) {
+        onClose();
         const url = notification.actionUrl.startsWith('/') ? notification.actionUrl : `/${notification.actionUrl}`;
         navigate(url);
         return;
       }
 
-      // Fallback navigation logic
-      if (notification.type === 'like' || notification.type === 'comment') {
-        if (notification.relatedId) {
-          navigate(`/post/${notification.relatedId}`);
-        }
-      } else if (notification.type === 'story_like' || notification.type === 'story_view' || notification.type === 'story_comment') {
-        if (notification.relatedId) {
-          navigate(`/story/${notification.relatedId}`);
-        }
-      } else if (notification.type === 'follow') {
-        if (notification.actorId) {
-          navigate(`/profile/${notification.actorId}`);
-        }
-      } else if (notification.type === 'friend_request') {
-        navigate('/messages');
-      } else if (notification.type === 'message') {
-        if (notification.actorId) {
-          navigate(`/messages?user=${notification.actorId}`);
-        } else {
-          navigate('/messages');
-        }
-      } else if (
-        notification.type === 'connection_request' ||
-        notification.type === 'connection_accepted' ||
-        notification.type === 'connection_rejected'
-      ) {
-        navigate('/messages');
+      // 4. Default handling for remaining types
+      onClose();
+      switch (notification.type) {
+        // --- Posts & Social ---
+        case 'like':
+        case 'comment':
+        case 'mention':
+        case 'share':
+        case 'post_shared':
+          if (notification.relatedId) {
+            navigate(`/post/${notification.relatedId}`);
+          } else {
+            navigate('/'); // Fallback to feed
+          }
+          break;
+
+        // --- Stories ---
+        case 'story_like':
+        case 'story_view':
+        case 'story_comment':
+          if (notification.relatedId) {
+            navigate(`/story/${notification.relatedId}`);
+          } else if (notification.actorId) {
+            navigate(`/profile/${notification.actorId}`);
+          }
+          break;
+
+        // --- Specific User Actions ---
+        case 'follow':
+          if (notification.actorId) {
+            navigate(`/profile/${notification.actorId}`);
+          }
+          break;
+
+        default:
+          console.warn(`Unhandled notification type: ${notification.type}`);
+          break;
       }
     } catch (error) {
       console.error('Error handling notification click:', error);
@@ -283,7 +319,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           </button>
         </div>
       </div>
-      
+
       <div className="notification-list">
         {isLoading && notifications.length === 0 ? (
           <div className="notification-loading">
@@ -332,7 +368,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
               <div
                 key={notification.id}
                 className={`notification-item ${!notification.read ? 'unread' : ''}`}
-                onClick={() => handleNotificationClick(notification)}
+                onClick={(e) => handleNotificationClick(notification, e)}
               >
                 <div className="notification-icon-container">
                   {getNotificationIcon(notification.type)}
@@ -355,7 +391,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           </>
         )}
       </div>
-      
+
       {(notifications.length > 0 || announcements.length > 0) && (
         <div className="notification-footer">
           <button

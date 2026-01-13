@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import NotificationManager from '../../components/common/notifications/NotificationManager';
 import ErrorBoundary from '../../components/common/safety/ErrorBoundary';
@@ -9,7 +9,9 @@ interface PrivateRouteProps {
 }
 
 export default function PrivateRoute({ children }: PrivateRouteProps) {
-  const { currentUser, loading } = useAuth();// Show loading while auth state is initializing
+  const { currentUser, loading } = useAuth();
+  const location = useLocation();
+  // Show loading while auth state is initializing
   if (loading) {
     return (
       <div style={{
@@ -26,8 +28,13 @@ export default function PrivateRoute({ children }: PrivateRouteProps) {
   }
 
   // Auth has loaded, check if user is authenticated
-  if (!currentUser) {return <Navigate to="/login" />;
-  }return (
+  if (!currentUser) {
+    console.log('🚫 PrivateRoute: User not authenticated, redirecting to login', {
+      from: location.pathname,
+      currentUser: currentUser
+    });
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  } return (
     <>
       {children}
       <ErrorBoundary name="NotificationManager">

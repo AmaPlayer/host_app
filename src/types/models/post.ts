@@ -76,6 +76,14 @@ export interface Post {
   // User interaction states (computed fields)
   isLiked?: boolean;
   hasShared?: boolean;
+  sharingDisabled?: boolean;
+  // Repost specific fields
+  isRepost?: boolean;
+  sharerId?: string;
+  sharerName?: string;
+  sharerPhotoURL?: string | null;
+  originalPostId?: string;
+  originalPost?: Post; // Recursively contain the original post data
 }
 
 /**
@@ -136,6 +144,9 @@ export interface CreatePostData {
   userPhotoURL: string | null;
   caption: string;
   mediaFile?: File;
+  mediaUrl?: string | null;
+  mediaMetadata?: any;
+  mediaType?: MediaType;
   type?: 'image' | 'video' | 'text';
   duration?: number; // Video duration in seconds
   visibility?: PostVisibility;

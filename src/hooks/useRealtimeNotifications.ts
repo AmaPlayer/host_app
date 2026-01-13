@@ -1,16 +1,8 @@
-import { useState, useEffect } from 'react';
-import { 
-  collection, 
-  query, 
-  where, 
-  orderBy, 
-  limit, 
-  onSnapshot, 
-  Timestamp 
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Notification } from '../types/models/notification';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface UseRealtimeNotificationsResult {
   notifications: Notification[];
@@ -24,6 +16,132 @@ export const useRealtimeNotifications = (limitCount: number = 20): UseRealtimeNo
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Fetch notifications function
+  const fetchNotifications = useCallback(async () => {
+    if (!currentUser) {
+      setNotifications([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log('🔔 Fetching notifications for user:', currentUser.uid);
+
+      // 1. Get my Supabase UUID from Firebase UID
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('uid', currentUser.uid)
+        .single();
+
+      if (userError || !userData) {
+        console.warn('⚠️ User not found in Supabase:', currentUser.uid);
+        setNotifications([]);
+        setLoading(false);
+        return;
+      }
+
+      const myUuid = userData.id;
+
+      // 2. Fetch notifications
+      const { data, error: fetchError } = await supabase
+        .from('notifications')
+        .select(`
+          id,
+          type,
+          message,
+          is_read,
+          created_at,
+          content_id,
+          metadata,
+          sender:sender_id (
+            uid,
+            display_name,
+            photo_url
+          )
+        `)
+        .eq('receiver_id', myUuid)
+        .order('created_at', { ascending: false })
+        .limit(limitCount);
+
+      if (fetchError) {
+        console.error('❌ Error fetching notifications:', fetchError);
+        throw fetchError;
+      }
+
+      // 2.1 Fetch active announcements
+      const { data: announcements, error: announcementError } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('is_active', true)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(5); // Reasonable limit
+
+      if (announcementError) {
+        console.warn('⚠️ Error fetching announcements:', announcementError);
+      }
+
+      // 3. Map to Notification interface
+      const mappedNotifications: Notification[] = (data || []).map((notif: any) => ({
+        id: notif.id,
+        userId: currentUser.uid,
+        type: notif.type,
+        title: getTitleForType(notif.type),
+        message: notif.message,
+        read: notif.is_read || false,
+        timestamp: notif.created_at,
+        actionUrl: notif.metadata?.url,
+        actorId: notif.sender?.uid,
+        actorName: notif.metadata?.senderName || notif.sender?.display_name,
+        actorPhotoURL: notif.metadata?.senderPhoto || notif.sender?.photo_url,
+        relatedId: notif.content_id,
+        metadata: notif.metadata
+      }));
+
+      // 3.1 Map Announcements to Notification Interface
+      const mappedAnnouncements: Notification[] = (announcements || []).map((ann: any) => ({
+        id: ann.id,
+        userId: currentUser.uid,
+        type: 'announcement', // New type
+        title: ann.title || 'Announcement',
+        message: ann.message,
+        read: false,
+        timestamp: ann.created_at,
+        actionUrl: ann.action_url,
+        actorName: 'Admin Team',
+        metadata: { priority: ann.priority }
+      }));
+
+      // Helper to safely get time from Date, string, or Firestore Timestamp
+      const getTime = (ts: any): number => {
+        if (!ts) return 0;
+        if (typeof ts === 'object' && typeof ts.toDate === 'function') {
+          return ts.toDate().getTime();
+        }
+        return new Date(ts).getTime();
+      };
+
+      // Merge and Sort
+      const combined = [...mappedAnnouncements, ...mappedNotifications].sort((a, b) =>
+        getTime(b.timestamp) - getTime(a.timestamp)
+      );
+
+      console.log(`🔔 Loaded ${combined.length} items (${mappedAnnouncements.length} announcements)`);
+      setNotifications(combined);
+      setLoading(false);
+
+    } catch (err: any) {
+      console.error('❌ Error fetching notifications:', err);
+      setError(err);
+      setLoading(false);
+    }
+  }, [currentUser, limitCount]);
+
+  // Setup realtime subscription
   useEffect(() => {
     if (!currentUser) {
       setNotifications([]);
@@ -31,116 +149,62 @@ export const useRealtimeNotifications = (limitCount: number = 20): UseRealtimeNo
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    // Initial fetch
+    fetchNotifications();
 
-    try {
-      const notificationsRef = collection(db, 'notifications');
-      
-      // We can't always use orderBy with where without a composite index.
-      // So we'll fetch then sort in memory to be safe and avoid index errors for now,
-      // or we can rely on the index we hopefully have.
-      // Given the previous code did in-memory sort, we'll stick to that to be safe
-      // but strictly type checking the timestamp.
-      const q = query(
-        notificationsRef,
-        where('receiverId', '==', currentUser.uid), // Note: Check if field is receiverId or userId
-        limit(limitCount)
-      );
+    // Setup realtime subscription
+    let channel: RealtimeChannel | null = null;
 
-      // The previous code used 'receiverId' in the query: where('receiverId', '==', currentUser.uid)
-      // But the backend writes 'userId': userId: postOwnerId
-      // And the frontend service writes 'receiverId': receiverId: receiverUserId
-      // This is a DISCREPANCY!
-      
-      // Let's check the services again.
-      // functions/src/notifications.ts uses 'userId' for the recipient.
-      // src/services/notificationService.ts uses 'receiverId' for the recipient.
-      
-      // This is a major issue. We need to query for BOTH or fix the data.
-      // Since we can't easily query "receiverId == uid OR userId == uid", we might need two listeners or fix the source.
-      // For now, let's assume we need to support the existing data.
-      // But wait, the previous code in NotificationDropdown.tsx had:
-      // where('receiverId', '==', currentUser.uid)
-      
-      // If the backend functions are writing 'userId', then the previous code was MISSING backend notifications!
-      // I should probably fix the backend to use 'receiverId' to match the frontend service, 
-      // OR update the frontend service to use 'userId'.
-      
-      // 'userId' is more ambiguous (could be sender or receiver). 'receiverId' is clearer.
-      // However, the standard Notification type in types/models/notification.ts says:
-      // userId: string; // which usually implies the owner of the document (recipient)
-      
-      // Let's stick to what the previous component used for now to avoid breaking existing data,
-      // but I should really verify which field is populated.
-      
-      // Actually, I'll create a query that tries to be robust. 
-      // Ideally I should fix the inconsistency.
-      
-      // Let's use the query from the old component as a base but I'll add a check.
-      
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const results: Notification[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          
-          // Normalization logic
-          const timestamp = data.timestamp || data.createdAt;
-          
-          // Map to Notification interface
-          results.push({
-            id: doc.id,
-            userId: data.receiverId || data.userId, // Map to normalized userId (recipient)
-            type: data.type,
-            title: data.title || getTitleForType(data.type),
-            message: data.message,
-            read: data.read || false,
-            timestamp: timestamp,
-            actionUrl: data.url || data.actionUrl,
-            actorId: data.senderId || data.fromUserId,
-            actorName: data.senderName || data.fromUserName,
-            actorPhotoURL: data.senderPhotoURL || data.fromUserPhoto,
-            relatedId: data.postId || data.storyId || data.momentId,
-            metadata: data.data || data.metadata
-          } as Notification);
-        });
+    const setupRealtimeSubscription = async () => {
+      try {
+        // Get user UUID for subscription
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('uid', currentUser.uid)
+          .single();
 
-        // Sort by timestamp desc
-        results.sort((a, b) => {
-          const timeA = toDate(a.timestamp);
-          const timeB = toDate(b.timestamp);
-          return timeB.getTime() - timeA.getTime();
-        });
+        if (!userData) return;
 
-        setNotifications(results);
-        setLoading(false);
-      }, (err) => {
-        console.error("Error fetching notifications:", err);
-        setError(err);
-        setLoading(false);
-      });
+        const myUuid = userData.id;
 
-      return () => unsubscribe();
+        // Subscribe to changes in notifications table
+        channel = supabase
+          .channel('notifications_changes')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'notifications',
+              filter: `receiver_id=eq.${myUuid}`
+            },
+            (payload) => {
+              console.log('🔔 Notification change:', payload);
+              fetchNotifications();
+            }
+          )
+          .subscribe();
 
-    } catch (err) {
-      console.error("Error setting up notification listener:", err);
-      setError(err as Error);
-      setLoading(false);
-    }
-  }, [currentUser, limitCount]);
+        console.log('✅ Realtime subscription active for notifications');
+      } catch (err) {
+        console.error('❌ Error setting up realtime subscription:', err);
+      }
+    };
+
+    setupRealtimeSubscription();
+
+    // Cleanup
+    return () => {
+      if (channel) {
+        console.log('🔌 Unsubscribing from notifications channel');
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [currentUser, fetchNotifications]);
 
   return { notifications, loading, error };
 };
-
-// Helper to convert Firestore Timestamp or Date or string to Date object
-function toDate(timestamp: any): Date {
-  if (!timestamp) return new Date();
-  if (timestamp instanceof Timestamp) return timestamp.toDate();
-  if (timestamp instanceof Date) return timestamp;
-  if (typeof timestamp === 'string') return new Date(timestamp);
-  if (timestamp.seconds) return new Date(timestamp.seconds * 1000);
-  return new Date();
-}
 
 function getTitleForType(type: string): string {
   switch (type) {
@@ -148,6 +212,10 @@ function getTitleForType(type: string): string {
     case 'comment': return 'New Comment';
     case 'follow': return 'New Follower';
     case 'message': return 'New Message';
+    case 'friend_request': return 'Friend Request';
+    case 'connection_request': return 'Connection Request';
+    case 'connection_accepted': return 'Request Accepted';
+    case 'connection_rejected': return 'Request Rejected';
     default: return 'Notification';
   }
 }

@@ -2,17 +2,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryClient';
 import { Group } from '../types/models';
+import groupsService from '../services/supabase/groupsService';
 
-// Mock services until they're implemented
-const groupsService = {
-  getUserGroups: async (userId: string, limit?: number) => [] as Group[],
-  getGroupById: async (groupId: string) => ({} as Group),
-  getGroupMembers: async (groupId: string, limit?: number) => [] as any[],
-  searchPublicGroups: async (searchTerm: string, limit?: number) => [] as Group[],
-  createGroup: async (groupData: Partial<Group>, creatorId: string) => ({ id: 'temp' } as Group),
-  joinGroup: async (groupId: string, userId: string) => ({ success: true }),
-  leaveGroup: async (groupId: string, userId: string) => ({ success: true })
-};
+// Mock services replaced by real implementation
 
 const getUserCacheManager = (userId: string) => null;
 
@@ -21,7 +13,7 @@ export const useUserGroups = (userId: string, options: any & { limit?: number } 
   return useQuery<Group[]>({
     queryKey: queryKeys.userGroups(userId),
     queryFn: async () => {
-      return await groupsService.getUserGroups(userId, options.limit || 50);
+      return await groupsService.getGroupsList(userId, { ...options });
     },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
@@ -34,7 +26,7 @@ export const useUserGroups = (userId: string, options: any & { limit?: number } 
 export const useGroupDetail = (groupId: string, options: any = {}) => {
   return useQuery<Group>({
     queryKey: queryKeys.groupDetail(groupId),
-    queryFn: () => groupsService.getGroupById(groupId),
+    queryFn: () => groupsService.getGroupDetails(groupId) as any,
     enabled: !!groupId,
     staleTime: 5 * 60 * 1000,
     cacheTime: 15 * 60 * 1000,
@@ -46,7 +38,7 @@ export const useGroupDetail = (groupId: string, options: any = {}) => {
 export const useGroupMembers = (groupId: string, options: any & { limit?: number } = {}) => {
   return useQuery<any[]>({
     queryKey: queryKeys.groupMembers(groupId),
-    queryFn: () => groupsService.getGroupMembers(groupId, options.limit || 50),
+    queryFn: () => groupsService.getGroupMembers(groupId),
     enabled: !!groupId,
     staleTime: 2 * 60 * 1000,
     cacheTime: 10 * 60 * 1000,
@@ -58,7 +50,7 @@ export const useGroupMembers = (groupId: string, options: any & { limit?: number
 export const useSearchGroups = (searchTerm: string, options: any & { limit?: number } = {}) => {
   return useQuery<Group[]>({
     queryKey: ['groups', 'search', searchTerm],
-    queryFn: () => groupsService.searchPublicGroups(searchTerm, options.limit || 20),
+    queryFn: () => groupsService.searchGroups('current-user-placeholder', searchTerm),
     enabled: !!searchTerm && searchTerm.length >= 2,
     staleTime: 2 * 60 * 1000,
     cacheTime: 5 * 60 * 1000,
@@ -72,16 +64,15 @@ export const useCreateGroup = (creatorId: string) => {
   const cacheManager = getUserCacheManager(creatorId);
 
   return useMutation({
-    mutationFn: (groupData: Partial<Group>) => groupsService.createGroup(groupData, creatorId),
-    onSuccess: async (newGroup) => {
+    mutationFn: (groupData: Partial<Group>) => groupsService.createGroup(creatorId, groupData),
+    onSuccess: async (result) => {
+      // Result is just the ID from the service, so we invalidate to refetch the full list
       queryClient.invalidateQueries({ queryKey: queryKeys.userGroups(creatorId) });
-      
-      const currentGroups = queryClient.getQueryData<Group[]>(queryKeys.userGroups(creatorId)) || [];
-      queryClient.setQueryData(queryKeys.userGroups(creatorId), [newGroup, ...currentGroups]);
-      
+
       if (cacheManager) {
         await cacheManager.clearUserCache('GROUPS_LIST');
-      }},
+      }
+    },
   });
 };
 
@@ -96,7 +87,7 @@ export const useJoinGroup = (userId: string) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.userGroups(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.groupDetail(groupId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.groupMembers(groupId) });
-      
+
       if (cacheManager) {
         await cacheManager.clearUserCache('GROUPS_LIST');
       }
@@ -115,7 +106,7 @@ export const useLeaveGroup = (userId: string) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.userGroups(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.groupDetail(groupId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.groupMembers(groupId) });
-      
+
       if (cacheManager) {
         await cacheManager.clearUserCache('GROUPS_LIST');
       }

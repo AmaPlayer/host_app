@@ -27,18 +27,18 @@ module.exports = {
         webpackConfig.optimization.minimizer = webpackConfig.optimization.minimizer.filter(
           (plugin) => plugin.constructor.name !== 'CssMinimizerPlugin'
         );
-        
+
         console.log('CSS minimization disabled - fix CSS syntax issues first');
 
-        // Add compression
-        webpackConfig.plugins.push(
-          new CompressionPlugin({
-            algorithm: 'gzip',
-            test: /\.(js|css|html|svg)$/,
-            threshold: 8192,
-            minRatio: 0.8,
-          })
-        );
+        // Add compression - DISABLED for Capacitor compatibility (fixes Duplicate resources error)
+        // webpackConfig.plugins.push(
+        //   new CompressionPlugin({
+        //     algorithm: 'gzip',
+        //     test: /\.(js|css|html|svg)$/,
+        //     threshold: 8192,
+        //     minRatio: 0.8,
+        //   })
+        // );
 
         // Bundle analysis (only when ANALYZE=true)
         if (process.env.ANALYZE) {

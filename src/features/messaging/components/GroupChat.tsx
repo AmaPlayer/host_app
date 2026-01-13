@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Send, Image as ImageIcon, Smile } from 'lucide-react';
-import messagingService from '../../../services/api/messagingService';
+import { useMessaging } from '../../../hooks/useMessaging';
 import { Message } from '../../../types/models/message';
 import { useAuth } from '../../../contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
@@ -14,6 +14,14 @@ interface GroupChatProps {
 
 const GroupChat: React.FC<GroupChatProps> = ({ groupId }) => {
     const { currentUser: user } = useAuth();
+    const {
+        getGroupConversationId,
+        getMessages,
+        sendMessage,
+        subscribeToMessages,
+        unsubscribe
+    } = useMessaging();
+
     const [conversationId, setConversationId] = useState<string | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
@@ -24,15 +32,15 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId }) => {
     useEffect(() => {
         const initChat = async () => {
             try {
-                const id = await messagingService.getGroupConversationId(groupId);
+                const id = await getGroupConversationId(groupId);
                 setConversationId(id);
 
                 // Load messages
-                const history = await messagingService.getMessages(id, 50);
+                const history = await getMessages(id, 50);
                 setMessages(history);
 
                 // Subscribe
-                messagingService.subscribeToMessages(id, (msg) => {
+                subscribeToMessages(id, (msg) => {
                     setMessages(prev => [...prev, msg]);
                     scrollToBottom();
                 });
@@ -46,9 +54,9 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId }) => {
         if (groupId) initChat();
 
         return () => {
-            if (conversationId) messagingService.unsubscribe(conversationId);
+            if (conversationId) unsubscribe(conversationId);
         };
-    }, [groupId]);
+    }, [groupId, getGroupConversationId, getMessages, subscribeToMessages, unsubscribe]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -66,7 +74,7 @@ const GroupChat: React.FC<GroupChatProps> = ({ groupId }) => {
         setNewMessage(''); // Optimistic clear
 
         try {
-            await messagingService.sendMessage(conversationId, {
+            await sendMessage(conversationId, {
                 senderId: user.uid,
                 receiverId: '', // N/A for group
                 message: text

@@ -1,10 +1,25 @@
-.verification-page {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Clean Architecture for Video Verification Overlay */
+
+.verify-root {
+  /* Fixed overlay that covers the entire screen, ignoring parent layout */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  margin: 0 !important;
   padding: 20px;
+  width: 100%;
+  height: 100%;
+  /* Changed from 100vw to 100% to respect scrollbar width */
+  overflow-y: auto;
+  /* Enable scrolling */
+  display: grid;
+  /* Grid is more robust for centering */
+  place-items: start center;
+  /* Start vertically (so top isn't cut off if tall), Center horizontally */
+  box-sizing: border-box;
 }
 
 .verification-container {
@@ -15,6 +30,10 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   padding: 40px;
   animation: slideIn 0.4s ease-out;
+  /* Reset margins for Grid centering */
+  margin: 40px 0;
+  /* Ensure it doesn't overflow horizontal */
+  max-width: min(700px, 90vw);
 }
 
 @keyframes slideIn {
@@ -22,6 +41,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -319,6 +339,7 @@
     opacity: 0;
     transform: scale(0.5);
   }
+
   to {
     opacity: 1;
     transform: scale(1);

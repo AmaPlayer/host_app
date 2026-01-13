@@ -1,32 +1,34 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { db } from '../../lib/firebase';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc, limit } from 'firebase/firestore';
-import { Search as SearchIcon, UserPlus, Check, X, Filter, MapPin, User, Award, Target, Calendar, Settings, Bell } from 'lucide-react';
+// import { db } from '../../lib/firebase'; // Removed Firestore
+import { collection, query, where, onSnapshot } from 'firebase/firestore'; // Keeping for notifications momentarily
+// TODO: Clean up firestore notification logic if moving to Supabase completely
+import { db } from '../../lib/firebase'; // Re-adding for notifications only
+
+import { Search as SearchIcon, UserPlus, Check, X, Filter, MapPin, User as UserIcon, Award, Target, Calendar, Settings, Bell } from 'lucide-react';
 import FooterNav from '../../components/layout/FooterNav';
 import SettingsMenu from '../../components/common/settings/SettingsMenu';
 import NotificationDropdown from '../../components/common/notifications/NotificationDropdown';
 import SafeImage from '../../components/common/SafeImage';
 import SearchResultItem from './SearchResultItem';
 import notificationService from '../../services/notificationService';
-import friendsService from '../../services/api/friendsService';
+import userService from '../../services/api/userService';
+import { User } from '../../types/models/user';
 import './Search.css';
 
-interface UserData {
-  id: string;
+// Reusing User type from models or defining a subset if needed, but userService returns User[]
+// For compatibility with SearchResultItem which expects certain fields, let's map or reuse
+interface UserData extends Partial<User> {
+  id: string; // Ensure id is required for SearchResultItem
   displayName?: string;
+  username?: string;
   email?: string;
   name?: string;
-  bio?: string;
   photoURL?: string;
+  // role inherited from Partial<User> is compatible (UserRole is string subset)
   location?: string;
-  role?: string;
-  skills?: string[];
-  sport?: string;
-  sex?: string;
-  age?: number | string;
-  achievements?: Array<{ title: string }>;
+  // Add other fields as necessary
 }
 
 
@@ -66,7 +68,7 @@ export default function Search() {
     position: '',
     subcategory: ''
   });
-  
+
   // Notification and Settings state
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
@@ -90,8 +92,8 @@ export default function Search() {
     }
 
     // Search if there's a search term or any filter applied
-    const hasSearchCriteria = searchTerm.trim().length >= 2 || 
-                            Object.values(filters).some(filter => filter.trim().length > 0);
+    const hasSearchCriteria = searchTerm.trim().length >= 2 ||
+      Object.values(filters).some(filter => (filter as string).trim().length > 0);
 
     if (!hasSearchCriteria) {
       setSearchResults([]);
@@ -151,282 +153,46 @@ export default function Search() {
 
 
 
-  // Helper interface for match scores
-  interface MatchScores {
-    displayName: number;
-    email: number;
-    name: number;
-  }
-
-  // Calculate match score for text fields (exact: 100, startsWith: 50, contains: 10)
-  const calculateMatchScore = (
-    fields: { displayName: string; email: string; name: string },
-    searchTerm: string
-  ): MatchScores => {
-    const result: MatchScores = { displayName: 0, email: 0, name: 0 };
-
-    const scoreExact = 100;
-    const scoreStartsWith = 50;
-    const scoreContains = 10;
-
-    // Check displayName
-    if (fields.displayName === searchTerm) {
-      result.displayName = scoreExact;
-    } else if (fields.displayName.startsWith(searchTerm)) {
-      result.displayName = scoreStartsWith;
-    } else if (fields.displayName.includes(searchTerm)) {
-      result.displayName = scoreContains;
-    }
-
-    // Check email
-    if (fields.email === searchTerm) {
-      result.email = scoreExact;
-    } else if (fields.email.startsWith(searchTerm)) {
-      result.email = scoreStartsWith;
-    } else if (fields.email.includes(searchTerm)) {
-      result.email = scoreContains;
-    }
-
-    // Check name
-    if (fields.name === searchTerm) {
-      result.name = scoreExact;
-    } else if (fields.name.startsWith(searchTerm)) {
-      result.name = scoreStartsWith;
-    } else if (fields.name.includes(searchTerm)) {
-      result.name = scoreContains;
-    }
-
-    return result;
-  };
-
-  // Check if any match score is non-zero
-  const hasMatch = (scores: MatchScores): boolean => {
-    return scores.displayName > 0 || scores.email > 0 || scores.name > 0;
-  };
-
-  // Get total match score for sorting (highest score wins)
-  const getTotalScore = (scores: MatchScores): number => {
-    return Math.max(scores.displayName, scores.email, scores.name);
-  };
+  // Removed matching score calculation logic as it's now handled by DB query
 
   const handleSearch = async (): Promise<void> => {
-    if (isGuest() || !currentUser) {
+    if (isGuest()) {
       return;
     }
 
     setLoading(true);
 
     try {
-      let results: UserData[] = [];
-      const searchTermLower = searchTerm.toLowerCase().trim();
+      const results = await userService.searchUsersAdvanced({
+        searchTerm: searchTerm,
+        filters: {
+          role: filters.role,
+          location: filters.location,
+          sport: filters.sport,
+          skill: filters.skill,
+          sex: filters.sex,
+          age: filters.age,
+          eventType: filters.eventType,
+          position: filters.position,
+          subcategory: filters.subcategory
+        },
+        limit: 50
+      });
 
-      // Use efficient indexed queries if athlete-specific filters are applied
-      const hasAthleteFilters = filters.sport || filters.eventType || filters.position || filters.subcategory;
-      const isAthleteSearch = filters.role === 'athlete' || hasAthleteFilters;
+      // Filter out current user from results (client-side backup)
+      const filteredResults = results
+        .filter(u => u.uid !== currentUser?.uid)
+        .map(u => ({
+          ...u,
+          id: u.uid, // Ensure 'id' is present for SearchResultItem (which expects 'id' but User has 'uid')
+          // Add other mappings if User model fields differ from SearchResultItem expectations
+        })) as UserData[];
 
-      if (isAthleteSearch && hasAthleteFilters) {
-// Build Firestore query with indexed fields
-        const constraints: any[] = [];
+      setSearchResults(filteredResults);
 
-        // Always filter by role if searching athletes
-        constraints.push(where('role', '==', 'athlete'));
-
-        // Add sport filter (uses array-contains index)
-        if (filters.sport) {
-          constraints.push(where('sports', 'array-contains', filters.sport.toLowerCase()));
-        }
-
-        // Add event type filter (uses array-contains index)
-        if (filters.eventType) {
-          constraints.push(where('eventTypes', 'array-contains', filters.eventType.toLowerCase()));
-        }
-
-        // Add position filter (uses equality index)
-        if (filters.position) {
-          constraints.push(where('position', '==', filters.position.toLowerCase()));
-        }
-
-        // Add subcategory filter (uses equality index)
-        if (filters.subcategory) {
-          constraints.push(where('subcategory', '==', filters.subcategory.toLowerCase()));
-        }
-
-        // Add limit
-        constraints.push(limit(100));
-
-        const q = query(collection(db, 'users'), ...constraints);
-        const snapshot = await getDocs(q);
-
-        snapshot.forEach((doc) => {
-          const userData = { id: doc.id, ...doc.data() } as UserData;
-          if (doc.id !== currentUser.uid) {
-            results.push(userData);
-          }
-        });
-// Apply client-side filters for remaining criteria
-        // Track scores for sorting later
-        const resultsWithScores = results.map(userData => {
-          let matches = true;
-          let matchScore = 0;
-
-          // Text search with ranking
-          if (searchTermLower) {
-            const displayName = (userData.displayName || '').toLowerCase().trim();
-            const email = (userData.email || '').toLowerCase().trim();
-            const name = (userData.name || '').toLowerCase().trim();
-
-            const scores = calculateMatchScore({ displayName, email, name }, searchTermLower);
-            if (hasMatch(scores)) {
-              matchScore = getTotalScore(scores);
-            } else {
-              matches = false;
-            }
-          }
-
-          // Location
-          if (matches && filters.location && userData.location) {
-            if (!userData.location.toLowerCase().includes(filters.location.toLowerCase())) {
-              matches = false;
-            }
-          }
-
-          // Sex
-          if (matches && filters.sex && userData.sex) {
-            if (userData.sex !== filters.sex) {
-              matches = false;
-            }
-          }
-
-          // Age
-          if (matches && filters.age && userData.age) {
-            const userAge = parseInt(String(userData.age));
-            const exactAge = parseInt(filters.age);
-            if (userAge !== exactAge) {
-              matches = false;
-            }
-          }
-
-          return { userData, matches, matchScore };
-        });
-
-        // Filter and sort by score
-        results = resultsWithScores
-          .filter(item => item.matches)
-          .sort((a, b) => b.matchScore - a.matchScore)
-          .map(item => item.userData);
-
-      } else {
-        // Fallback to full collection scan for non-athlete or simple searches
-const allUsersSnapshot = await getDocs(collection(db, 'users'));
-        const resultsWithScores: Array<{ userData: UserData; matches: boolean; matchScore: number }> = [];
-
-        allUsersSnapshot.forEach((doc) => {
-          const userData = { id: doc.id, ...doc.data() } as UserData;
-
-          // Don't include current user in results
-          if (doc.id !== currentUser.uid) {
-            let matches = true;
-            let matchScore = 0;
-
-            // Text search with ranking (if provided)
-            if (searchTermLower) {
-              const displayName = (userData.displayName || '').toLowerCase().trim();
-              const email = (userData.email || '').toLowerCase().trim();
-              const name = (userData.name || '').toLowerCase().trim();
-
-              const scores = calculateMatchScore({ displayName, email, name }, searchTermLower);
-              if (hasMatch(scores)) {
-                matchScore = getTotalScore(scores);
-              } else {
-                matches = false;
-              }
-            }
-
-            // Apply filters
-            if (matches && filters.location && userData.location) {
-              if (!userData.location.toLowerCase().includes(filters.location.toLowerCase())) {
-                matches = false;
-              }
-            }
-
-            if (matches && filters.role && userData.role) {
-              if (userData.role !== filters.role) {
-                matches = false;
-              }
-            }
-
-            if (matches && filters.skill && userData.skills) {
-              const skillMatch = userData.skills.some(skill =>
-                skill.toLowerCase().includes(filters.skill.toLowerCase())
-              );
-              if (!skillMatch) matches = false;
-            }
-
-            if (matches && filters.sport && userData.sport) {
-              if (!userData.sport.toLowerCase().includes(filters.sport.toLowerCase())) {
-                matches = false;
-              }
-            }
-
-            if (matches && filters.name && userData.name) {
-              if (!userData.name.toLowerCase().includes(filters.name.toLowerCase())) {
-                matches = false;
-              }
-            }
-
-            if (matches && filters.achievement && userData.achievements) {
-              const achievementMatch = userData.achievements.some(achievement =>
-                achievement.title.toLowerCase().includes(filters.achievement.toLowerCase())
-              );
-              if (!achievementMatch) matches = false;
-            }
-
-            if (matches && filters.sex && userData.sex) {
-              if (userData.sex !== filters.sex) {
-                matches = false;
-              }
-            }
-
-            // Age filtering
-            if (matches && userData.age) {
-              const userAge = parseInt(String(userData.age));
-
-              // Exact age filter
-              if (filters.age) {
-                const exactAge = parseInt(filters.age);
-                if (userAge !== exactAge) {
-                  matches = false;
-                }
-              }
-
-            } else if (filters.age) {
-              // If age filters are applied but user has no age data, exclude them
-              matches = false;
-            }
-
-            if (matches) {
-              resultsWithScores.push({ userData, matches, matchScore });
-            }
-          }
-        });
-
-        // Sort by score and add to results
-        results = resultsWithScores
-          .sort((a, b) => b.matchScore - a.matchScore)
-          .map(item => item.userData);
-      }
-
-      setSearchResults(results);
     } catch (error: any) {
       console.error('Error searching users:', error);
-
-      // Check for index errors
-      if (error.code === 'failed-precondition' || error.message?.includes('index')) {
-        console.error('🚨 Missing Firestore index! Deploy indexes with: firebase deploy --only firestore:indexes');
-        alert('Database index required. Please contact administrator or deploy indexes.');
-      } else {
-        alert('Error searching users: ' + error.message);
-      }
+      alert('Error searching users: ' + error.message);
     }
     setLoading(false);
   };
@@ -460,7 +226,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
   };
 
 
-  const hasActiveFilters = Object.values(filters).some(filter => filter.trim().length > 0) || searchTerm.trim().length > 0;
+  const hasActiveFilters = Object.values(filters).some(filter => (filter as string).trim().length > 0) || searchTerm.trim().length > 0;
 
   // Notification and Settings handlers
   const handleSettingsToggle = () => {
@@ -504,7 +270,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                   <Settings size={20} aria-hidden="true" />
                   <span className="sr-only">Settings</span>
                 </button>
-                
+
                 <SettingsMenu
                   isOpen={settingsOpen}
                   onClose={handleSettingsClose}
@@ -524,7 +290,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
               <h2>User Search</h2>
               <p>🔒 Guest accounts cannot search for users</p>
               <p>Sign up to find and connect with friends!</p>
-              <button 
+              <button
                 className="sign-up-btn"
                 onClick={() => navigate('/login')}
               >
@@ -533,7 +299,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
             </div>
           </div>
         </div>
-        
+
         <FooterNav />
       </div>
     );
@@ -574,7 +340,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                 triggerButtonRef={notificationButtonRef}
               />
             </div>
-            
+
             {/* Settings */}
             <div className="settings-container">
               <button
@@ -590,7 +356,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                 <Settings size={20} aria-hidden="true" />
                 <span className="sr-only">Settings</span>
               </button>
-              
+
               <SettingsMenu
                 isOpen={settingsOpen}
                 onClose={handleSettingsClose}
@@ -618,7 +384,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                 }
               }}
             />
-            <button 
+            <button
               className="filter-toggle-btn"
               onClick={() => setShowFilters(!showFilters)}
             >
@@ -642,7 +408,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                 </button>
               )}
             </div>
-            
+
             <div className="filters-grid">
               <div className="filter-group">
                 <label><MapPin size={16} />Location</label>
@@ -653,9 +419,9 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                   onChange={(e) => handleFilterChange('location', e.target.value)}
                 />
               </div>
-              
+
               <div className="filter-group">
-                <label><User size={16} />Role</label>
+                <label><UserIcon size={16} />Role</label>
                 <select
                   value={filters.role}
                   onChange={(e) => handleFilterChange('role', e.target.value)}
@@ -666,7 +432,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                   <option value="organisation">Organization</option>
                 </select>
               </div>
-              
+
               <div className="filter-group">
                 <label><Target size={16} />Skill</label>
                 <input
@@ -676,7 +442,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                   onChange={(e) => handleFilterChange('skill', e.target.value)}
                 />
               </div>
-              
+
               <div className="filter-group">
                 <label><Target size={16} />Sport</label>
                 <input
@@ -686,9 +452,9 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                   onChange={(e) => handleFilterChange('sport', e.target.value)}
                 />
               </div>
-              
+
               <div className="filter-group">
-                <label><User size={16} />Name</label>
+                <label><UserIcon size={16} />Name</label>
                 <input
                   type="text"
                   placeholder="Full name"
@@ -696,7 +462,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                   onChange={(e) => handleFilterChange('name', e.target.value)}
                 />
               </div>
-              
+
               <div className="filter-group">
                 <label><Award size={16} />Achievement</label>
                 <input
@@ -706,9 +472,9 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                   onChange={(e) => handleFilterChange('achievement', e.target.value)}
                 />
               </div>
-              
+
               <div className="filter-group">
-                <label><User size={16} />Gender</label>
+                <label><UserIcon size={16} />Gender</label>
                 <select
                   value={filters.sex}
                   onChange={(e) => handleFilterChange('sex', e.target.value)}
@@ -719,7 +485,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
                   <option value="other">Other</option>
                 </select>
               </div>
-              
+
               <div className="filter-group">
                 <label><Calendar size={16} />Exact Age</label>
                 <input
@@ -766,7 +532,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
             </div>
           </div>
         )}
-        
+
         <div className="search-results">
           {searchTerm && searchTerm.trim().length > 0 && searchTerm.trim().length < 2 && (
             <div className="search-placeholder">
@@ -783,7 +549,7 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
               <p>Try searching with different keywords</p>
             </div>
           )}
-          
+
           {searchResults.length === 0 && !searchTerm && (
             <div className="search-placeholder">
               <SearchIcon size={48} />
@@ -791,13 +557,13 @@ const allUsersSnapshot = await getDocs(collection(db, 'users'));
               <p>Start typing to search for users and send friend requests</p>
             </div>
           )}
-          
+
           {searchResults.map((user) => (
             <SearchResultItem key={user.id} user={user} />
           ))}
         </div>
       </div>
-      
+
       <FooterNav />
     </div>
   );

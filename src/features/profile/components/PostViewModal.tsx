@@ -82,8 +82,16 @@ const PostViewModal: React.FC<PostViewModalProps> = ({
     }
   };
 
+  // Repost Logic - similar to main Post component
+  const isInstantRepost = post.isRepost && !post.content && post.originalPost;
+  const isQuoteRepost = post.isRepost && !!post.content && post.originalPost;
+
+  // For instant reposts, show original post content
+  // For quote reposts, show both sharer's message and original content
+  const displayPost = isInstantRepost ? post.originalPost! : post;
+
   return (
-    <div 
+    <div
       className="post-view-modal-overlay"
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
@@ -131,31 +139,68 @@ const PostViewModal: React.FC<PostViewModalProps> = ({
         </div>
 
         <div className="post-view-content">
-          {post.title && (
-            <h2 id="post-view-title" className="post-title">
-              {post.title}
+          {/* Repost Header */}
+          {post.isRepost && post.sharerName && (
+            <div style={{
+              padding: '12px',
+              background: '#f8f9fa',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '18px' }}>🔁</span>
+              <span style={{ fontWeight: 500, color: '#666' }}>
+                {post.sharerName} reposted
+              </span>
+            </div>
+          )}
+
+          {/* Quote Repost Message */}
+          {isQuoteRepost && post.content && (
+            <div style={{ marginBottom: '16px' }}>
+              <p style={{ fontSize: '16px', lineHeight: '1.5' }}>{post.content}</p>
+            </div>
+          )}
+
+          {/* Original Post Title (for quote reposts, show in quoted box) */}
+          {'title' in displayPost && displayPost.title && (
+            <h2 id="post-view-title" className="post-title" style={isQuoteRepost ? {
+              padding: '12px',
+              background: '#f8f9fa',
+              borderLeft: '3px solid #1da1f2',
+              marginBottom: '12px'
+            } : {}}>
+              {displayPost.title}
             </h2>
           )}
 
-          {post.mediaUrls.length > 0 && (
-            <div className="post-media">
-              {post.type === 'video' ? (
+          {/* Media Display - use displayPost for correct media */}
+          {displayPost.mediaUrls && displayPost.mediaUrls.length > 0 && (
+            <div className="post-media" style={isQuoteRepost ? {
+              border: '1px solid #e1e8ed',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              marginBottom: '12px'
+            } : {}}>
+              {displayPost.type === 'video' ? (
                 <video
                   controls
                   className="post-video"
-                  poster={post.thumbnailUrl}
-                  aria-label={`Video: ${post.title || 'Post video'}`}
+                  poster={displayPost.thumbnailUrl}
+                  aria-label={`Video: ${'title' in displayPost ? displayPost.title || 'Post video' : 'Post video'}`}
                 >
-                  <source src={post.mediaUrls[0]} type="video/mp4" />
+                  <source src={displayPost.mediaUrls[0]} type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
               ) : (
                 <div className="post-images">
-                  {post.mediaUrls.map((url, index) => (
+                  {displayPost.mediaUrls.map((url, index) => (
                     <img
                       key={index}
                       src={url}
-                      alt={`${post.title || 'Post image'} ${index + 1}`}
+                      alt={`${'title' in displayPost ? displayPost.title || 'Post image' : 'Post image'} ${index + 1}`}
                       className="post-image"
                     />
                   ))}
@@ -164,19 +209,27 @@ const PostViewModal: React.FC<PostViewModalProps> = ({
             </div>
           )}
 
-          <div className="post-text-content">
-            <p>{post.content}</p>
-          </div>
+          {/* Content - use displayPost for instant reposts */}
+          {displayPost.content && !isQuoteRepost && (
+            <div className="post-text-content" style={isQuoteRepost ? {
+              padding: '12px',
+              background: '#f8f9fa',
+              borderRadius: '8px'
+            } : {}}>
+              <p>{displayPost.content}</p>
+            </div>
+          )}
 
+          {/* Engagement Stats - use displayPost for accurate counts */}
           <div className="post-engagement-stats">
             <div className="engagement-stat">
               <span className="engagement-icon">❤️</span>
-              <span className="engagement-count">{formatEngagementCount(post.likes)}</span>
+              <span className="engagement-count">{formatEngagementCount('likes' in displayPost ? displayPost.likes : 0)}</span>
               <span className="engagement-label">likes</span>
             </div>
             <div className="engagement-stat">
               <span className="engagement-icon">💬</span>
-              <span className="engagement-count">{formatEngagementCount(post.comments)}</span>
+              <span className="engagement-count">{formatEngagementCount('comments' in displayPost ? displayPost.comments : 0)}</span>
               <span className="engagement-label">comments</span>
             </div>
           </div>

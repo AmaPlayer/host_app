@@ -1,18 +1,13 @@
 import { useState, useCallback } from 'react';
 import { UsePostInteractionsReturn } from '../types/hooks/custom';
+import { useAuth } from '../contexts/AuthContext';
 
-// Temporary inline constants to avoid import issues during testing
-const SHARE_TYPES = {
-  FRIENDS: 'friends' as const,
-  FEED: 'feeds' as const,
-  GROUPS: 'groups' as const
-};
+import { SHARE_TYPES, ShareType } from '../constants/sharing';
 
 const SHARING_RATE_LIMITS = {
   SHARES_PER_MINUTE: 5
 };
 
-type ShareType = 'friends' | 'feeds' | 'groups';
 type ActionType = 'like' | 'share' | 'save' | 'report';
 
 interface RateLimit {
@@ -131,13 +126,13 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
   const [editingPost, setEditingPost] = useState<string | null>(null);
   const [editText, setEditText] = useState<string>('');
   const [shareSuccess, setShareSuccess] = useState<{ [postId: string]: boolean }>({});
-  
+
   // Interaction states
   const [interactions, setInteractions] = useState<{ [key: string]: InteractionState }>({});
   const [interactionCounts, setInteractionCounts] = useState<InteractionCounts>({});
   const [rateLimitState, setRateLimitState] = useState<{ [key: string]: RateLimitState }>({});
   const [interactionHistory, setInteractionHistory] = useState<HistoryEntry[]>([]);
-  
+
   // Enhanced sharing states
   const [shareStates, setShareStates] = useState<{ [postId: string]: ShareState }>({});
   const [shareAnalytics, setShareAnalytics] = useState<{ [postId: string]: ShareAnalytics }>({});
@@ -157,15 +152,15 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
     const key = `${userId}_${action}`;
     const limit = RATE_LIMITS[action];
     const state = rateLimitState[key];
-    
+
     if (!state || !limit) return false;
-    
+
     const now = Date.now();
     const windowStart = now - limit.windowMs;
-    
+
     // Filter actions within the time window
     const actionsInWindow = state.actions.filter(timestamp => timestamp > windowStart);
-    
+
     return actionsInWindow.length >= limit.maxActions;
   }, [rateLimitState]);
 
@@ -175,7 +170,7 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
   const recordAction = useCallback((action: ActionType, userId: string): void => {
     const key = `${userId}_${action}`;
     const now = Date.now();
-    
+
     setRateLimitState(prev => ({
       ...prev,
       [key]: {
@@ -191,18 +186,18 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
     const key = `${userId}_${action}`;
     const limit = RATE_LIMITS[action];
     const state = rateLimitState[key];
-    
+
     if (!state || !limit) {
       return { remaining: limit?.maxActions || 0, resetTime: null };
     }
-    
+
     const now = Date.now();
     const windowStart = now - limit.windowMs;
     const actionsInWindow = state.actions.filter(timestamp => timestamp > windowStart);
     const remaining = Math.max(0, limit.maxActions - actionsInWindow.length);
     const oldestAction = actionsInWindow[0];
     const resetTime = oldestAction ? oldestAction + limit.windowMs : null;
-    
+
     return { remaining, resetTime };
   }, [rateLimitState]);
 
@@ -210,9 +205,9 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
    * Handle post interaction (like, share, save, report)
    */
   const handleInteraction = useCallback(async (
-    postId: string, 
-    action: ActionType, 
-    userId: string, 
+    postId: string,
+    action: ActionType,
+    userId: string,
     options: any = {}
   ) => {
     // Check rate limiting
@@ -264,7 +259,7 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       return {
         success: true,
         postId,
@@ -314,13 +309,18 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
     throw new Error('toggleLike requires userId parameter');
   }, []);
 
+  const { currentUser } = useAuth();
+
   /**
    * Enhanced share post function with detailed share options
+   * Fixed to accept message and privacy parameters properly
    */
   const sharePost = useCallback(async (
-    postId: string, 
-    shareType: ShareType, 
-    targets?: string[]
+    postId: string,
+    shareType: ShareType,
+    targets?: string[],
+    message?: string,
+    privacy?: string
   ): Promise<void> => {
     // Set loading state
     setShareStates(prev => ({
@@ -329,6 +329,10 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
     }));
 
     try {
+      if (!currentUser) {
+        throw new Error('You must be logged in to share posts');
+      }
+
       // Validate share type
       if (!Object.values(SHARE_TYPES).includes(shareType)) {
         throw new Error(`Invalid share type: ${shareType}`);
@@ -339,8 +343,41 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
         throw new Error(`Targets are required for ${shareType} shares`);
       }
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Get share service instance
+      const { default: shareService } = await import('../services/api/ShareService');
+
+      // Execute appropriate share method
+      switch (shareType) {
+        case SHARE_TYPES.FEED:
+          // Fixed: Pass message and privacy correctly
+          await shareService.shareToFeed(
+            postId,
+            currentUser.uid,
+            message || '',
+            privacy || 'public'
+          );
+          break;
+        case SHARE_TYPES.FRIENDS:
+          if (targets) {
+            await shareService.shareToFriends(
+              postId,
+              currentUser.uid,
+              targets,
+              message || ''
+            );
+          }
+          break;
+        case SHARE_TYPES.GROUPS:
+          if (targets) {
+            await shareService.shareToGroups(
+              postId,
+              currentUser.uid,
+              targets,
+              message || ''
+            );
+          }
+          break;
+      }
 
       // Set success state
       setShareStates(prev => ({
@@ -354,10 +391,10 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
         ...prev,
         [postId]: { loading: false, error: error.message, success: false }
       }));
-      
+
       throw error;
     }
-  }, []);
+  }, [currentUser]);
 
   /**
    * Unshare a post
@@ -390,19 +427,19 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
     }
 
     const { postId, action, userId } = historyEntry;
-    
+
     try {
       const result = await handleInteraction(postId, action, userId, { isUndo: true });
-      
+
       // Mark history entry as undone
-      setInteractionHistory(prev => 
-        prev.map(entry => 
-          entry.id === historyId 
+      setInteractionHistory(prev =>
+        prev.map(entry =>
+          entry.id === historyId
             ? { ...entry, undone: true, undoneAt: Date.now() }
             : entry
         )
       );
-      
+
       return { ...result, undone: true };
     } catch (error: any) {
       throw new Error(`Failed to undo interaction: ${error.message}`);
@@ -543,13 +580,13 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
       delete newState[postId];
       return newState;
     });
-    
+
     setShowPostMenus(prev => {
       const newState = { ...prev };
       delete newState[postId];
       return newState;
     });
-    
+
     setShareSuccess(prev => {
       const newState = { ...prev };
       delete newState[postId];
@@ -573,19 +610,19 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
 
   const getInteractionHistory = useCallback((userId: string, filters: any = {}) => {
     let filtered = interactionHistory.filter(entry => entry.userId === userId);
-    
+
     if (filters.action) {
       filtered = filtered.filter(entry => entry.action === filters.action);
     }
-    
+
     if (filters.postId) {
       filtered = filtered.filter(entry => entry.postId === filters.postId);
     }
-    
+
     if (filters.excludeUndone) {
       filtered = filtered.filter(entry => !entry.undone);
     }
-    
+
     return filtered;
   }, [interactionHistory]);
 
@@ -598,7 +635,7 @@ export const usePostInteractions = (): UsePostInteractionsReturn & {
       totalShares: 0,
       shareBreakdown: {
         friends: 0,
-        feeds: 0,
+        feed: 0,
         groups: 0
       },
       lastSharedAt: null,

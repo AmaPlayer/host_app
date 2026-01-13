@@ -9,12 +9,11 @@ import {
   deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { Post, User } from '../types/models';
 import { usePostsStore } from '../store/appStore';
 import { usePerformanceMonitor } from './usePerformanceMonitor';
-import postsService from '../services/supabase/postsService';
+import postsService from '../services/api/postsService';
 import { sanitizeEngagementData } from '../utils/validation/engagementValidation';
 import notificationService from '../services/notificationService';
 
@@ -58,8 +57,13 @@ const POSTS_PER_PAGE = 10;
  * Extracts post-related logic from Home component
  * @param {string} currentUserId - Optional current user ID for engagement metrics
  */
+
 export const usePostOperations = (currentUserId?: string): UsePostOperationsReturn => {
   const { measureApiCall } = usePerformanceMonitor('usePostOperations');
+
+  // Check for mock mode - REMOVED
+
+  const service = postsService;
 
   const {
     posts,
@@ -90,12 +94,28 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
 
     try {
       const apiCall = async () => {
-        return await postsService.getPostsWithEngagement({
-          limit: POSTS_PER_PAGE,
-          startAfter: loadMore ? lastDoc : undefined,
-          includeEngagementMetrics: true,
-          currentUserId: currentUserId // Pass the currentUserId from hook parameter
-        });
+        // Use getFeedPosts to include reposts in the feed
+        if (currentUserId) {
+          const feedPosts = await postsService.getFeedPosts(
+            currentUserId,
+            [],
+            POSTS_PER_PAGE,
+            loadMore ? lastDoc : undefined
+          );
+          return {
+            posts: feedPosts,
+            hasMore: feedPosts.length === POSTS_PER_PAGE,
+            lastDocument: feedPosts.length > 0 ? feedPosts[feedPosts.length - 1] : null
+          };
+        } else {
+          // Fallback to regular getPosts if no user (guest mode)
+          return await postsService.getPostsWithEngagement({
+            limit: POSTS_PER_PAGE,
+            startAfter: loadMore ? lastDoc : undefined,
+            includeEngagementMetrics: true,
+            currentUserId: currentUserId
+          });
+        }
       };
 
       const result = await measureApiCall(apiCall, 'loadPosts');
@@ -125,7 +145,7 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
     } finally {
       setStoreLoading(false);
     }
-  }, [storeLoading, lastDoc, measureApiCall, setPosts, addPosts, setHasMore, setLastDoc, setStoreLoading, setStoreError]);
+  }, [storeLoading, lastDoc, measureApiCall, setPosts, addPosts, setHasMore, setLastDoc, setStoreLoading, setStoreError, currentUserId]);
 
   /**
    * Refresh posts - reset pagination and load fresh posts
@@ -143,11 +163,14 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
   const createPost = useCallback(async (postData: {
     text: string;
     mediaFile?: File;
+    mediaUrl?: string;
+    mediaMetadata?: any;
+    mediaType?: 'image' | 'video' | 'text';
     currentUser: User;
   }): Promise<void> => {
-    const { text, mediaFile, currentUser } = postData;
+    const { text, mediaFile, mediaUrl, mediaMetadata, mediaType, currentUser } = postData;
 
-    if (!text?.trim() && !mediaFile) {
+    if (!text?.trim() && !mediaFile && !mediaUrl) {
       throw new Error('Please write something or select media to share');
     }
 
@@ -175,12 +198,15 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
       }
 
       // Delegate creation to service (handles upload + db insert)
-      const newPost = await postsService.createPost({
+      const newPost = await service.createPost({
         userId: currentUser.uid,
         userDisplayName: currentUser.displayName || 'Unknown',
         userPhotoURL: currentUser.photoURL,
         caption: text,
         mediaFile: mediaFile || undefined,
+        mediaUrl: mediaUrl || undefined,
+        mediaMetadata: mediaMetadata || undefined,
+        mediaType: mediaType as any,
         visibility: 'public'
       }, currentUser.uid);
 
@@ -196,7 +222,7 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
     } finally {
       setStoreLoading(false);
     }
-  }, [refreshPosts, setStoreError, setStoreLoading]);
+  }, [refreshPosts, setStoreError, setStoreLoading, service]);
 
   /**
    * Update an existing post
@@ -235,7 +261,7 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
       }
 
       // Call service update
-      const updatedPost = await postsService.updatePost(
+      const updatedPost = await service.updatePost(
         postId,
         { caption: updates.caption },
         updates.currentUser.uid
@@ -253,7 +279,7 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
     } finally {
       setStoreLoading(false);
     }
-  }, [updatePostInStore, setStoreError, setStoreLoading]);
+  }, [updatePostInStore, setStoreError, setStoreLoading, service]);
 
   /**
    * Delete a post
@@ -271,7 +297,7 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
     setStoreError(null);
 
     try {
-      await (postsService as any).deletePost(postId, post.userId);
+      await (service as any).deletePost(postId, post.userId);
 
       // Update local state to remove the deleted post
       removePost(postId);
@@ -282,7 +308,7 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
     } finally {
       setStoreLoading(false);
     }
-  }, [posts, removePost, setStoreError, setStoreLoading]);
+  }, [posts, removePost, setStoreError, setStoreLoading, service]);
 
   /**
    * Like or unlike a post
@@ -327,7 +353,7 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
       } as any);
 
       // Call service
-      await postsService.toggleLike(postId, currentUser.uid, {
+      await service.toggleLike(postId, currentUser.uid, {
         displayName: currentUser.displayName,
         photoURL: currentUser.photoURL
       });
@@ -366,7 +392,7 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
       setStoreError(err.message);
       throw err;
     }
-  }, [setStoreError, updatePostInStore]);
+  }, [setStoreError, updatePostInStore, service]);
 
   /**
    * Update post share data
@@ -385,7 +411,7 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
       const increment = isAdding ? 1 : -1;
 
       // Update via service
-      await (postsService as any).updateShare(postId, userId, shareType, isAdding);
+      await (service as any).updateShare(postId, userId, shareType, isAdding);
 
       // Update local state
       const post = posts.find(p => p.id === postId);
@@ -410,7 +436,9 @@ export const usePostOperations = (currentUserId?: string): UsePostOperationsRetu
       setStoreError(err.message);
       throw err;
     }
-  }, [posts, updatePostInStore, setStoreError]);
+  }, [posts, updatePostInStore, setStoreError, service]);
+
+
 
   /**
    * Get share information for a post

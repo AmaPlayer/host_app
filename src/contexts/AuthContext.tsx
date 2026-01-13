@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactElement } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { auth } from '../lib/firebase';
 import notificationService from '../services/notificationService';
 import errorHandler from '../utils/error/errorHandler';
@@ -29,13 +31,14 @@ import {
   fetchSignInMethodsForEmail,
   User,
   UserCredential,
-  AuthCredential
+  AuthCredential,
+  signInWithCredential
 } from 'firebase/auth';
-import { 
-  AuthContextValue, 
-  AuthProviderProps, 
+import {
+  AuthContextValue,
+  AuthProviderProps,
   PasswordChangeResult,
-  ProfileUpdateData 
+  ProfileUpdateData
 } from '../types/contexts/auth';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -61,60 +64,60 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
       if (!email || !email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
-      
+
       if (!password || password.length < 6) {
         throw new Error('Password must be at least 6 characters long');
       }
-      
+
       if (!displayName || displayName.trim().length < 2) {
         throw new Error('Display name must be at least 2 characters long');
       }
-      
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-await updateProfile(userCredential.user, { displayName: displayName.trim() });
-// Initialize language preference for new user (async, non-blocking)
+      await updateProfile(userCredential.user, { displayName: displayName.trim() });
+      // Initialize language preference for new user (async, non-blocking)
       try {
         const browserDefault = languagePersistenceService.getBrowserDefaultLanguage();
         await languagePersistenceService.saveLanguagePreference(userCredential.user.uid, browserDefault);
-} catch (langError) {
+      } catch (langError) {
         console.warn('⚠️ Could not initialize language preference for new user:', langError);
         // Don't throw - this shouldn't block signup
       }
     } catch (error: any) {
       console.error('❌ Signup error:', error);
-      
+
       // Log specific error details for debugging
       if (error.code) {
         console.error('🔥 Firebase error code:', error.code);
         console.error('🔥 Firebase error message:', error.message);
-        
+
         // Log additional error details
         if (error.customData) {
           console.error('🔥 Firebase custom data:', error.customData);
         }
-        
+
         // Handle specific Firebase error codes
         if (error.code === 'auth/operation-not-allowed') {
           throw new Error('Email/password sign-up is not enabled. Please contact support.');
         }
-        
+
         if (error.code === 'auth/weak-password') {
           throw new Error('Password is too weak. Please use at least 6 characters.');
         }
-        
+
         if (error.code === 'auth/email-already-in-use') {
           throw new Error('An account with this email already exists. Try logging in instead.');
         }
-        
+
         if (error.code === 'auth/invalid-email') {
           throw new Error('Please enter a valid email address.');
         }
       }
-      
+
       // Use the auth error handler to format the error
       const formattedError = authErrorHandler.formatErrorForDisplay(error);
       console.error('📝 Formatted error:', formattedError);
-      
+
       // Re-throw with more context
       throw new Error(formattedError.message || error.message || 'Failed to create account');
     }
@@ -130,7 +133,7 @@ await updateProfile(userCredential.user, { displayName: displayName.trim() });
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
       // Log successful login for debugging
-// Sync language preference from Firestore (async, non-blocking)
+      // Sync language preference from Firestore (async, non-blocking)
       // This allows the user to be logged in immediately while language syncs in background
       try {
         const storedLanguage = languagePersistenceService.getLocalStorageLanguage();
@@ -141,7 +144,7 @@ await updateProfile(userCredential.user, { displayName: displayName.trim() });
           localStorage.setItem('selectedLanguage', firestoreLanguage);
           // Dispatch custom event so LanguageContext can listen for sync
           window.dispatchEvent(new CustomEvent('languageSynced', { detail: { language: firestoreLanguage } }));
-}
+        }
       } catch (langError) {
         console.warn('⚠️ Could not sync language preference from Firestore:', langError);
         // Non-critical error - don't throw
@@ -155,33 +158,47 @@ await updateProfile(userCredential.user, { displayName: displayName.trim() });
         persistence: keepLoggedIn ? 'local' : 'session',
         method: 'email_password'
       });
-      
+
       // Re-throw the error with enhanced error information
       throw error;
     }
   }
 
-  function guestLogin(): Promise<UserCredential> {
+  async function guestLogin(): Promise<UserCredential> {
+    await setPersistence(auth, browserLocalPersistence);
     return signInAnonymously(auth);
   }
 
   async function googleLogin(): Promise<UserCredential> {
+    await setPersistence(auth, browserLocalPersistence);
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        const credential = GoogleAuthProvider.credential(result.credential?.idToken);
+        return await signInWithCredential(auth, credential);
+      } catch (error: any) {
+        console.error('❌ Error with Native Google Sign-In:', error);
+        throw error;
+      }
+    }
+
     const provider = new GoogleAuthProvider();
     provider.addScope('email');
     provider.addScope('profile');
     provider.setCustomParameters({
       prompt: 'select_account'
     });
-try {
+    try {
       // Use popup method - simpler, no redirect issues
       const result = await signInWithPopup(auth, provider);
-return result;
+      return result;
     } catch (error: any) {
       console.error('❌ Error with Google popup:', error);
 
       // Check if the error is due to account already existing with different credential
       if (error.code === 'auth/account-exists-with-different-credential') {
-// Attach the credential and email to the error so UI can handle it
+        // Attach the credential and email to the error so UI can handle it
         error.credential = GoogleAuthProvider.credentialFromError(error);
         error.email = error.customData?.email;
       }
@@ -206,10 +223,10 @@ return result;
     provider.setCustomParameters({
       prompt: 'select_account'
     });
-try {
+    try {
       // Sign in with Google popup (not linking, just reauthentication)
       const result = await signInWithPopup(auth, provider);
-return currentUser; // Return the current authenticated user
+      return currentUser; // Return the current authenticated user
     } catch (error: any) {
       console.error('❌ Google reauthentication failed:', error);
 
@@ -258,8 +275,8 @@ return currentUser; // Return the current authenticated user
     }
 
     try {
-const result = await linkWithCredential(currentUser, credential);
-return result;
+      const result = await linkWithCredential(currentUser, credential);
+      return result;
     } catch (error) {
       console.error('❌ Error linking Google account:', error);
       throw error;
@@ -272,18 +289,19 @@ return result;
    */
   async function signInAndLinkGoogle(email: string, password: string, googleCredential: AuthCredential): Promise<UserCredential> {
     try {
-// First, sign in with email/password
+      // First, sign in with email/password
       const userCred = await signInWithEmailAndPassword(auth, email, password);
-// Then link the Google credential
-const result = await linkWithCredential(userCred.user, googleCredential);
-return result;
+      // Then link the Google credential
+      const result = await linkWithCredential(userCred.user, googleCredential);
+      return result;
     } catch (error) {
       console.error('❌ Error signing in and linking Google:', error);
       throw error;
     }
   }
 
-  function appleLogin(): Promise<UserCredential> {
+  async function appleLogin(): Promise<UserCredential> {
+    await setPersistence(auth, browserLocalPersistence);
     const provider = new OAuthProvider('apple.com');
     // Request additional scopes if needed
     provider.addScope('email');
@@ -304,10 +322,10 @@ return result;
     const provider = new OAuthProvider('apple.com');
     provider.addScope('email');
     provider.addScope('name');
-try {
+    try {
       // Sign in with Apple popup (not linking, just reauthentication)
       const result = await signInWithPopup(auth, provider);
-return currentUser; // Return the current authenticated user
+      return currentUser; // Return the current authenticated user
     } catch (error: any) {
       console.error('❌ Apple reauthentication failed:', error);
 
@@ -333,46 +351,82 @@ return currentUser; // Return the current authenticated user
     }
   }
 
-  function logout(): Promise<void> {
+  async function logout(): Promise<void> {
     // Clear ALL redirect flags on logout, but PRESERVE language preference
     localStorage.removeItem('googleRedirectPending');
     localStorage.removeItem('googleRedirectStartedAt');
     localStorage.removeItem('googleRedirectCheckDone');
-// Note: language preference in localStorage is preserved intentionally
+    // Note: language preference in localStorage is preserved intentionally
     // so user maintains their language choice after logout
-    return signOut(auth);
+    await signOut(auth);
+    // Reset persistence to local (default) for next user
+    await setPersistence(auth, browserLocalPersistence);
   }
 
   async function updateUserProfile(profileData: ProfileUpdateData): Promise<User> {
     if (!currentUser) {
       throw new Error('No authenticated user');
     }
-    
+
     await updateProfile(currentUser, profileData);
     // Force refresh the current user to get updated profile
     await currentUser.reload();
     setCurrentUser({ ...currentUser });
-return currentUser;
+    return currentUser;
   }
 
   function refreshAuth(): void {
     if (currentUser) {
       currentUser.reload().then(() => {
         setCurrentUser({ ...currentUser });
-});
+      });
     }
   }
 
   useEffect(() => {
     // Using popup method now, no need to check for redirect results
-const unsubscribe = onAuthStateChanged(auth, async (user) => {
-setCurrentUser(user);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('🔐 Auth State Changed:', {
+        uid: user?.uid,
+        isAnonymous: user?.isAnonymous,
+        email: user?.email
+      });
+      setCurrentUser(user);
       setLoading(false);
 
       // Load user profile from role-specific collections and store role
       if (user && !user.isAnonymous) {
         try {
-          const userProfile = await userService.getUserProfile(user.uid);
+          // Force reload to ensure we have fresh user data (especially email from OAuth)
+          await user.reload();
+
+          let userProfile = await userService.getUserProfile(user.uid);
+
+          // SYNC: If user exists in Firebase but not Supabase, create them
+          if (!userProfile) {
+            console.log('🔄 Syncing user from Firebase to Supabase...');
+            console.log('👤 User data:', {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+              providerId: user.providerData?.[0]?.providerId
+            });
+
+            try {
+              userProfile = await userService.createUserProfile({
+                uid: user.uid,
+                email: user.email || '', // Will be converted to unique placeholder if empty
+                displayName: user.displayName || user.email?.split('@')[0] || 'User',
+                photoURL: user.photoURL,
+                role: 'athlete' // Default role for legacy users
+              });
+              console.log('✅ User synced successfully');
+            } catch (err) {
+              console.error('❌ Failed to sync user:', err);
+              // Don't block auth flow - user might already exist
+            }
+          }
           if (userProfile && userProfile.role) {
             // Store role in localStorage for immediate access across the app
             localStorage.setItem('userRole', userProfile.role);
@@ -394,12 +448,12 @@ setCurrentUser(user);
       if (user && !user.isAnonymous && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         // Check if we're on an authenticated page (not landing/login/signup)
         const currentPath = window.location.pathname;
-        const isAuthenticatedPage = !['/','', '/landing', '/login', '/signup'].includes(currentPath);
+        const isAuthenticatedPage = !['/', '', '/landing', '/login', '/signup'].includes(currentPath);
 
         if (isAuthenticatedPage) {
           try {
             await notificationService.initialize(user.uid);
-} catch (error: unknown) {
+          } catch (error: unknown) {
             const err = error instanceof Error ? error : new Error(String(error));
             errorHandler.logError(err, 'Auth-NotificationInit', 'warning', {
               userId: user.uid,
@@ -429,7 +483,7 @@ setCurrentUser(user);
   async function validateAuthState(): Promise<boolean> {
     try {
       if (!currentUser) return false;
-      
+
       // Force token refresh to validate current session
       await currentUser.getIdToken(true);
       return true;
@@ -445,9 +499,9 @@ setCurrentUser(user);
       if (!currentUser) {
         throw new Error('No authenticated user');
       }
-      
+
       await currentUser.getIdToken(true);
-} catch (error) {
+    } catch (error) {
       authErrorHandler.logAuthError(error, 'AuthContext-RefreshToken');
       throw error;
     }
@@ -467,9 +521,9 @@ setCurrentUser(user);
 
       // Determine if user is actually a social user by checking provider data
       const isActuallySocialUser = isSocialUser || (
-        currentUser.providerData.length > 0 && 
-        currentUser.providerData.some(provider => 
-          provider.providerId === 'google.com' || 
+        currentUser.providerData.length > 0 &&
+        currentUser.providerData.some(provider =>
+          provider.providerId === 'google.com' ||
           provider.providerId === 'apple.com'
         )
       );
@@ -477,7 +531,7 @@ setCurrentUser(user);
       // Validate new password before attempting change
       const { validatePassword } = await import('../utils/validation/validation');
       const passwordValidation = validatePassword(newPassword);
-      
+
       if (!passwordValidation.isValid) {
         return {
           success: false,
@@ -488,7 +542,7 @@ setCurrentUser(user);
 
       if (isActuallySocialUser) {
         // For social users setting their first password or users without email provider
-        const hasEmailProvider = currentUser.providerData.some(provider => 
+        const hasEmailProvider = currentUser.providerData.some(provider =>
           provider.providerId === 'password'
         );
 
@@ -502,7 +556,7 @@ setCurrentUser(user);
 
         try {
           await updatePassword(currentUser, newPassword);
-return {
+          return {
             success: true,
             suggestedAction: hasEmailProvider ?
               'Password updated successfully' :
@@ -514,9 +568,9 @@ return {
             userType: 'social',
             hasEmailProvider: hasEmailProvider
           });
-          
+
           const errorResult = authErrorHandler.getAuthErrorMessage(error);
-          
+
           if (authErrorHandler.requiresReauthentication(error)) {
             return {
               success: false,
@@ -525,7 +579,7 @@ return {
               suggestedAction: 'Please log out and log back in, then try setting your password again'
             };
           }
-          
+
           // Handle specific social user password setting errors
           const errorCode = (error as { code?: string }).code;
           if (errorCode === 'auth/requires-recent-login') {
@@ -536,7 +590,7 @@ return {
               suggestedAction: 'Log out, log back in, then try setting your password'
             };
           }
-          
+
           return {
             success: false,
             error: errorResult.message,
@@ -571,7 +625,7 @@ return {
 
           // Step 2: Update to new password
           await updatePassword(currentUser, newPassword);
-return {
+          return {
             success: true,
             suggestedAction: 'Password updated successfully'
           };
@@ -581,10 +635,10 @@ return {
             userType: 'email',
             step: 'reauthentication_or_update'
           });
-          
+
           const errorResult = authErrorHandler.getAuthErrorMessage(error);
           const errorCode = (error as { code?: string }).code;
-          
+
           // Handle specific reauthentication errors
           if (errorCode === 'auth/wrong-password') {
             return {
@@ -593,7 +647,7 @@ return {
               suggestedAction: 'Please check your current password and try again'
             };
           }
-          
+
           if (errorCode === 'auth/too-many-requests') {
             return {
               success: false,
@@ -601,7 +655,7 @@ return {
               suggestedAction: 'Please wait a few minutes before trying again'
             };
           }
-          
+
           if (authErrorHandler.requiresReauthentication(error)) {
             return {
               success: false,
@@ -610,7 +664,7 @@ return {
               suggestedAction: 'Please log out and log back in, then try changing your password'
             };
           }
-          
+
           return {
             success: false,
             error: errorResult.message,
@@ -625,7 +679,7 @@ return {
         userType: isSocialUser ? 'social' : 'email',
         step: 'unexpected_error'
       });
-      
+
       return {
         success: false,
         error: 'An unexpected error occurred',
@@ -637,7 +691,7 @@ return {
   async function resetPassword(email: string): Promise<void> {
     try {
       await sendPasswordResetEmail(auth, email);
-} catch (error: unknown) {
+    } catch (error: unknown) {
       authErrorHandler.logAuthError(error, 'AuthContext-ResetPassword', { email });
       throw error;
     }
@@ -682,7 +736,7 @@ return {
       // Handle OAuth-based verification (Google or Apple)
       if (oauthProvider) {
         try {
-// Reauthenticate with appropriate OAuth provider
+          // Reauthenticate with appropriate OAuth provider
           if (oauthProvider === 'google.com') {
             await reauthenticateWithGoogle();
           } else if (oauthProvider === 'apple.com') {
@@ -697,7 +751,7 @@ return {
 
           // After successful OAuth reauthentication, update password
           await updatePassword(currentUser, newPassword);
-return {
+          return {
             success: true,
             suggestedAction: 'Password updated successfully. You can now use your new password to log in.'
           };

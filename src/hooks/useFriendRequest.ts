@@ -311,7 +311,7 @@ export function useFriendRequest({
         await organizationConnectionService.cancelConnectionRequest(requestState.requestId, currentUserId);
       } else if (requestState.requestId) {
         // Standard Cancel
-        await friendsService.cancelFriendRequest(requestState.requestId);
+        await friendsService.cancelFriendRequest(requestState.requestId, currentUserId, targetUserId);
       }
 
       setRequestState({

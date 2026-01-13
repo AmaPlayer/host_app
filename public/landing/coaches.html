@@ -9,9 +9,19 @@
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
-<body>
+<body style="background-color: transparent;">
 
 	<!-- Header -->
+
+	<!-- Fixed Background Image -->
+	<div
+		style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('images/coaches.jpg') center 20%/cover no-repeat; opacity: 0.8; z-index: -2;">
+	</div>
+	<!-- Fixed Dark Overlay for text readability -->
+	<div
+		style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 25, 47, 0.85); z-index: -1;">
+	</div>
+
 	<header class="main-header flex-center">
 		<div class="container flex-between">
 			<div class="logo">
@@ -25,10 +35,12 @@
 				<a href="index.html">Home</a>
 				<a href="coaches.html" class="active">Coaches</a>
 				<a href="organizations.html">Organizations</a>
+				<a href="stories.html">Stories</a>
 				<a href="index.html#talent">Talent</a>
 			</nav>
 			<div class="auth-buttons flex" style="gap: 1rem;">
-				<a href="/" class="btn btn-primary" style="padding: 0.5rem 1.5rem; font-size: 0.8rem;">Explore App</a>
+				<a href="/?entered=true" class="btn btn-primary"
+					style="padding: 0.5rem 1.5rem; font-size: 0.8rem;">Explore App</a>
 			</div>
 			<div class="mobile-menu-btn">
 				<i class="fas fa-bars"></i>
@@ -36,13 +48,9 @@
 		</div>
 	</header>
 
-	<!-- Mini Hero -->
-	<section class="hero-wrapper" style="min-height: 50vh;">
+	<section class="hero-wrapper" style="min-height: 50vh; background: transparent;">
 		<div
-			style="position: absolute; top:0; left:0; width:100%; height:100%; background: url('images/coaches.jpg') center/cover no-repeat; opacity: 0.4; z-index: 0;">
-		</div>
-		<div
-			style="position: absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(180deg, rgba(10,25,47,0.7) 0%, var(--color-bg-dark) 100%); z-index: 1;">
+			style="position: absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(180deg, rgba(10,25,47,0.7) 0%, rgba(10, 25, 47, 0) 100%); z-index: 1;">
 		</div>
 
 		<div class="container hero-content text-center">
@@ -60,59 +68,65 @@
 
 				<!-- Coach 1 -->
 				<div class="glass-card" style="padding: 0;">
-					<div style="height: 300px; background: url('images/coaches/baldivya.png') center/cover;"></div>
+					<div style="height: 300px; background: url('images/coaches/sahinpp.jpeg') center/cover;">
+					</div>
 					<div style="padding: 2rem;">
-						<h3 class="mb-2">Kartik Singh</h3>
-						<p style="color: var(--color-primary); font-weight: 600;">Basketball Coach</p>
-						<p>15+ years of experience coaching professional basketball. Former WNBA player strategies.</p>
+						<h3 class="mb-2">Sachin Panwar</h3>
+						<p style="color: var(--color-primary); font-weight: 600;">internatinal cycling coach</p>
+						<p> 20 years + experience in cycling in internatiional level</p>
 						<div class="flex" style="flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem;">
 							<span
-								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">3x
-								Champion</span>
+								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">30x
+								international winnings</span>
 							<span
-								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">Olympic
-								Trainer</span>
+								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">International
+								Coach</span>
 						</div>
-						<a href="#" class="btn btn-outline" style="width: 100%; margin-top: 1.5rem;">View Profile</a>
+						<a href="/?entered=true" class="btn btn-outline" style="width: 100%; margin-top: 1.5rem;">View
+							Profile</a>
 					</div>
 				</div>
 
 				<!-- Coach 2 -->
 				<div class="glass-card" style="padding: 0;">
-					<div style="height: 300px; background: url('images/coaches/rodrigueg.png') center/cover;"></div>
+					<div style="height: 300px; background: url('images/coaches/coacheakash.jpeg') center/cover;"></div>
 					<div style="padding: 2rem;">
-						<h3 class="mb-2">Dhananjay Yadav</h3>
-						<p style="color: var(--color-secondary); font-weight: 600;">Football Coach</p>
-						<p>International soccer coach specialized in technical skills and tactical awareness for youth.
+						<h3 class="mb-2">Akash </h3>
+						<p style="color: var(--color-secondary); font-weight: 600;">Bodybuilding Coach</p>
+						<p>7 + year of experience , Professional BodyBuilder and gym management.
 						</p>
 						<div class="flex" style="flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem;">
 							<span
-								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">FIFA
-								Licensed</span>
+								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">
+								ISSA Bodybuilding Specialist</span>
 							<span
 								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">Youth
 								Expert</span>
 						</div>
-						<a href="#" class="btn btn-outline" style="width: 100%; margin-top: 1.5rem;">View Profile</a>
+						<a href="/?entered=true" class="btn btn-outline" style="width: 100%; margin-top: 1.5rem;">View
+							Profile</a>
 					</div>
 				</div>
 
 				<!-- Coach 3 -->
 				<div class="glass-card" style="padding: 0;">
-					<div style="height: 300px; background: url('images/coaches/swimming.png') center/cover;"></div>
+					<div style="height: 300px; background: url('images/coaches/bulbul\ sharan.jpeg') center/cover;">
+					</div>
 					<div style="padding: 2rem;">
-						<h3 class="mb-2">Poonam Singh</h3>
-						<p style="color: var(--color-primary); font-weight: 600;">Swimming Coach</p>
+						<h3 class="mb-2">Bulbul Sharan</h3>
+						<p style="color: var(--color-primary); font-weight: 600;">Fitness Coach</p>
 						<p>Elite swimming coach with a track record of developing Olympic-level athletes.</p>
 						<div class="flex" style="flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem;">
 							<span
-								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">Olympic
-								Coach</span>
+								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">EFA
+								certified
+							</span>
 							<span
-								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">Tech
+								style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.8rem; border-radius: 20px;">Fitness
 								Specialist</span>
 						</div>
-						<a href="#" class="btn btn-outline" style="width: 100%; margin-top: 1.5rem;">View Profile</a>
+						<a href="/?entered=true" class="btn btn-outline" style="width: 100%; margin-top: 1.5rem;">View
+							Profile</a>
 					</div>
 				</div>
 			</div>
@@ -122,7 +136,7 @@
 	<!-- Footer -->
 	<footer class="main-footer">
 		<div class="container">
-			<p style="font-size: 0.8rem; opacity: 0.5;">&copy; 2024 AmaPlayer. All rights reserved.</p>
+			<p style="font-size: 0.8rem; opacity: 0.5;">&copy; 2026 AmaPlayer. All rights reserved.</p>
 		</div>
 	</footer>
 

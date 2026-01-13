@@ -1,0 +1,42 @@
+.in-feed-ad-container {
+    position: relative;
+    margin: 20px 0;
+    padding: 16px;
+    background: var(--surface-color, #ffffff);
+    border-radius: 12px;
+    border: 1px solid var(--border-color, #e0e0e0);
+}
+
+.ad-label {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 10px;
+    color: var(--text-secondary, #666);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: var(--surface-variant, #f0f0f0);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .in-feed-ad-container {
+        background: var(--surface-color, #1e1e1e);
+        border-color: var(--border-color, #333);
+    }
+
+    .ad-label {
+        background: var(--surface-variant, #2a2a2a);
+        color: var(--text-secondary, #aaa);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .in-feed-ad-container {
+        margin: 16px 0;
+        padding: 12px;
+    }
+}

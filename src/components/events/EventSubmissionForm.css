@@ -251,25 +251,63 @@
 @media (max-width: 640px) {
   .event-submission-form {
     padding: 16px;
+    border-radius: 8px;
+    /* Slightly smaller radius for mobile */
   }
 
   .submission-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .submission-header h3 {
+    font-size: 1.1rem;
+    /* Slightly smaller title */
   }
 
   .deadline-info {
     width: 100%;
     justify-content: space-between;
+    font-size: 13px;
+    padding: 10px;
+    /* Larger touch area */
   }
 
   .video-upload-placeholder {
-    padding: 30px 16px;
+    padding: 24px 16px;
+    /* Reduced vertical padding */
+    gap: 8px;
   }
 
   .upload-icon {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .upload-text {
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .upload-hint {
+    text-align: center;
+  }
+
+  /* Improve input touch targets */
+  .form-input,
+  .form-textarea {
+    font-size: 16px;
+    /* Prevent iOS zoom */
+    padding: 12px;
+    /* Larger touch area */
+  }
+
+  .submit-button {
+    padding: 14px;
+    font-size: 16px;
+    margin-top: 8px;
   }
 }
 

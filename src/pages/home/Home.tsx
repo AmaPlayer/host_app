@@ -22,6 +22,9 @@ import PostsFeed from './components/PostsFeed';
 import StoriesContainer from '../../features/stories/StoriesContainer';
 import FooterNav from '../../components/layout/FooterNav';
 import ErrorBoundary from '../../components/common/safety/ErrorBoundary';
+import ShareModal from '../../components/common/modals/ShareModal';
+import QuotePostModal from '../../components/common/modals/QuotePostModal';
+import { SHARE_TABS } from '../../constants/sharing';
 
 import { Post } from '../../types/models/post';
 // Removed performance monitoring hooks to prevent re-renders and hook violations
@@ -35,19 +38,19 @@ let usePredictivePrefetch: any, useSmartCacheInvalidation: any, usePushNotificat
 try {
   ({ usePredictivePrefetch } = require('../../utils/caching/predictivePrefetching'));
 } catch (e) {
-  usePredictivePrefetch = () => ({ setUser: () => {}, trackBehavior: () => {}, performHealthCheck: () => {} });
+  usePredictivePrefetch = () => ({ setUser: () => { }, trackBehavior: () => { }, performHealthCheck: () => { } });
 }
 
 try {
   ({ useSmartCacheInvalidation } = require('../../utils/caching/smartCacheInvalidation'));
 } catch (e) {
-  useSmartCacheInvalidation = () => ({ performHealthCheck: () => {} });
+  useSmartCacheInvalidation = () => ({ performHealthCheck: () => { } });
 }
 
 try {
   ({ usePushNotifications } = require('../../utils/caching/pushNotificationManager'));
 } catch (e) {
-  usePushNotifications = () => ({ notifyContent: () => {} });
+  usePushNotifications = () => ({ notifyContent: () => { } });
 }
 
 interface AdvancedFeatures {
@@ -77,12 +80,12 @@ interface AdvancedFeatures {
 function Home(): React.JSX.Element {
   const { currentUser: firebaseUser, logout, isGuest } = useAuth();
   const navigate = useNavigate();
-  
+
   // Memoize isGuest value to prevent function calls on every render
   const isGuestUser = useMemo(() => isGuest(), [isGuest]);
-  
+
   // Performance monitoring completely removed to stop infinite re-renders
-  
+
   // Adapt Firebase User to our custom User type
   const currentUser = useMemo(() => adaptFirebaseUser(firebaseUser), [firebaseUser]);
 
@@ -111,16 +114,16 @@ function Home(): React.JSX.Element {
   const currentUserRef = useRef(currentUser);
   const firebaseUserRef = useRef(firebaseUser);
   const postsRef = useRef(posts);
-  
+
   // Update refs when values change
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
-  
+
   useEffect(() => {
     firebaseUserRef.current = firebaseUser;
   }, [firebaseUser]);
-  
+
   // Removed posts ref update to prevent re-renders from posts changes
 
   // Analytics and optional advanced features
@@ -135,8 +138,27 @@ function Home(): React.JSX.Element {
   const setPrefetchUser = useMemo(() => prefetch?.setUser, [prefetch?.setUser]);
   const trackBehavior = useMemo(() => prefetch?.trackBehavior, [prefetch?.trackBehavior]);
   const performHealthCheck = useMemo(() => cacheInvalidation?.performHealthCheck, [cacheInvalidation?.performHealthCheck]);
-  const notifyContent = useMemo(() => pushNotifications?.notifyContent || (() => {}), [pushNotifications?.notifyContent]);
+  const notifyContent = useMemo(() => pushNotifications?.notifyContent || (() => { }), [pushNotifications?.notifyContent]);
 
+  // Share Modal State
+  const [shareModalConfig, setShareModalConfig] = React.useState<{
+    isOpen: boolean;
+    post: Post | null;
+    initialTab?: string;
+  }>({
+    isOpen: false,
+    post: null,
+    initialTab: SHARE_TABS.FRIENDS
+  });
+
+  // Quote Modal State
+  const [quoteModalConfig, setQuoteModalConfig] = React.useState<{
+    isOpen: boolean;
+    post: Post | null;
+  }>({
+    isOpen: false,
+    post: null
+  });
 
   const handleTitleClick = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -147,8 +169,8 @@ function Home(): React.JSX.Element {
 
   // Initialize features and load posts - simplified to prevent infinite re-renders
   useEffect(() => {
-    let cleanup: (() => void) | void = () => {};
-    
+    let cleanup: (() => void) | void = () => { };
+
     const initialize = async () => {
       // Simplified initialization without unstable callbacks
       if (firebaseUser) {
@@ -160,9 +182,9 @@ function Home(): React.JSX.Element {
         }
       }
     };
-    
+
     initialize();
-    
+
     return () => {
       if (typeof cleanup === 'function') {
         cleanup();
@@ -174,12 +196,12 @@ function Home(): React.JSX.Element {
   const handleLike = useCallback(async (postId: string, currentLikes: string[], isSample: boolean, postData: Post) => {
     const currentUserValue = currentUserRef.current;
     const firebaseUserValue = firebaseUserRef.current;
-    
+
     if (!currentUserValue || !firebaseUserValue) return;
-    
+
     // Direct call without performance monitoring to prevent re-renders
-    await handlePostLike(postId, currentLikes, isSample, postData, firebaseUserValue, trackBehavior, trackInteraction, 
-      (postId: string, currentLikes: string[], fbUser: any, postData?: Post | null) => 
+    await handlePostLike(postId, currentLikes, isSample, postData, firebaseUserValue, trackBehavior, trackInteraction,
+      (postId: string, currentLikes: string[], fbUser: any, postData?: Post | null) =>
         likePost(postId, currentLikes, currentUserValue, postData)
     );
   }, [likePost, trackBehavior, trackInteraction]);
@@ -207,26 +229,56 @@ function Home(): React.JSX.Element {
   const handleEditPost = useCallback(async (postId: string, newCaption: string) => {
     const currentUserValue = currentUserRef.current;
     const firebaseUserValue = firebaseUserRef.current;
-    
+
     if (!currentUserValue || !firebaseUserValue) return;
-    
+
     await updatePost(postId, { caption: newCaption, currentUser: currentUserValue });
   }, [updatePost]);
 
   const handleSharePost = useCallback(async (postId: string, postData: Post) => {
     const firebaseUserValue = firebaseUserRef.current;
-    
+
     if (!firebaseUserValue) return;
-    
+
     const result = await sharePost(postId, postData, trackInteraction, firebaseUserValue);
     return result.success;
   }, [trackInteraction]);
 
+  const handleRepost = useCallback(async (postId: string, postData: Post, mode: 'instant' | 'quote' = 'quote') => {
+    // Fix: If reposting a repost, usage should target the original post to avoid "Original post not found" error
+    // and to ensure we are quoting the actual content, not the share wrapper.
+    const effectivePost = (postData.isRepost && postData.originalPost) ? postData.originalPost : postData;
+    const effectivePostId = effectivePost.id;
+
+    if (mode === 'quote') {
+      setQuoteModalConfig({
+        isOpen: true,
+        post: effectivePost
+      });
+    } else {
+      // Instant Repost
+      try {
+        const { default: shareService } = await import('../../services/api/ShareService');
+        await shareService.shareToFeed(
+          effectivePostId,
+          firebaseUser?.uid || '',
+          '', // Empty message for instant repost
+          'public'
+        );
+        await refreshPosts();
+        alert('Reposted successfully!');
+      } catch (error) {
+        console.error('Repost failed:', error);
+        alert('Failed to repost. Please try again.');
+      }
+    }
+  }, [firebaseUser, refreshPosts]);
+
   const handleDeletePost = useCallback(async (postId: string, postData: Post) => {
     const firebaseUserValue = firebaseUserRef.current;
-    
+
     if (!firebaseUserValue) return;
-    
+
     await deletePost(postId);
   }, [deletePost]);
 
@@ -237,7 +289,7 @@ function Home(): React.JSX.Element {
     // Direct call without performance monitoring to prevent re-renders
     await loadPosts(true);
   }, [loadPosts]);
-  
+
   // Memoized callback for navigating to post to prevent recreation
   const handleNavigateToPost = useCallback((postId: string) => navigate(`/post/${postId}`), [navigate]);
 
@@ -259,11 +311,13 @@ function Home(): React.JSX.Element {
     onLike: handleLike,
     onEditPost: handleEditPost,
     onSharePost: handleSharePost,
+    onRepost: handleRepost,
     onDeletePost: handleDeletePost,
-    onUserClick: handleUserClick
+    onUserClick: handleUserClick,
+    onNavigateToPost: handleNavigateToPost
   }), [posts, loading, hasMore, postsError, firebaseUser, isGuestUser,
-    handleLoadMore, refreshPosts, handleLike, handleEditPost, handleSharePost,
-    handleDeletePost, handleUserClick]);
+    handleLoadMore, refreshPosts, handleLike, handleEditPost, handleSharePost, handleRepost,
+    handleDeletePost, handleUserClick, handleNavigateToPost]);
 
   return (
     <ErrorBoundary name="Home">
@@ -295,8 +349,92 @@ function Home(): React.JSX.Element {
           <PostsFeed {...postsFeedProps} />
         </div>
 
+        {shareModalConfig.isOpen && shareModalConfig.post && (
+          <ShareModal
+            post={shareModalConfig.post}
+            currentUser={currentUser as any}
+            initialTab={shareModalConfig.initialTab}
+            onClose={() => setShareModalConfig(prev => ({ ...prev, isOpen: false }))}
+            onShareComplete={async (shareData) => {
+              try {
+                console.log('🚀 Starting share operation:', shareData);
+
+                // Import ShareService dynamically
+                const { default: shareService } = await import('../../services/api/ShareService');
+
+                // Execute appropriate share method based on type
+                if (shareData.type === 'feed') {
+                  console.log('📤 Reposting to feed...');
+                  await shareService.shareToFeed(
+                    shareData.postId,
+                    firebaseUser?.uid || '',
+                    shareData.message || '',
+                    shareData.privacy || 'public'
+                  );
+                  console.log('✅ Repost successful!');
+
+                  // Refresh posts to show the repost immediately
+                  await refreshPosts();
+                } else if (shareData.type === 'friends') {
+                  console.log('📤 Sharing to friends...');
+                  await shareService.shareToFriends(
+                    shareData.postId,
+                    firebaseUser?.uid || '',
+                    shareData.targets,
+                    shareData.message || ''
+                  );
+                  console.log('✅ Shared to friends successfully!');
+                } else if (shareData.type === 'groups') {
+                  console.log('📤 Sharing to groups...');
+                  await shareService.shareToGroups(
+                    shareData.postId,
+                    firebaseUser?.uid || '',
+                    shareData.targets,
+                    shareData.message || ''
+                  );
+                  console.log('✅ Shared to groups successfully!');
+                }
+
+                // Close modal on success
+                setShareModalConfig(prev => ({ ...prev, isOpen: false }));
+
+                // Optional: Show success notification
+                // You can add a toast notification here
+
+              } catch (error: any) {
+                console.error('❌ Share failed:', error);
+                // Error is already handled in ShareModal, but log it here too
+                alert(`Failed to share: ${error.message || 'Unknown error'}`);
+              }
+            }}
+          />
+        )}
+
+        {quoteModalConfig.isOpen && quoteModalConfig.post && (
+          <QuotePostModal
+            post={quoteModalConfig.post}
+            currentUser={currentUser as any}
+            onClose={() => setQuoteModalConfig(prev => ({ ...prev, isOpen: false }))}
+            onShare={async (message, privacy) => {
+              try {
+                const { default: shareService } = await import('../../services/api/ShareService');
+                await shareService.shareToFeed(
+                  quoteModalConfig.post!.id,
+                  firebaseUser?.uid || '',
+                  message,
+                  privacy
+                );
+                await refreshPosts();
+              } catch (error) {
+                console.error('Quote repost failed:', error);
+                throw error;
+              }
+            }}
+          />
+        )}
+
         <FooterNav />
-        
+
 
       </div>
     </ErrorBoundary>

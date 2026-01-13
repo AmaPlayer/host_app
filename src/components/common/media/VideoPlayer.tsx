@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, memo, ChangeEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, X } from 'lucide-react';
 import './VideoPlayer.css';
+import SimpleProgressBar from './SimpleProgressBar';
 import { useVideoManager } from '../../../hooks/useVideoManager';
 import { VideoCropData } from '../../../types/models/post';
 
@@ -43,13 +44,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = memo(function VideoPlayer({
   mediaSettings
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(muted);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
-  const [progress, setProgress] = useState<number>(0);
   const [volume, setVolume] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showControls, setShowControls] = useState<boolean>(true);
@@ -57,7 +56,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = memo(function VideoPlayer({
   const [error, setError] = useState<boolean>(false);
   const [isVisible, setIsVisible] = useState<boolean>(true);
   const [showAutoPauseIndicator, setShowAutoPauseIndicator] = useState<boolean>(false);
-  
+
   const { registerVideo } = useVideoManager();
 
   useEffect(() => {
@@ -79,7 +78,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = memo(function VideoPlayer({
 
         if (!visible && isPlaying && videoRef.current) {
           videoRef.current.pause();
-setTimeout(() => {
+          setTimeout(() => {
             setShowAutoPauseIndicator(false);
           }, 2000);
         }
@@ -152,16 +151,6 @@ setTimeout(() => {
     }
   };
 
-  const handleProgressClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (progressRef.current && videoRef.current) {
-      const rect = progressRef.current.getBoundingClientRect();
-      const pos = (e.clientX - rect.left) / rect.width;
-      const newTime = pos * duration;
-      videoRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-      setProgress(pos * 100);
-    }
-  };
 
   const toggleFullscreen = () => {
     const video = videoRef.current;
@@ -174,7 +163,7 @@ setTimeout(() => {
 
     if (!isFullscreen) {
       console.log('VideoPlayer: Attempting to enter fullscreen');
-      
+
       // Try standard Fullscreen API on container first (for desktop/Android)
       // Note: iOS Safari does NOT support requestFullscreen on div, only on video
       if (containerRef.current && containerRef.current.requestFullscreen) {
@@ -198,29 +187,23 @@ setTimeout(() => {
         console.warn('VideoPlayer: Fullscreen API not supported');
       }
     } else {
-                console.log('VideoPlayer: Attempting to exit fullscreen');
-                if (document.exitFullscreen) {
-                  document.exitFullscreen().then(() => {
-                    setIsFullscreen(false);
-                  }).catch(console.error);
-                } else if ((video as any).webkitExitFullscreen) {
-                  (video as any).webkitExitFullscreen();
-                }
-              }
-            };
+      console.log('VideoPlayer: Attempting to exit fullscreen');
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(() => {
+          setIsFullscreen(false);
+        }).catch(console.error);
+      } else if ((video as any).webkitExitFullscreen) {
+        (video as any).webkitExitFullscreen();
+      }
+    }
+  };
   const restart = () => {
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
       setCurrentTime(0);
-      setProgress(0);
     }
   };
 
-  const formatTime = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
@@ -231,10 +214,7 @@ setTimeout(() => {
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
-      const current = videoRef.current.currentTime;
-      const total = videoRef.current.duration;
-      setCurrentTime(current);
-      setProgress((current / total) * 100);
+      setCurrentTime(videoRef.current.currentTime);
     }
   };
 
@@ -263,7 +243,7 @@ setTimeout(() => {
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`video-player ${className} ${isFullscreen ? 'fullscreen' : ''} ${!isVisible ? 'out-of-view' : ''}`}
       onMouseMove={handleMouseMove}
@@ -377,31 +357,28 @@ setTimeout(() => {
           </div>
 
           <div className="controls-bottom">
-            <div 
-              className="progress-container"
-              ref={progressRef}
-              onClick={handleProgressClick}
-              data-testid="progress-container"
-            >
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill"
-                  style={{ width: `${progress}%` }}
-                  data-testid="progress-fill"
-                ></div>
-              </div>
-            </div>
+            <SimpleProgressBar
+              currentTime={currentTime}
+              duration={duration}
+              onSeek={(time) => {
+                if (videoRef.current) {
+                  videoRef.current.currentTime = time;
+                  setCurrentTime(time);
+                }
+              }}
+              showTime={true}
+            />
 
             <div className="controls-row">
               <div className="controls-left">
-                <button 
-                  onClick={togglePlayPause} 
+                <button
+                  onClick={togglePlayPause}
                   className="control-btn"
                   aria-label={isPlaying ? "Pause" : "Play"}
                 >
                   {isPlaying ? <Pause size={20} /> : <Play size={20} />}
                 </button>
-                
+
                 <button onClick={restart} className="control-btn" aria-label="Restart">
                   <RotateCcw size={20} />
                 </button>
@@ -419,10 +396,6 @@ setTimeout(() => {
                     onChange={handleVolumeChange}
                     className="volume-slider"
                   />
-                </div>
-
-                <div className="time-display">
-                  <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
                 </div>
               </div>
 

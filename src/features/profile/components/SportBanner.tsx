@@ -30,7 +30,7 @@ const SportBanner: React.FC<SportBannerProps> = ({
 }) => {
   // Normalize role to profile role format
   const normalizedRole = mapRoleToProfileRole(role);
-  
+
   // Get appropriate icon based on role
   const getIcon = () => {
     switch (normalizedRole) {
@@ -55,8 +55,8 @@ const SportBanner: React.FC<SportBannerProps> = ({
         if (sport) athleteParts.push(sport);
         if (position) athleteParts.push(position);
         if (playerType && playerType !== 'Not specified') athleteParts.push(playerType);
-        // If no data, show default player label
-        return athleteParts.length > 0 ? athleteParts.join(' • ') : 'Player';
+        // If no data, show default athlete label
+        return athleteParts.length > 0 ? athleteParts.join(' • ') : 'Athlete';
       }
 
       case 'coach': {

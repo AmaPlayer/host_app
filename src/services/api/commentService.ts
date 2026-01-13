@@ -8,6 +8,7 @@ export interface CommentData {
   userId: string;
   userDisplayName: string;
   userPhotoURL: string | null;
+  parentId?: string | null; // Support for nested replies
 }
 
 export interface Comment extends CommentData {
@@ -17,9 +18,10 @@ export interface Comment extends CommentData {
   timestamp: string;
   likes: string[];
   likesCount: number;
-  replies: unknown[];
+  replies: Comment[]; // Strongly typed replies
   edited?: boolean;
   editedAt?: string;
+  parentId?: string | null;
 }
 
 /**
@@ -52,13 +54,19 @@ class CommentService {
       const foreignKey = contentType === 'moment' ? 'moment_id' : 'post_id';
 
       // Insert comment
+      const payload: any = {
+        [foreignKey]: contentId,
+        user_id: user.id,
+        text: commentData.text,
+      };
+
+      if (commentData.parentId) {
+        payload.parent_id = commentData.parentId;
+      }
+
       const { data: comment, error: insertError } = await supabase
         .from(table)
-        .insert({
-          [foreignKey]: contentId,
-          user_id: user.id,
-          text: commentData.text
-        })
+        .insert(payload)
         .select()
         .single();
 
@@ -82,6 +90,12 @@ class CommentService {
             );
           }
         }
+
+        // Notify parent comment author if this is a reply
+        if (commentData.parentId) {
+          // Logic to notify parent author could go here
+        }
+
       } catch (notificationError) {
         console.error('[CommentService] Failed to send comment notification:', {
           contentId,
@@ -99,7 +113,8 @@ class CommentService {
         likes: [],
         likesCount: 0,
         replies: [],
-        edited: false
+        edited: false,
+        parentId: commentData.parentId || null
       } as Comment;
     } catch (error) {
       console.error(`❌ Error adding comment to ${contentType}:`, error);
@@ -118,12 +133,14 @@ class CommentService {
       const table = contentType === 'moment' ? 'moment_comments' : 'post_comments';
       const foreignKey = contentType === 'moment' ? 'moment_id' : 'post_id';
 
+      // Select parent_id too
       const { data: comments, error } = await supabase
         .from(table)
         .select(`
           id,
           text,
           created_at,
+          parent_id,
           user:users!${table}_user_id_fkey (
             uid,
             display_name,
@@ -135,7 +152,7 @@ class CommentService {
 
       if (error) throw error;
 
-      return (comments || []).map((comment: any) => ({
+      const mappedComments: Comment[] = (comments || []).map((comment: any) => ({
         id: comment.id,
         contentId,
         contentType,
@@ -147,8 +164,32 @@ class CommentService {
         likes: [],
         likesCount: 0,
         replies: [],
-        edited: false
-      })) as Comment[];
+        edited: false,
+        parentId: comment.parent_id
+      }));
+
+      // Reconstruct threads
+      const commentMap = new Map<string, Comment>();
+      const rootComments: Comment[] = [];
+
+      // Pass 1: Index all comments
+      mappedComments.forEach(c => {
+        commentMap.set(c.id, c);
+      });
+
+      // Pass 2: Link children to parents
+      mappedComments.forEach(c => {
+        if (c.parentId && commentMap.has(c.parentId)) {
+          const parent = commentMap.get(c.parentId)!;
+          parent.replies.push(c);
+        } else {
+          rootComments.push(c);
+        }
+      });
+
+      // Pass 3: Sort replies by time? Already sorted by created_at in query, so order preserved.
+
+      return rootComments;
     } catch (error) {
       console.error(`❌ Error getting comments for ${contentType}:`, error);
       return [];
@@ -240,27 +281,27 @@ class CommentService {
         }
         return null;
       }
-      
+
       if (contentType === 'moment') {
         const { data: moment } = await supabase
-           .from('moments')
-           .select(`
+          .from('moments')
+          .select(`
              user_id,
              user:users!moments_user_id_fkey (
                uid
              )
            `)
-           .eq('id', contentId)
-           .single();
-           
-         if (!moment) return null;
-         const user = moment.user as any;
-         if (user && typeof user === 'object' && 'uid' in user) {
-           return user.uid || null;
-         }
-         return null;
+          .eq('id', contentId)
+          .single();
+
+        if (!moment) return null;
+        const user = moment.user as any;
+        if (user && typeof user === 'object' && 'uid' in user) {
+          return user.uid || null;
+        }
+        return null;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error getting content owner:', error);

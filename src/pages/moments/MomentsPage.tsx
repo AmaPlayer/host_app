@@ -30,7 +30,7 @@ const MomentsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  
+
   // Network status monitoring
   const { networkStatus, isGoodConnection } = useNetworkStatus();
   const videoFeedRef = useRef<HTMLDivElement>(null);
@@ -130,13 +130,13 @@ const MomentsPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Adjust fetch limit based on device capabilities and network
       let fetchLimit = VideoOptimizationUtils.isLowEndDevice() ? 5 : 10;
       if (!isGoodConnection) {
         fetchLimit = Math.min(fetchLimit, 3); // Reduce for poor connections
       }
-      
+
       // Use combined feed to show both moments and verified talent videos
       const result = await MomentsService.getCombinedFeed({
         limit: fetchLimit,
@@ -146,7 +146,7 @@ const MomentsPage: React.FC = () => {
         // In production, only approved moments should be shown
         moderationStatus: process.env.NODE_ENV === 'development' ? undefined : 'approved'
       });
-      
+
       // Apply feed diversity if enabled
       const enableFeedDiversity = process.env.REACT_APP_ENABLE_FEED_DIVERSITY !== 'false';
       let processedMoments = result.moments;
@@ -163,7 +163,8 @@ const MomentsPage: React.FC = () => {
           maxPercentageFromSingleUser: maxPercentage
         });
 
-        if (process.env.NODE_ENV === 'development') {}
+        if (process.env.NODE_ENV === 'development') {
+        }
       }
 
       setMoments(processedMoments);
@@ -173,13 +174,13 @@ const MomentsPage: React.FC = () => {
         console.error('Failed to fetch moments:', err);
       }
       let errorMessage = 'Failed to load videos. Please try again.';
-      
+
       if (!networkStatus.isOnline) {
         errorMessage = 'No internet connection. Please check your network and try again.';
       } else if (err instanceof Error) {
         errorMessage = err.message;
       }
-      
+
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -245,7 +246,7 @@ const MomentsPage: React.FC = () => {
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
@@ -265,7 +266,7 @@ const MomentsPage: React.FC = () => {
 
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
-    
+
     return () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
@@ -318,16 +319,16 @@ const MomentsPage: React.FC = () => {
         currentUser={currentUser}
         isGuest={isGuest()}
         onTitleClick={handleTitleClick}
-        title="Moments"
+        title="Real Moments"
       />
 
       <div className="moments-content">
         <div className="moments-container">
           {loading && (
             <div className="moments-loading">
-              <VideoSkeleton 
-                count={3} 
-                showMetadata={true} 
+              <VideoSkeleton
+                count={3}
+                showMetadata={true}
                 showEngagement={true}
                 className="moments-skeleton"
               />

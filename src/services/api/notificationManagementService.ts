@@ -1,4 +1,18 @@
-import { supabase } from '../../lib/supabase';
+import { db } from '../../lib/firebase';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
+  getDoc,
+  getCountFromServer
+} from 'firebase/firestore';
 
 export interface Notification {
   id: string;
@@ -19,38 +33,31 @@ export interface NotificationQueryOptions {
 }
 
 export const notificationManagementService = {
-  
+
   async getUserNotifications(userId: string, options: NotificationQueryOptions = {}): Promise<Notification[]> {
     try {
-      const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
-      if (!user) return [];
-
-      let query = supabase
-        .from('notifications')
-        .select('*, sender:users!sender_id(uid, display_name, photo_url)')
-        .eq('receiver_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(options.limitCount || 20);
+      let q = query(
+        collection(db, 'notifications'),
+        where('receiverId', '==', userId),
+        orderBy('timestamp', 'desc'),
+        limit(options.limitCount || 20)
+      );
 
       if (options.onlyUnread) {
-        query = query.eq('is_read', false);
+        q = query(q, where('read', '==', false));
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const snapshot = await getDocs(q);
 
-      return data.map(n => ({
-        id: n.id,
-        receiverId: userId,
-        senderId: n.sender?.uid,
-        senderName: n.sender?.display_name,
-        senderPhotoURL: n.sender?.photo_url,
-        type: n.type,
-        message: n.message,
-        read: n.is_read,
-        timestamp: n.created_at,
-        // ... map other fields
-      }));
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Normalize timestamp
+          timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(data.timestamp)
+        } as Notification;
+      });
     } catch (error) {
       console.error('Error fetching notifications:', error);
       return [];
@@ -59,51 +66,113 @@ export const notificationManagementService = {
 
   async getNotification(notificationId: string): Promise<Notification | null> {
     try {
-      const { data } = await supabase.from('notifications').select('*').eq('id', notificationId).single();
-      if (!data) return null;
-      return { id: data.id, read: data.is_read, ...data } as any;
+      const docRef = doc(db, 'notifications', notificationId);
+      const docSnap = await getDoc(docRef);
+
+      if (!docSnap.exists()) return null;
+      const data = docSnap.data();
+      return { id: docSnap.id, ...data } as Notification;
     } catch (e) {
       return null;
     }
   },
 
   async markAsRead(notificationId: string): Promise<void> {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId);
+    try {
+      const docRef = doc(db, 'notifications', notificationId);
+      await updateDoc(docRef, { read: true });
+    } catch (error) {
+      console.error('Error marking notification read:', error);
+    }
   },
 
   async markAllAsRead(userId: string): Promise<void> {
-    const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
-    if (!user) return;
-    await supabase.from('notifications').update({ is_read: true }).eq('receiver_id', user.id);
+    try {
+      const q = query(
+        collection(db, 'notifications'),
+        where('receiverId', '==', userId),
+        where('read', '==', false)
+      );
+
+      const snapshot = await getDocs(q);
+      const batch = writeBatch(db);
+
+      snapshot.docs.forEach(doc => {
+        batch.update(doc.ref, { read: true });
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Error marking all read:', error);
+    }
   },
 
   async deleteNotification(notificationId: string): Promise<void> {
-    await supabase.from('notifications').delete().eq('id', notificationId);
+    try {
+      await deleteDoc(doc(db, 'notifications', notificationId));
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   },
 
   async deleteAllRead(userId: string): Promise<void> {
-    const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
-    if (!user) return;
-    await supabase.from('notifications').delete().eq('receiver_id', user.id).eq('is_read', true);
+    try {
+      const q = query(
+        collection(db, 'notifications'),
+        where('receiverId', '==', userId),
+        where('read', '==', true)
+      );
+
+      const snapshot = await getDocs(q);
+      const batch = writeBatch(db);
+
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Error deleting read notifications:', error);
+    }
   },
 
   async getUnreadCount(userId: string): Promise<number> {
-    const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
-    if (!user) return 0;
-    
-    const { count } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('receiver_id', user.id)
-      .eq('is_read', false);
-      
-    return count || 0;
+    try {
+      const q = query(
+        collection(db, 'notifications'),
+        where('receiverId', '==', userId),
+        where('read', '==', false)
+      );
+
+      const snapshot = await getCountFromServer(q);
+      return snapshot.data().count;
+    } catch (error) {
+      console.error('Error getting unread count:', error);
+      return 0;
+    }
   },
 
   async deleteAllNotifications(userId: string): Promise<void> {
-    const { data: user } = await supabase.from('users').select('id').eq('uid', userId).single();
-    if (!user) return;
-    await supabase.from('notifications').delete().eq('receiver_id', user.id);
+    try {
+      // Deleting all might require multiple batches if count > 500
+      // For simplicity in MVP, we delete fetched batch (up to 500)
+      const q = query(
+        collection(db, 'notifications'),
+        where('receiverId', '==', userId),
+        limit(500)
+      );
+
+      const snapshot = await getDocs(q);
+      const batch = writeBatch(db);
+
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+    }
   }
 };
 

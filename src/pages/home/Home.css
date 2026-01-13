@@ -3,7 +3,7 @@
   min-height: 100vh;
   background: var(--bg-primary);
   background-attachment: fixed;
-  overflow-y: auto;
+  /* overflow-y: auto; Removed to allow window scrolling for hide-on-scroll header */
 }
 
 .home-content {

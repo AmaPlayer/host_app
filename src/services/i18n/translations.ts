@@ -90,7 +90,7 @@ export const translations = {
     maxParticipants: 'Max {count} participants',
     messages: 'Messages',
     mission: 'Our Mission',
-    missionText: 'To provide innovative tools and opportunities for athletes to connect, grow, and succeed in their sporting journey while building a vibrant community.',
+    missionText: 'To help India produce champions by connecting talent with the right opportunities. We build the bridge between aspiration and achievement.',
     next: 'Next',
     noEvents: 'No events found',
     noEventsMessage: 'There are currently no events to display',
@@ -153,8 +153,7 @@ export const translations = {
     videoNotSupported: 'Your browser does not support the video tag.',
     viewResults: 'View Results',
     vision: 'Our Vision',
-    visionDescription: 'To revolutionize the sports industry by building a global ecosystem where every athlete has access to world-class coaching, every coach can discover exceptional talent, and every organization can build championship-winning teams.',
-    visionText: 'To create a global platform that connects athletes, coaches, and sports enthusiasts, empowering them to showcase their talent and achieve their dreams.',
+    visionText: 'To unlock India\'s untapped sporting talent by creating a platform that connects players with national and global sports ecosystems. Strengthening India\'s sporting future by turning potential into performance.',
     watchLive: 'Watch Live',
     watchOurStory: 'Watch Our Story',
     welcome: 'Welcome to AmaPlayer',
@@ -207,7 +206,7 @@ export const translations = {
     viewAllComments: 'View all comments',
 
     // FooterNav
-    moments: 'Moments',
+    moments: 'Real Moments',
 
     // Messages Page
     friends: 'Friends',

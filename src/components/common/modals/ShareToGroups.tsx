@@ -6,6 +6,8 @@ import { SHARE_TYPES } from '../../../constants/sharing';
 import { debounce, loadBatch, createInfiniteScrollObserver } from '../../../utils/sharing/lazyLoadingUtils';
 import { Post } from '../../../types/models';
 import { User } from 'firebase/auth';
+import { Timestamp } from 'firebase/firestore';
+import groupsService from '../../../services/supabase/groupsService';
 
 const GROUP_PERMISSIONS = {
   ALL: 'all',
@@ -66,7 +68,7 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loadedCount, setLoadedCount] = useState<number>(0);
-  
+
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -76,66 +78,54 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
       setDebouncedSearchQuery(query);
       setLoadedCount(0); // Reset loaded count on search
     }, SEARCH_DEBOUNCE_MS);
-    
+
     debouncedUpdate(searchQuery);
-    
+
     return () => {
       // Cleanup
     };
   }, [searchQuery]);
 
-  // Mock groups data - in real implementation, this would come from an API
+  // Load groups
   useEffect(() => {
     const loadGroups = async () => {
+      if (!currentUser) return;
+
       setIsLoading(true);
       setError(null);
-      
+
       try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Mock groups data - generate more for testing pagination
-        const mockGroups: Group[] = [];
-        const groupNames = [
-          'Photography Enthusiasts', 'Tech News & Discussion', 'Local Community Events',
-          'Book Club', 'Fitness & Wellness', 'Cooking & Recipes', 'Travel Adventures',
-          'Gaming Community', 'Music Lovers', 'Art & Design', 'Movie Buffs', 'Sports Fans',
-          'Pet Owners', 'Gardening Tips', 'DIY Projects', 'Science & Nature', 'History Buffs',
-          'Language Learning', 'Career Development', 'Entrepreneurship', 'Parenting Support',
-          'Mental Health', 'Fashion & Style', 'Home Decor', 'Automotive', 'Cycling Club',
-          'Running Group', 'Yoga & Meditation', 'Board Games', 'Photography Tips',
-          'Web Development', 'Mobile Apps', 'AI & Machine Learning', 'Crypto & Blockchain',
-          'Stock Market', 'Real Estate', 'Freelancing', 'Remote Work', 'Startups',
-          'Marketing & Sales', 'Content Creation', 'Podcasting', 'Video Production',
-          'Writing Community', 'Poetry & Literature', 'Comics & Manga', 'Anime Fans',
-          'K-Pop Lovers', 'Classical Music', 'Jazz Appreciation'
-        ];
-        
-        for (let i = 0; i < groupNames.length; i++) {
-          const permissions = [GROUP_PERMISSIONS.ALL, GROUP_PERMISSIONS.APPROVED, GROUP_PERMISSIONS.ADMINS];
-          const roles = ['member', 'approved_member', 'admin'];
-          const permission = permissions[Math.floor(Math.random() * permissions.length)];
-          const role = roles[Math.floor(Math.random() * roles.length)];
-          
+        const userGroups = await groupsService.getGroupsList(currentUser.uid);
+
+        // Map to component Group interface
+        const mappedGroups: Group[] = userGroups.map(g => {
+          // Determine role
+          let userRole = 'member'; // Default
+          if (g.admins?.includes(currentUser.uid)) userRole = 'admin';
+
+          // Determine canPost
           let canPost = true;
-          if (permission === GROUP_PERMISSIONS.ADMINS && role !== 'admin') canPost = false;
-          if (permission === GROUP_PERMISSIONS.APPROVED && role === 'member') canPost = false;
-          
-          mockGroups.push({
-            id: `group${i + 1}`,
-            name: groupNames[i],
-            description: `A community for ${groupNames[i].toLowerCase()} enthusiasts`,
-            memberCount: Math.floor(Math.random() * 10000) + 50,
-            postingPermissions: permission,
-            isActive: Math.random() > 0.1, // 90% active
-            userRole: role,
-            canPost: canPost && Math.random() > 0.1,
-            photoURL: '/default-avatar.jpg',
-            lastActivity: new Date(Date.now() - Math.random() * 1000 * 60 * 60 * 24 * 7)
-          });
-        }
-        
-        setAllGroups(mockGroups);
+          if (g.postingPermissions === 'admins' && userRole !== 'admin') canPost = false;
+
+          const lastActivityDate = g.updatedAt instanceof Timestamp
+            ? g.updatedAt.toDate()
+            : new Date(g.updatedAt);
+
+          return {
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            memberCount: g.memberCount,
+            postingPermissions: g.postingPermissions,
+            isActive: true, // Assume active
+            userRole: userRole,
+            canPost: canPost,
+            photoURL: g.photoURL || '/default-avatar.jpg',
+            lastActivity: lastActivityDate
+          };
+        });
+
+        setAllGroups(mappedGroups);
       } catch (err) {
         setError('Failed to load groups. Please try again.');
         console.error('Error loading groups:', err);
@@ -145,14 +135,14 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
     };
 
     loadGroups();
-  }, []);
+  }, [currentUser]);
 
   // Filter groups based on debounced search query
   const filteredGroups = useMemo(() => {
     if (!debouncedSearchQuery.trim()) return allGroups;
-    
+
     const query = debouncedSearchQuery.toLowerCase();
-    return allGroups.filter(group => 
+    return allGroups.filter(group =>
       group.name.toLowerCase().includes(query) ||
       group.description.toLowerCase().includes(query)
     );
@@ -170,7 +160,7 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
       setLoadedCount(0);
       return;
     }
-    
+
     const batch = loadBatch(availableGroups, 0, BATCH_SIZE);
     setDisplayedGroups(batch.items);
     setLoadedCount(batch.loadedCount);
@@ -179,9 +169,9 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
   // Load more groups when scrolling
   const loadMoreGroups = useCallback(() => {
     if (isLoadingMore || loadedCount >= availableGroups.length) return;
-    
+
     setIsLoadingMore(true);
-    
+
     // Simulate slight delay for loading
     setTimeout(() => {
       const batch = loadBatch(availableGroups, loadedCount, BATCH_SIZE);
@@ -194,13 +184,13 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
   // Set up intersection observer for infinite scroll
   useEffect(() => {
     if (!loadMoreRef.current) return;
-    
+
     observerRef.current = createInfiniteScrollObserver(loadMoreGroups, {
       rootMargin: '200px'
     });
-    
+
     observerRef.current.observe(loadMoreRef.current);
-    
+
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect();
@@ -211,21 +201,21 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
   // Handle group selection
   const handleGroupToggle = useCallback((groupId: string) => {
     if (isSubmitting) return;
-    
+
     const newTargets = selectedTargets.includes(groupId)
       ? selectedTargets.filter(id => id !== groupId)
       : [...selectedTargets, groupId];
-    
+
     onTargetsChange(newTargets);
   }, [selectedTargets, onTargetsChange, isSubmitting]);
 
   // Handle select all
   const handleSelectAll = useCallback(() => {
     if (isSubmitting) return;
-    
+
     const allAvailableIds = availableGroups.map(group => group.id);
     const allSelected = allAvailableIds.every(id => selectedTargets.includes(id));
-    
+
     if (allSelected) {
       // Deselect all
       onTargetsChange([]);
@@ -238,7 +228,7 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
   // Handle share submission
   const handleSubmit = useCallback(async () => {
     if (selectedTargets.length === 0 || isSubmitting) return;
-    
+
     const shareData: ShareData = {
       type: SHARE_TYPES.GROUPS,
       postId: post.id,
@@ -246,7 +236,7 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
       message: shareMessage.trim(),
       originalPost: post
     };
-    
+
     await onShare(shareData);
   }, [selectedTargets, isSubmitting, post, shareMessage, onShare]);
 
@@ -264,7 +254,7 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
-    
+
     if (minutes < 1) return 'Active now';
     if (minutes < 60) return `Active ${minutes}m ago`;
     if (hours < 24) return `Active ${hours}h ago`;
@@ -279,8 +269,8 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
       case GROUP_PERMISSIONS.ADMINS:
         return userRole === 'admin' ? 'Admin only (you can post)' : 'Admin only (you cannot post)';
       case GROUP_PERMISSIONS.APPROVED:
-        return userRole === 'approved_member' || userRole === 'admin' 
-          ? 'Approved members only (you can post)' 
+        return userRole === 'approved_member' || userRole === 'admin'
+          ? 'Approved members only (you can post)'
           : 'Approved members only (you cannot post)';
       default:
         return 'Unknown permissions';
@@ -300,7 +290,7 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
     return (
       <div className="share-error">
         <p>{error}</p>
-        <button 
+        <button
           className="retry-btn"
           onClick={() => window.location.reload()}
         >
@@ -325,7 +315,7 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
             disabled={isSubmitting}
           />
         </div>
-        
+
         {availableGroups.length > 0 && (
           <button
             className="select-all-btn"
@@ -347,7 +337,7 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
             <MessageCircle size={48} />
             <h4>No groups available</h4>
             <p>
-              {searchQuery 
+              {searchQuery
                 ? 'Try a different search term'
                 : 'Join groups to start sharing posts with them'
               }
@@ -356,70 +346,70 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
         ) : (
           <>
             {displayedGroups.map((group) => (
-            <div
-              key={group.id}
-              className={`group-item ${selectedTargets.includes(group.id) ? 'selected' : ''}`}
-              onClick={() => handleGroupToggle(group.id)}
-            >
-              <LazyImage
-                src={group.photoURL}
-                alt={group.name}
-                className="group-avatar"
-                placeholder="/default-avatar.jpg"
-              />
-              
-              <div className="group-info">
-                <div className="group-header">
-                  <h4>{group.name}</h4>
-                  {group.userRole === 'admin' && (
-                    <Shield size={14} className="admin-badge" />
+              <div
+                key={group.id}
+                className={`group-item ${selectedTargets.includes(group.id) ? 'selected' : ''}`}
+                onClick={() => handleGroupToggle(group.id)}
+              >
+                <LazyImage
+                  src={group.photoURL}
+                  alt={group.name}
+                  className="group-avatar"
+                  placeholder="/default-avatar.jpg"
+                />
+
+                <div className="group-info">
+                  <div className="group-header">
+                    <h4>{group.name}</h4>
+                    {group.userRole === 'admin' && (
+                      <Shield size={14} className="admin-badge" />
+                    )}
+                  </div>
+                  <p className="group-description">{group.description}</p>
+                  <div className="group-meta">
+                    <span className="member-count">
+                      <Users size={12} />
+                      {formatMemberCount(group.memberCount)} members
+                    </span>
+                    <span className="last-activity">
+                      <Activity size={12} />
+                      {formatLastActivity(group.lastActivity)}
+                    </span>
+                  </div>
+                  <div className="group-permissions">
+                    {getPermissionDescription(group.postingPermissions, group.userRole)}
+                  </div>
+                </div>
+
+                <div className="group-checkbox">
+                  {selectedTargets.includes(group.id) && (
+                    <Check size={16} />
                   )}
                 </div>
-                <p className="group-description">{group.description}</p>
-                <div className="group-meta">
-                  <span className="member-count">
-                    <Users size={12} />
-                    {formatMemberCount(group.memberCount)} members
-                  </span>
-                  <span className="last-activity">
-                    <Activity size={12} />
-                    {formatLastActivity(group.lastActivity)}
-                  </span>
-                </div>
-                <div className="group-permissions">
-                  {getPermissionDescription(group.postingPermissions, group.userRole)}
-                </div>
               </div>
-              
-              <div className="group-checkbox">
-                {selectedTargets.includes(group.id) && (
-                  <Check size={16} />
+            ))}
+
+            {/* Load more trigger */}
+            {loadedCount < availableGroups.length && (
+              <div ref={loadMoreRef} className="load-more-trigger">
+                {isLoadingMore && (
+                  <div className="loading-more">
+                    <Loader2 size={20} className="spinning" />
+                    <span>Loading more groups...</span>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
-          
-          {/* Load more trigger */}
-          {loadedCount < availableGroups.length && (
-            <div ref={loadMoreRef} className="load-more-trigger">
-              {isLoadingMore && (
-                <div className="loading-more">
-                  <Loader2 size={20} className="spinning" />
-                  <span>Loading more groups...</span>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {/* Progress indicator */}
-          {availableGroups.length > BATCH_SIZE && (
-            <div className="load-progress">
-              Showing {loadedCount} of {availableGroups.length} groups
-            </div>
-          )}
-        </>
+            )}
+
+            {/* Progress indicator */}
+            {availableGroups.length > BATCH_SIZE && (
+              <div className="load-progress">
+                Showing {loadedCount} of {availableGroups.length} groups
+              </div>
+            )}
+          </>
         )}
-        
+
         {/* Show unavailable groups if any */}
         {filteredGroups.some(group => !group.canPost || !group.isActive) && (
           <div className="unavailable-groups">
@@ -438,8 +428,8 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
                     <h4>{group.name}</h4>
                     <div className="unavailable-reason">
                       <AlertCircle size={12} />
-                      {!group.isActive 
-                        ? 'Group is inactive' 
+                      {!group.isActive
+                        ? 'Group is inactive'
                         : getPermissionDescription(group.postingPermissions, group.userRole)
                       }
                     </div>
@@ -477,7 +467,7 @@ const ShareToGroups = memo<ShareToGroupsProps>(({
             </span>
           )}
         </div>
-        
+
         <button
           className="share-submit-btn"
           onClick={handleSubmit}

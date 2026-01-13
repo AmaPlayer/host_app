@@ -22,6 +22,8 @@ import { useAuth } from '../../../contexts/AuthContext';
 import userService from '../../../services/api/userService';
 import '../styles/Profile.css';
 import '../styles/ProfileEnhanced.css';
+import TalentVideosSection from '../components/TalentVideosSection';
+import VerificationBadge from '../../../components/common/ui/VerificationBadge'; // Import Badge
 
 const ProfileEnhanced: React.FC = () => {
   const navigate = useNavigate();
@@ -110,14 +112,14 @@ const ProfileEnhanced: React.FC = () => {
         try {
           // Fetch user data from Firebase
           const userData = await userService.getUserProfile(currentUser.uid);
-          
+
           if (userData) {
             // Map user role to profile role format
             let profileRole: UserRole = 'athlete';
             if (userData.role === 'parent') profileRole = 'parent';
             else if (userData.role === 'coach') profileRole = 'coach';
             else if (userData.role) profileRole = userData.role as UserRole;
-            
+
             // Update state with Firebase data
             setProfileState(prev => ({
               ...prev,
@@ -139,7 +141,7 @@ const ProfileEnhanced: React.FC = () => {
                 bio: (userData as any)?.bio || userData.bio || prev.personalDetails.bio
               }
             }));
-            
+
             // Save to localStorage for immediate access
             localStorage.setItem('userRole', profileRole);
             if (userData.sports && userData.sports[0]) {
@@ -165,7 +167,7 @@ const ProfileEnhanced: React.FC = () => {
         }
       }
     };
-    
+
     loadUserProfile();
   }, [currentUser]);
 
@@ -178,10 +180,10 @@ const ProfileEnhanced: React.FC = () => {
       ...prev,
       currentRole: newRole
     }));
-    
+
     // Persist role selection to localStorage for immediate UI update
     localStorage.setItem('userRole', newRole);
-    
+
     // Save to Firebase
     if (currentUser) {
       try {
@@ -190,14 +192,14 @@ const ProfileEnhanced: React.FC = () => {
         await userService.updateUserProfile(currentUser.uid, {
           role: userRole as any
         });
-} catch (error) {
+      } catch (error) {
         console.error('❌ Error saving role to Firebase:', error);
       }
     }
-    
+
     // Dispatch custom event to notify other components
-    window.dispatchEvent(new CustomEvent('userProfileUpdated', { 
-      detail: { role: newRole } 
+    window.dispatchEvent(new CustomEvent('userProfileUpdated', {
+      detail: { role: newRole }
     }));
   };
 
@@ -236,7 +238,7 @@ const ProfileEnhanced: React.FC = () => {
       talentVideos: data.talentVideos,
       posts: data.posts
     }));
-    
+
     // Save user profile data to localStorage for immediate UI update
     localStorage.setItem('userSport', data.personalDetails.sport || '');
     localStorage.setItem('userPosition', data.personalDetails.position || '');
@@ -245,7 +247,7 @@ const ProfileEnhanced: React.FC = () => {
     if (data.personalDetails.specializations) {
       localStorage.setItem('userSpecializations', JSON.stringify(data.personalDetails.specializations));
     }
-    
+
     // Save to Firebase
     if (currentUser) {
       try {
@@ -254,14 +256,14 @@ const ProfileEnhanced: React.FC = () => {
           position: data.personalDetails.position,
           specializations: data.personalDetails.specializations
         } as any);
-} catch (error) {
+      } catch (error) {
         console.error('❌ Error saving profile to Firebase:', error);
       }
     }
-    
+
     // Dispatch custom event to notify other components
     window.dispatchEvent(new CustomEvent('userProfileUpdated'));
-    
+
     setIsEditProfileModalOpen(false);
   };
 
@@ -275,7 +277,7 @@ const ProfileEnhanced: React.FC = () => {
       ...prev,
       personalDetails: updatedPersonalDetails
     }));
-    
+
     // Save user profile data to localStorage for immediate UI update
     localStorage.setItem('userSport', updatedPersonalDetails.sport || '');
     localStorage.setItem('userPosition', updatedPersonalDetails.position || '');
@@ -284,7 +286,7 @@ const ProfileEnhanced: React.FC = () => {
     if (updatedPersonalDetails.specializations) {
       localStorage.setItem('userSpecializations', JSON.stringify(updatedPersonalDetails.specializations));
     }
-    
+
     // Save to Firebase
     if (currentUser) {
       try {
@@ -293,14 +295,14 @@ const ProfileEnhanced: React.FC = () => {
           position: updatedPersonalDetails.position,
           specializations: updatedPersonalDetails.specializations
         } as any);
-} catch (error) {
+      } catch (error) {
         console.error('❌ Error saving personal details to Firebase:', error);
       }
     }
-    
+
     // Dispatch custom event to notify other components
     window.dispatchEvent(new CustomEvent('userProfileUpdated'));
-    
+
     setIsPersonalDetailsModalOpen(false);
   };
 
@@ -310,16 +312,16 @@ const ProfileEnhanced: React.FC = () => {
       ...prev,
       physicalAttributes: updatedPhysicalAttributes
     }));
-    
+
     // Save to Firebase
     if (currentUser) {
       try {
         // Physical attributes would be saved as part of user profile
-} catch (error) {
+      } catch (error) {
         console.error('❌ Error saving physical attributes:', error);
       }
     }
-    
+
     setIsPhysicalAttributesModalOpen(false);
   };
 
@@ -340,7 +342,7 @@ const ProfileEnhanced: React.FC = () => {
           contactEmail: updatedPersonalDetails.contactEmail,
           website: updatedPersonalDetails.website
         } as any);
-} catch (error) {
+      } catch (error) {
         console.error('❌ Error saving organization info to Firebase:', error);
       }
     }
@@ -355,16 +357,16 @@ const ProfileEnhanced: React.FC = () => {
       ...prev,
       achievements: updatedAchievements
     }));
-    
+
     // Save to Firebase
     if (currentUser) {
       try {
         // Achievements would be saved as part of user profile
-} catch (error) {
+      } catch (error) {
         console.error('❌ Error saving achievements:', error);
       }
     }
-    
+
     setIsAchievementsSectionModalOpen(false);
   };
 
@@ -374,16 +376,16 @@ const ProfileEnhanced: React.FC = () => {
       ...prev,
       certificates: updatedCertificates
     }));
-    
+
     // Save to Firebase
     if (currentUser) {
       try {
         // Certificates would be saved as part of user profile
-} catch (error) {
+      } catch (error) {
         console.error('❌ Error saving certificates:', error);
       }
     }
-    
+
     setIsCertificatesSectionModalOpen(false);
   };
 
@@ -393,22 +395,22 @@ const ProfileEnhanced: React.FC = () => {
       ...prev,
       trackBest: updatedTrackBest
     }));
-    
+
     // Save to Firebase
     if (currentUser) {
       try {
         // Track best would be saved as part of user profile
-} catch (error) {
+      } catch (error) {
         console.error('❌ Error saving track best:', error);
       }
     }
-    
+
     setIsTrackBestModalOpen(false);
   };
 
   const handleAddAthlete = () => {
     // TODO: Implement add athlete functionality
-};
+  };
 
   // Achievement management functions
   const handleAddAchievement = () => {
@@ -434,7 +436,7 @@ const ProfileEnhanced: React.FC = () => {
         ...achievementData,
         id: editingAchievement.id
       };
-      
+
       setProfileState(prev => ({
         ...prev,
         achievements: prev.achievements.map(achievement =>
@@ -447,26 +449,26 @@ const ProfileEnhanced: React.FC = () => {
         ...achievementData,
         id: `achievement_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       };
-      
+
       setProfileState(prev => ({
         ...prev,
         achievements: [...prev.achievements, newAchievement]
       }));
     }
-    
+
     setIsAchievementModalOpen(false);
     setEditingAchievement(null);
   };
 
   const handleConfirmDelete = async () => {
     if (!deletingAchievementId && !deletingCertificateId) return;
-    
+
     setIsDeleting(true);
-    
+
     try {
       // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       if (deleteType === 'achievement' && deletingAchievementId) {
         setProfileState(prev => ({
           ...prev,
@@ -480,7 +482,7 @@ const ProfileEnhanced: React.FC = () => {
         }));
         setDeletingCertificateId(null);
       }
-      
+
       setIsDeleteModalOpen(false);
     } catch (error) {
       console.error(`Error deleting ${deleteType}:`, error);
@@ -527,7 +529,7 @@ const ProfileEnhanced: React.FC = () => {
         ...certificateData,
         id: editingCertificate.id
       };
-      
+
       setProfileState(prev => ({
         ...prev,
         certificates: prev.certificates.map(certificate =>
@@ -540,13 +542,13 @@ const ProfileEnhanced: React.FC = () => {
         ...certificateData,
         id: `certificate_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
       };
-      
+
       setProfileState(prev => ({
         ...prev,
         certificates: [...prev.certificates, newCertificate]
       }));
     }
-    
+
     setIsCertificateModalOpen(false);
     setEditingCertificate(null);
   };
@@ -568,6 +570,33 @@ const ProfileEnhanced: React.FC = () => {
     return '';
   };
 
+  // Video Handlers
+  const handleAddVideo = () => {
+    // Reload logic or state update is handled within the component via onAddVideo callback if needed,
+    // but the component itself manages the modal and reload.
+    // We can just refresh state here if we want to reflect changes immediately without page reload,
+    // but the child component forces reload currently.
+  };
+
+  const handleEditVideo = (updatedVideo: TalentVideo) => {
+    setProfileState(prev => ({
+      ...prev,
+      talentVideos: prev.talentVideos.map(v => v.id === updatedVideo.id ? updatedVideo : v)
+    }));
+  };
+
+  const handleDeleteVideo = (videoId: string) => {
+    setProfileState(prev => ({
+      ...prev,
+      talentVideos: prev.talentVideos.filter(v => v.id !== videoId)
+    }));
+  };
+
+  const handleVideoClick = (video: TalentVideo) => {
+    // Analytics or viewing logic
+    console.log('Video clicked:', video.id);
+  };
+
   const currentRoleConfig = roleConfigurations[profileState.currentRole];
 
   // Get role-specific field value
@@ -585,11 +614,11 @@ const ProfileEnhanced: React.FC = () => {
   // Render role-specific fields
   const renderPersonalDetailsFields = () => {
     const { editableFields } = currentRoleConfig;
-    
+
     return editableFields.map((field) => {
       let label = field.toUpperCase();
       let fieldId = `${field}-label`;
-      
+
       // Custom labels for better UX
       switch (field) {
         case 'username':
@@ -640,9 +669,9 @@ const ProfileEnhanced: React.FC = () => {
             <ArrowLeft size={24} aria-hidden="true" />
             <span className="back-text">Back</span>
           </button>
-          
+
           <h1 className="profile-nav-title">Profile</h1>
-          
+
           <button
             className="edit-profile-nav-button"
             onClick={() => handleEditProfile('personal')}
@@ -660,17 +689,30 @@ const ProfileEnhanced: React.FC = () => {
             <span className="avatar-icon" aria-hidden="true">👤</span>
           </div>
         </div>
-        
+
         <div className="profile-info">
-          <h1 className="profile-username">{profileState.personalDetails.name}</h1>
-          
+          <div className="profile-name-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+            <h1 className="profile-username" style={{ margin: 0 }}>{profileState.personalDetails.name}</h1>
+            <VerificationBadge
+              profile={{
+                isVerified: profileState.personalDetails.isVerified,
+                role: profileState.currentRole
+              }}
+              isOwnProfile={true}
+              inline={true}
+              onVerificationRequest={() => {
+                alert("Please verify your profile by sharing the talent video link to others");
+              }}
+            />
+          </div>
+
           {/* Role Selector */}
           <RoleSelector
             currentRole={profileState.currentRole}
             onRoleChange={handleRoleChange}
             className="profile-role-selector"
           />
-          
+
           <div className="profile-stats" role="group" aria-label="Profile statistics">
             <div className="stat-item">
               <span className="stat-number" aria-label="4 posts">4</span>
@@ -685,8 +727,8 @@ const ProfileEnhanced: React.FC = () => {
               <span className="stat-label">Following</span>
             </div>
           </div>
-          
-          <button 
+
+          <button
             className="follow-button"
             type="button"
             aria-label="Follow this user"
@@ -719,10 +761,10 @@ const ProfileEnhanced: React.FC = () => {
             <span>Edit</span>
           </button>
         </div>
-        
+
         <div className="details-card" role="group" aria-labelledby="personal-details-heading">
           {renderPersonalDetailsFields()}
-          
+
           {/* Always show current role */}
           <div className="field-row">
             <span className="field-label" id="current-role-label">CURRENT ROLE</span>
@@ -768,14 +810,15 @@ const ProfileEnhanced: React.FC = () => {
       />
 
       {currentRoleConfig.sections.includes('talentVideos') && (
-        <section className="profile-section talent-videos-section" aria-labelledby="talent-videos-heading">
-          <div className="section-header">
-            <h2 id="talent-videos-heading" className="section-title">Talent Videos</h2>
-          </div>
-          <div className="section-placeholder">
-            <p>Talent Videos section will be implemented in task 4</p>
-          </div>
-        </section>
+        <TalentVideosSection
+          videos={profileState.talentVideos}
+          isOwner={true} // Assumed true for ProfileEnhanced (Edit Mode)
+          athleteSports={profileState.personalDetails.sport ? [{ id: '1', name: profileState.personalDetails.sport }] : []}
+          onAddVideo={handleAddVideo}
+          onEditVideo={handleEditVideo}
+          onDeleteVideo={handleDeleteVideo}
+          onVideoClick={handleVideoClick}
+        />
       )}
 
       {currentRoleConfig.sections.includes('posts') && (

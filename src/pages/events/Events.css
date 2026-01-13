@@ -212,8 +212,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Submission Modal */
@@ -249,6 +254,7 @@
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -396,12 +402,31 @@
     padding: 80px 16px 100px;
   }
 
+  .events-header {
+    padding: 20px;
+    /* Reduced padding */
+    margin-bottom: 20px;
+  }
+
   .events-tabs {
-    flex-direction: column;
+    flex-direction: row;
+    /* Keep row */
+    overflow-x: auto;
+    /* Enable scroll */
+    white-space: nowrap;
+    padding-bottom: 4px;
+    /* Space for scrollbar if visible */
+    gap: 12px;
+    -webkit-overflow-scrolling: touch;
+    /* Smooth scroll iOS */
+    margin-bottom: 20px;
   }
 
   .tab-btn {
-    justify-content: flex-start;
+    flex: 0 0 auto;
+    /* Don't shrink/grow */
+    width: auto;
+    padding: 10px 16px;
   }
 
   .events-grid {
@@ -625,6 +650,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

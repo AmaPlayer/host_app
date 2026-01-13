@@ -6,6 +6,13 @@
   z-index: 10;
 }
 
+.verification-container.inline {
+  position: static;
+  display: inline-flex;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 .verification-badge {
   width: 32px;
   height: 32px;
@@ -20,35 +27,34 @@
 }
 
 /* Verified Badge */
-.verification-badge.verified-badge {
-  background: linear-gradient(135deg, #4CAF50, #2196F3);
-  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
-}
-
-.verification-badge.verified-badge:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
-}
-
-.badge-icon {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.badge-checkmark {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  background: #4CAF50;
-  color: white;
-  font-size: 10px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
+.verification-badge.verified-shield {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  width: auto;
+  height: auto;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--bg-primary);
+}
+
+.verification-badge.verified-shield:hover {
+  transform: scale(1.1);
+  box-shadow: none;
+}
+
+.shield-icon {
+  width: 20px;
+  height: 20px;
+  /* Twitter Blue or similar premium blue */
+  filter: drop-shadow(0 2px 4px rgba(29, 161, 242, 0.2));
+}
+
+/* Remove old styles */
+.badge-icon,
+.badge-checkmark {
+  display: none;
 }
 
 /* Pending Badge */
@@ -95,11 +101,9 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: conic-gradient(
-    #4CAF50 0deg, 
-    #4CAF50 calc(var(--progress) * 3.6deg), 
-    transparent calc(var(--progress) * 3.6deg)
-  );
+  background: conic-gradient(#4CAF50 0deg,
+      #4CAF50 calc(var(--progress) * 3.6deg),
+      transparent calc(var(--progress) * 3.6deg));
   border-radius: 50%;
   mask: radial-gradient(circle at center, transparent 8px, black 8px);
   -webkit-mask: radial-gradient(circle at center, transparent 8px, black 8px);
@@ -121,22 +125,39 @@
 }
 
 /* Request Badge */
+/* Request Badge - Enhanced Beauty */
 .verification-badge.request-badge {
-  background: linear-gradient(135deg, #9C27B0, #E91E63);
-  box-shadow: 0 2px 8px rgba(156, 39, 176, 0.3);
-  border: none;
+  background: linear-gradient(135deg, #FFD700, #FDB931, #F06292);
+  /* Gold to Pink Premium Gradient */
+  box-shadow: 0 4px 15px rgba(253, 185, 49, 0.4);
+  border: 2px solid white;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation: gentlePulse 2s infinite;
 }
 
 .verification-badge.request-badge:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4);
-  background: linear-gradient(135deg, #AD32CE, #F06292);
+  transform: scale(1.15) rotate(5deg);
+  box-shadow: 0 6px 20px rgba(253, 185, 49, 0.6);
+  background: linear-gradient(135deg, #FFE066, #FFCA28, #F48FB1);
 }
 
 .verification-badge.request-badge:active {
   transform: scale(0.95);
+}
+
+@keyframes gentlePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(253, 185, 49, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(253, 185, 49, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(253, 185, 49, 0);
+  }
 }
 
 .verification-badge.request-badge:disabled {
@@ -186,9 +207,12 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
   }
+
   50% {
     box-shadow: 0 4px 16px rgba(255, 152, 0, 0.6);
   }
@@ -200,23 +224,23 @@
     width: 28px;
     height: 28px;
   }
-  
+
   .badge-icon {
     font-size: 14px;
   }
-  
+
   .badge-checkmark {
     width: 12px;
     height: 12px;
     font-size: 8px;
   }
-  
+
   .progress-count {
     font-size: 7px;
     padding: 1px 3px;
     min-width: 16px;
   }
-  
+
   .verification-tooltip {
     font-size: 11px;
     padding: 6px 8px;
@@ -239,15 +263,15 @@
   .verification-badge {
     border-width: 3px;
   }
-  
+
   .verification-badge.verified-badge {
     background: #4CAF50;
   }
-  
+
   .verification-badge.pending-badge {
     background: #FF9800;
   }
-  
+
   .verification-badge.request-badge {
     background: #9C27B0;
   }

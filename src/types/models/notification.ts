@@ -21,7 +21,9 @@ export type NotificationType =
   | 'story_comment'
   | 'share_to_friend'
   | 'share_to_group'
-  | 'post_shared';
+  | 'share_to_group'
+  | 'post_shared'
+  | 'announcement';
 
 /**
  * Core Notification interface

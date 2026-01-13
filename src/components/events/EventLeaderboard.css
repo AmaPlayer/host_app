@@ -180,9 +180,12 @@
 }
 
 @keyframes bounce {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateX(-50%) translateY(0);
   }
+
   50% {
     transform: translateX(-50%) translateY(-10px);
   }
@@ -446,24 +449,87 @@
     font-size: 1.25rem;
   }
 
+  /* Mobile Podium Fix: Stack vertically with 1st place on top */
   .podium-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
     padding: 0;
   }
 
+  /* Reorder items using flex order (Since HTML is 2nd, 1st, 3rd) */
   .first-place {
-    grid-column: 1;
+    order: 1;
+    /* 1st Place goes to top */
+    margin-bottom: 8px;
+    /* Extra space after champion */
+    transform: none !important;
+    /* Remove scaling on mobile to fit width */
+    grid-column: auto;
+    /* Reset grid */
   }
 
+  .second-place {
+    order: 2;
+  }
+
+  .third-place {
+    order: 3;
+  }
+
+  .podium-spot {
+    width: 100%;
+    /* Full width cards */
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    text-align: left;
+    /* Alignment change for list style */
+    padding: 16px;
+  }
+
+  /* Adjust internal layout of podium spot for list view */
+  .podium-rank {
+    font-size: 2rem;
+    margin-bottom: 0;
+    min-width: 40px;
+    text-align: center;
+  }
+
+  .podium-content {
+    flex-direction: row;
+    align-items: center;
+    flex: 1;
+    gap: 12px;
+  }
+
+  .podium-image {
+    width: 50px;
+    height: 50px;
+    border-width: 2px;
+    margin: 0;
+    /* Removing auto margin */
+  }
+
+  .winner-crown {
+    left: 20px;
+    /* Adjust crown position relative to new layout */
+    top: -15px;
+    font-size: 1.5rem;
+    transform: none;
+    /* Reset center transform */
+  }
+
+  /* Additional Winners */
   .additional-winners {
     grid-template-columns: 1fr;
     padding: 0;
   }
 
   .ranking-row {
-    grid-template-columns: 50px 1fr;
+    grid-template-columns: 40px 1fr;
     gap: 12px;
+    padding: 12px;
   }
 
   .ranking-label {

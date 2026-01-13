@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -73,6 +73,7 @@ const preloadCriticalChunks = () => {
 
 function AppContent(): React.JSX.Element {
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Optimized initialization
@@ -106,6 +107,33 @@ function AppContent(): React.JSX.Element {
       });
     }, 2000);
   }, []);
+
+  // Landing Page Redirect Logic
+  useEffect(() => {
+    // 1. Check if returning from Landing Page "Let's Explore"
+    const params = new URLSearchParams(location.search);
+    if (params.get('entered') === 'true') {
+      localStorage.setItem('amaplayer-visited', 'true');
+
+      const targetPath = params.get('redirect');
+      if (targetPath) {
+        // Deep link navigation
+        navigate(targetPath, { replace: true });
+      } else {
+        // Clean URL without reloading
+        window.history.replaceState({}, '', '/');
+      }
+      return;
+    }
+
+    // 2. Check if first visit
+    // Only redirect if at root path and NOT already visited
+    const hasVisited = localStorage.getItem('amaplayer-visited');
+    if (!hasVisited && location.pathname === '/') {
+      // Hard redirect to static landing page
+      window.location.replace('/landing/index.html');
+    }
+  }, [location]);
 
   // Pause videos on route change
   useEffect(() => {
@@ -213,6 +241,9 @@ function AppContent(): React.JSX.Element {
               <Route path="/story-share/:storyId" element={<StorySharePage />} />
               <Route path="/verify/:verificationId" element={<VerificationPage />} />
               <Route path="/verify/:userId/:videoId" element={<VideoVerificationPage />} />
+
+              {/* Catch-all route - Redirect to root to handle any random page jumps */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </ErrorBoundary>
         </Suspense>

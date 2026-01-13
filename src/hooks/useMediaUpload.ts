@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../lib/firebase';
+import { storageService } from '../services/storage';
+import { MEDIA_COMPRESSION_CONFIG } from '../config/mediaConfig';
+
 interface MediaPreview {
   url: string;
   type: 'image' | 'video';
@@ -14,6 +15,14 @@ interface UseMediaUploadReturn {
   uploading: boolean;
   uploadProgress: number;
   error: string | null;
+  // Compression states
+  compressing: boolean;
+  compressionProgress: number;
+  originalSize: number;
+  compressedSize: number;
+  compressionRatio: number;
+  compressionEnabled: boolean;
+  // Methods
   selectMedia: (file: File) => void;
   removeMedia: () => void;
   uploadMedia: (file: File, userId: string) => Promise<string>;
@@ -21,10 +30,11 @@ interface UseMediaUploadReturn {
   validateFile: (file: File) => { isValid: boolean; error?: string };
   clearError: () => void;
   reset: () => void;
+  toggleCompression: () => void;
 }
 
 /**
- * Custom hook for handling media upload functionality
+ * Custom hook for handling media upload functionality with compression
  * Extracts media upload logic from Home component
  */
 export const useMediaUpload = (): UseMediaUploadReturn => {
@@ -33,6 +43,16 @@ export const useMediaUpload = (): UseMediaUploadReturn => {
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+
+  // Compression states
+  const [compressing, setCompressing] = useState<boolean>(false);
+  const [compressionProgress, setCompressionProgress] = useState<number>(0);
+  const [originalSize, setOriginalSize] = useState<number>(0);
+  const [compressedSize, setCompressedSize] = useState<number>(0);
+  const [compressionRatio, setCompressionRatio] = useState<number>(0);
+  const [compressionEnabled, setCompressionEnabled] = useState<boolean>(
+    MEDIA_COMPRESSION_CONFIG.features.enableImageCompression
+  );
 
   /**
    * Validate file type and size
@@ -51,19 +71,19 @@ export const useMediaUpload = (): UseMediaUploadReturn => {
 
     // Validate file type
     const validTypes = [
-      'image/jpeg', 
-      'image/png', 
-      'image/gif', 
-      'image/webp', 
-      'video/mp4', 
-      'video/webm', 
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'video/mp4',
+      'video/webm',
       'video/quicktime'
     ];
-    
+
     if (!validTypes.includes(file.type)) {
-      return { 
-        isValid: false, 
-        error: 'Please select a valid image (JPEG, PNG, GIF, WebP) or video (MP4, WebM, MOV) file.' 
+      return {
+        isValid: false,
+        error: 'Please select a valid image (JPEG, PNG, GIF, WebP) or video (MP4, WebM, MOV) file.'
       };
     }
 
@@ -76,7 +96,7 @@ export const useMediaUpload = (): UseMediaUploadReturn => {
    */
   const selectMedia = useCallback((file: File): void => {
     setError(null);
-    
+
     const validation = validateFile(file);
     if (!validation.isValid) {
       setError(validation.error || 'Invalid file');
@@ -109,7 +129,7 @@ export const useMediaUpload = (): UseMediaUploadReturn => {
     setMediaPreview(null);
     setError(null);
     setUploadProgress(0);
-    
+
     // Reset file input if it exists
     const fileInput = document.getElementById('media-upload') as HTMLInputElement;
     if (fileInput) {
@@ -118,7 +138,7 @@ export const useMediaUpload = (): UseMediaUploadReturn => {
   }, []);
 
   /**
-   * Upload media file to Firebase Storage
+   * Upload media file to R2 Storage with compression
    * @param {File} file - File to upload
    * @param {string} userId - User ID for file path
    * @returns {Promise<string>} Download URL
@@ -140,38 +160,60 @@ export const useMediaUpload = (): UseMediaUploadReturn => {
     setUploading(true);
     setUploadProgress(0);
     setError(null);
+    setOriginalSize(file.size);
 
     try {
       // Create unique filename
       const timestamp = Date.now();
       const filename = `posts/${userId}/${timestamp}_${file.name}`;
-      const storageRef = ref(storage, filename);
 
-      setUploadProgress(25);
+      // Upload file to R2 with compression
+      const result = await storageService.uploadFile(
+        filename,
+        file,
+        undefined,
+        {
+          compress: compressionEnabled,
+          onProgress: (progress) => {
+            setUploadProgress(progress);
+            if (progress < 50) {
+              setCompressing(true);
+              setCompressionProgress(progress * 2); // Map 0-50 to 0-100 for compression
+            } else {
+              setCompressing(false);
+              setCompressionProgress(100);
+            }
+          }
+        }
+      );
 
-      // Upload file
-      const snapshot = await uploadBytes(storageRef, file);
-      
-      setUploadProgress(75);
+      // Update compression stats if available
+      if (result.metadata?.compressed) {
+        setCompressedSize(result.metadata.size);
+        setCompressionRatio(result.metadata.compressionRatio || 0);
+        console.log(`✅ Upload complete with ${result.metadata.compressionRatio?.toFixed(1)}% compression`);
+      } else {
+        setCompressedSize(file.size);
+        setCompressionRatio(0);
+      }
 
-      // Get download URL
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
       setUploadProgress(100);
 
-      return downloadURL;
+      return result.url;
 
     } catch (err: any) {
       setError(err.message);
       throw err;
     } finally {
       setUploading(false);
+      setCompressing(false);
       // Keep progress at 100% briefly if successful, then reset
       setTimeout(() => {
         setUploadProgress(0);
+        setCompressionProgress(0);
       }, 1000);
     }
-  }, [validateFile]);
+  }, [validateFile, compressionEnabled]);
 
   /**
    * Handle file input change event
@@ -200,12 +242,24 @@ export const useMediaUpload = (): UseMediaUploadReturn => {
     setUploading(false);
     setUploadProgress(0);
     setError(null);
-    
+    setCompressing(false);
+    setCompressionProgress(0);
+    setOriginalSize(0);
+    setCompressedSize(0);
+    setCompressionRatio(0);
+
     // Reset file input if it exists
     const fileInput = document.getElementById('media-upload') as HTMLInputElement;
     if (fileInput) {
       fileInput.value = '';
     }
+  }, []);
+
+  /**
+   * Toggle compression on/off
+   */
+  const toggleCompression = useCallback((): void => {
+    setCompressionEnabled(prev => !prev);
   }, []);
 
   return {
@@ -214,12 +268,19 @@ export const useMediaUpload = (): UseMediaUploadReturn => {
     uploading,
     uploadProgress,
     error,
+    compressing,
+    compressionProgress,
+    originalSize,
+    compressedSize,
+    compressionRatio,
+    compressionEnabled,
     selectMedia,
     removeMedia,
     uploadMedia,
     handleFileSelect,
     validateFile,
     clearError,
-    reset
+    reset,
+    toggleCompression
   };
 };

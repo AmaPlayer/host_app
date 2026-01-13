@@ -124,9 +124,9 @@ const PostsSection: React.FC<PostsSectionProps> = ({
                 />
               ) : null}
 
-              <div className="post-placeholder" style={{ display: (post.thumbnailUrl || (post.mediaUrls && post.mediaUrls.length > 0)) ? 'none' : 'flex' }}>
+              <div className="post-placeholder" style={{ display: (post.thumbnailUrl || (post.mediaUrls && post.mediaUrls.length > 0) || (post.isRepost && post.originalPost?.mediaUrls && post.originalPost.mediaUrls.length > 0)) ? 'none' : 'flex' }}>
                 <span className="post-placeholder-icon">
-                  {getPostTypeIcon(post.type)}
+                  {post.isRepost ? '🔁' : getPostTypeIcon(post.type)}
                 </span>
                 {post.title && (
                   <span className="post-placeholder-title">
@@ -138,7 +138,30 @@ const PostsSection: React.FC<PostsSectionProps> = ({
                     {post.content.substring(0, 50)}{post.content.length > 50 ? '...' : ''}
                   </span>
                 )}
+                {/* Fallback for Instant Repost with no content but has original content */}
+                {post.isRepost && !post.content && post.originalPost?.content && (
+                  <span className="post-placeholder-title">
+                    {post.originalPost.content.substring(0, 50)}...
+                  </span>
+                )}
               </div>
+
+              {/* Repost Media Fallback */}
+              {post.isRepost && post.originalPost && (post.originalPost.thumbnailUrl || (post.originalPost.mediaUrls && post.originalPost.mediaUrls.length > 0)) && !post.thumbnailUrl && (!post.mediaUrls || post.mediaUrls.length === 0) && (
+                <img
+                  src={post.originalPost.thumbnailUrl || post.originalPost.mediaUrls[0]}
+                  alt="Reposted content"
+                  className="post-image"
+                  style={{ opacity: 0.8 }}
+                />
+              )}
+
+              {/* Repost Overlay Indicator */}
+              {post.isRepost && (
+                <div style={{ position: 'absolute', top: 5, right: 5, background: 'rgba(0,0,0,0.6)', borderRadius: '50%', padding: '4px' }}>
+                  <span style={{ fontSize: '12px', color: '#fff' }}>🔁</span>
+                </div>
+              )}
 
               {post.type === 'video' && (
                 <div className="post-type-indicator">

@@ -1,33 +1,50 @@
 /* NavigationBar Component Styles */
 
 .nav-bar {
-  background: transparent !important; /* Forced transparency */
-  border-bottom: none !important; /* Forced no border */
+  background: transparent !important;
+  /* Forced transparency */
+  border-bottom: none !important;
+  /* Forced no border */
   padding: 0 16px;
-  position: sticky;
+  padding: 0 16px;
+  position: fixed;
   top: 0;
-  z-index: 1000; /* Below modals (2000+) but above content */
-  box-shadow: none !important; /* Forced no shadow */
-  backdrop-filter: none !important; /* Forced no blur on outer container */
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  /* Below modals (2000+) but above content */
+  box-shadow: none !important;
+  /* Forced no shadow */
+  backdrop-filter: none !important;
+  /* Forced no blur on outer container */
   -webkit-backdrop-filter: none !important;
+  transition: transform 0.3s ease-in-out;
+}
+
+.nav-bar.nav-hidden {
+  transform: translateY(-100%);
 }
 
 .nav-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 800px; /* Reduced from 1200px to match content better */
+  max-width: 800px;
+  /* Reduced from 1200px to match content better */
   margin: 0 auto;
   height: 60px;
-  
+
   /* Styles moved from nav-bar */
   background: var(--glass-bg);
-  border: 1px solid var(--glass-border); /* Changed to full border for pill effect */
-  border-radius: 16px; /* Changed to full pill radius */
+  border: 1px solid var(--glass-border);
+  /* Changed to full border for pill effect */
+  border-radius: 16px;
+  /* Changed to full pill radius */
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow);
-  padding: 0 20px; /* Add internal padding */
+  padding: 0 20px;
+  /* Add internal padding */
 }
 
 .nav-back-button {
@@ -69,6 +86,19 @@
   color: var(--primary-color-hover, #0056b3);
 }
 
+.app-logo {
+  height: 52px;
+  /* Increased size */
+  width: auto;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  object-fit: contain;
+}
+
+.app-title:hover .app-logo {
+  transform: scale(1.05);
+  opacity: 0.9;
+}
+
 .nav-links {
   display: flex;
   align-items: center;
@@ -108,10 +138,11 @@
   height: 44px;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  border-radius: 22px; /* Match FooterNav radius */
+  border-radius: 22px;
+  /* Match FooterNav radius */
   cursor: pointer;
   color: var(--text-color-secondary);
-  
+
   /* Match FooterNav transitions and effects */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -126,7 +157,8 @@
 .settings-btn svg,
 .logout-btn svg,
 .nav-back-button svg {
-  width: 20px !important; /* Match FooterNav icon size */
+  width: 20px !important;
+  /* Match FooterNav icon size */
   height: 20px !important;
   flex-shrink: 0;
   transition: none !important;
@@ -136,11 +168,14 @@
 .notification-btn:hover,
 .settings-btn:hover,
 .logout-btn:hover {
-  background: rgba(255, 255, 255, 0.15); /* Match FooterNav hover background */
+  background: rgba(255, 255, 255, 0.15);
+  /* Match FooterNav hover background */
   color: var(--text-primary);
-  border-color: var(--glass-border); /* Border color remains consistent on hover */
+  border-color: var(--glass-border);
+  /* Border color remains consistent on hover */
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2); /* Match FooterNav hover shadow */
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  /* Match FooterNav hover shadow */
 }
 
 .search-btn:active,
@@ -185,9 +220,11 @@
   0% {
     box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
   }
+
   50% {
     box-shadow: 0 2px 12px rgba(0, 123, 255, 0.6);
   }
+
   100% {
     box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
   }
@@ -214,45 +251,46 @@
   .nav-bar {
     padding: 0 12px;
   }
-  
+
   .nav-content {
     height: 56px;
   }
-  
+
   .app-title {
     font-size: 20px;
   }
-  
+
   .nav-links {
     gap: 12px;
   }
-  
+
   .guest-indicator {
     font-size: 12px;
     padding: 2px 6px;
   }
-  
+
   .search-btn,
   .notification-btn,
   .settings-btn,
   .logout-btn {
-    width: 44px; /* Increased for better touch targets */
+    width: 44px;
+    /* Increased for better touch targets */
     height: 44px;
     /* Enhanced touch feedback */
     -webkit-tap-highlight-color: rgba(0, 123, 255, 0.2);
     touch-action: manipulation;
   }
-  
+
   .nav-actions {
     gap: 10px;
   }
-  
+
   .notification-badge {
     min-width: 16px;
     height: 16px;
     font-size: 10px;
   }
-  
+
   /* Better touch interaction feedback */
   .search-btn:active,
   .notification-btn:active,
@@ -268,11 +306,11 @@
   .nav-bar {
     padding: 0 8px;
   }
-  
+
   .nav-actions {
     gap: 6px;
   }
-  
+
   .search-btn,
   .notification-btn,
   .settings-btn,
@@ -283,11 +321,11 @@
     min-width: 44px;
     min-height: 44px;
   }
-  
+
   .app-title {
     font-size: 18px;
   }
-  
+
   /* Optimize for very small screens */
   .nav-content {
     height: 52px;
@@ -302,6 +340,7 @@
 
 /* Touch device optimizations */
 @media (pointer: coarse) {
+
   .search-btn,
   .notification-btn,
   .settings-btn,
@@ -313,14 +352,14 @@
     -webkit-tap-highlight-color: rgba(0, 123, 255, 0.2);
     touch-action: manipulation;
   }
-  
+
   .nav-back-button {
     min-width: 44px;
     min-height: 44px;
     -webkit-tap-highlight-color: rgba(0, 123, 255, 0.2);
     touch-action: manipulation;
   }
-  
+
   .app-title {
     -webkit-tap-highlight-color: rgba(0, 123, 255, 0.1);
     touch-action: manipulation;

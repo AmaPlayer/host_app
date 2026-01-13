@@ -76,7 +76,7 @@ export interface Event {
   image?: string;
   imageUrl?: string;
   status: EventStatus;
-  participants?: string;
+  participants?: string[];
   maxParticipants?: number | string;
   priority: EventPriority;
   registrationUrl?: string;

@@ -17,8 +17,7 @@ import {
 } from 'lucide-react';
 import { eventsService, EventSubmission } from '../services/eventsService';
 import { Event, EventCategory } from '../types/models/event';
-import { storage } from '../firebase/config';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { r2Storage } from '../services/storage/r2Storage';
 import AdminWinnerSelector from './AdminWinnerSelector';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -45,7 +44,7 @@ const EventManagement: React.FC = () => {
   const loadEvents = async () => {
     try {
       setLoading(true);
-      console.log('🎬 ADMIN: Loading events from Firebase...');
+      console.log('🎬 ADMIN: Loading events from Supabase...');
       const allEvents = await eventsService.getAllEvents();
       console.log('📊 ADMIN: Events loaded:', allEvents);
       console.log('📈 ADMIN: Total events:', allEvents.length);
@@ -60,7 +59,7 @@ const EventManagement: React.FC = () => {
   const filteredEvents = events.filter(event => {
     if (filterStatus === 'active' && !event.isActive) return false;
     if (filterStatus === 'inactive' && event.isActive) return false;
-    
+
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase();
       return (
@@ -70,7 +69,7 @@ const EventManagement: React.FC = () => {
         event.category.toLowerCase().includes(searchLower)
       );
     }
-    
+
     return true;
   });
 
@@ -164,7 +163,8 @@ const EventManagement: React.FC = () => {
       }
     };
 
-    // Upload image to Firebase Storage
+    // Upload image to R2 Storage
+
     const uploadImage = async (file: File): Promise<string> => {
       setUploadingImage(true);
       try {
@@ -181,16 +181,12 @@ const EventManagement: React.FC = () => {
 
         const timestamp = Date.now();
         const fileName = `events/${timestamp}-${file.name}`;
-        const storageRef = ref(storage, fileName);
 
         console.log('Uploading to path:', fileName);
-        const snapshot = await uploadBytes(storageRef, file);
-        console.log('Upload snapshot:', snapshot);
-        
-        const downloadURL = await getDownloadURL(snapshot.ref);
-        console.log('Download URL obtained:', downloadURL);
-        
-        return downloadURL;
+        const result = await r2Storage.uploadFile(fileName, file);
+        console.log('Upload result:', result);
+
+        return result.url;
       } catch (error) {
         console.error('Error uploading image:', error);
         setUploadingImage(false); // Reset state on error
@@ -241,7 +237,7 @@ const EventManagement: React.FC = () => {
           const eventId = await eventsService.createEvent(eventData);
           console.log('Event created successfully with ID:', eventId);
         }
-        
+
         await loadEvents();
         // Reset form state
         setImageFile(null);
@@ -430,7 +426,7 @@ const EventManagement: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   📸 Event Image (Optional)
                 </label>
-                
+
                 {/* Current Image Preview */}
                 {(formData.imageUrl || imagePreview) && (
                   <div className="mb-3">
@@ -444,14 +440,13 @@ const EventManagement: React.FC = () => {
                     </p>
                   </div>
                 )}
-                
+
                 {/* File Input */}
                 <div className="flex items-center justify-center w-full">
-                  <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded cursor-pointer transition-colors ${
-                    uploadingImage 
-                      ? 'border-blue-400 bg-blue-50' 
-                      : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
-                  }`}>
+                  <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded cursor-pointer transition-colors ${uploadingImage
+                    ? 'border-blue-400 bg-blue-50'
+                    : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
+                    }`}>
                     <div className="flex flex-col items-center justify-center py-2">
                       {uploadingImage ? (
                         <>
@@ -578,21 +573,26 @@ const EventManagement: React.FC = () => {
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{event.title}</h3>
               <div className="flex items-center space-x-2 mb-4">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                  event.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {event.isActive ? (
-                    <>
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Active
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Inactive
-                    </>
-                  )}
-                </span>
+                {event.status === 'completed' || (event.leaderboard && event.leaderboard.length > 0) ? (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    🏆 Completed
+                  </span>
+                ) : (
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${event.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                    {event.isActive ? (
+                      <>
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Active
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-3 h-3 mr-1" />
+                        Inactive
+                      </>
+                    )}
+                  </span>
+                )}
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
                 </span>
@@ -603,6 +603,33 @@ const EventManagement: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700">Description</label>
               <p className="mt-1 text-sm text-gray-900">{event.description}</p>
             </div>
+
+            {event.leaderboard && event.leaderboard.length > 0 && (
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <h4 className="text-md font-bold text-yellow-800 mb-3 flex items-center">
+                  <Trophy className="w-4 h-4 mr-2" />
+                  Winners
+                </h4>
+                <div className="space-y-3">
+                  {event.leaderboard.sort((a, b) => a.rank - b.rank).map((winner) => (
+                    <div key={winner.rank} className="flex items-center justify-between bg-white p-2 rounded shadow-sm">
+                      <div className="flex items-center">
+                        <span className={`flex items-center justify-center w-6 h-6 rounded-full mr-3 text-xs font-bold ${winner.rank === 1 ? 'bg-yellow-100 text-yellow-800' :
+                            winner.rank === 2 ? 'bg-gray-100 text-gray-800' :
+                              'bg-orange-100 text-orange-800'
+                          }`}>
+                          #{winner.rank}
+                        </span>
+                        <span className="font-medium text-gray-900">
+                          {winner.userId}
+                        </span>
+                      </div>
+                      <span className="text-sm text-gray-500">{winner.prize || 'No Prize'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -717,11 +744,16 @@ const EventManagement: React.FC = () => {
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">{event.title}</h3>
                   <div className="flex items-center space-x-2 flex-wrap">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      event.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {event.isActive ? 'Active' : 'Inactive'}
-                    </span>
+                    {event.status === 'completed' || (event.leaderboard && event.leaderboard.length > 0) ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        🏆 Completed
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${event.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                        {event.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    )}
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
                     </span>
@@ -788,11 +820,10 @@ const EventManagement: React.FC = () => {
                         <button
                           onClick={() => handleOpenWinnerSelector(event)}
                           disabled={loadingSubmissions || event.leaderboard?.length > 0}
-                          className={`block w-full text-left px-4 py-2 text-sm ${
-                            event.leaderboard?.length > 0
-                              ? 'text-green-700'
-                              : 'text-orange-700 hover:bg-gray-100'
-                          } ${event.leaderboard?.length > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`block w-full text-left px-4 py-2 text-sm ${event.leaderboard?.length > 0
+                            ? 'text-green-700'
+                            : 'text-orange-700 hover:bg-gray-100'
+                            } ${event.leaderboard?.length > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <Trophy className="w-4 h-4 inline mr-2" />
                           {event.leaderboard?.length > 0 ? '✓ Winners Declared' : 'Declare Winners'}
@@ -824,7 +855,7 @@ const EventManagement: React.FC = () => {
                 <div className="flex items-center">
                   <Users className="w-4 h-4 mr-2" />
                   {event.participants?.length || 0} participants
-                  {event.maxParticipants > 0 && ` / ${event.maxParticipants} max`}
+                  {Number(event.maxParticipants) > 0 && ` / ${event.maxParticipants} max`}
                 </div>
               </div>
             </div>

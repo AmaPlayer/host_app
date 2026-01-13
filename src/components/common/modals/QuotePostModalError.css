@@ -1,0 +1,32 @@
+.quote-error-message {
+  background-color: #f4212e;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: fadeIn 0.3s ease-out;
+  box-shadow: 0 2px 5px rgba(244, 33, 46, 0.2);
+}
+
+.quote-error-message button {
+  background: none;
+  border: none;
+  color: white;
+  opacity: 0.8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.quote-error-message button:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  opacity: 1;
+}

@@ -1,5 +1,8 @@
 import type { Post } from './post';
-import type { ShareType, PrivacyLevel } from '../../constants/sharing';
+import type { PrivacyLevel } from '../../constants/sharing';
+import { SHARE_TYPES } from '../../constants/sharing';
+
+export type ShareType = typeof SHARE_TYPES[keyof typeof SHARE_TYPES];
 
 /**
  * Data structure for sharing operations

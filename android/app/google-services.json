@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "750642822137",
+    "project_id": "amaplay007",
+    "storage_bucket": "amaplay007.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:750642822137:android:d342eecd19268f420fdb28",
+        "android_client_info": {
+          "package_name": "com.amaplayer.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "750642822137-frma63c24bkq44tl9s47efe4epnj0bap.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.amaplayer.app",
+            "certificate_hash": "2faf33a000036471592032203ca98bbbb88483a4"
+          }
+        },
+        {
+          "client_id": "750642822137-hhpoo86bti9s94lvvoeqov4oi9173j03.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.amaplayer.app",
+            "certificate_hash": "e785ad5cc0be3f3fb6dc9991157f180efa449e50"
+          }
+        },
+        {
+          "client_id": "750642822137-a63m1u5n2refq34rnaj1nili456lcvmu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6brBkml3T4QRdAECZwfT_uIKoTWZp83M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "750642822137-a63m1u5n2refq34rnaj1nili456lcvmu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

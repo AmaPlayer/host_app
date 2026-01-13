@@ -75,6 +75,15 @@ class NotificationService {
     }
   }
 
+  async enableNotifications(userId: string): Promise<boolean> {
+    const permission = await this.requestPermission();
+    if (permission === 'granted' && userId) {
+      await this.getAndSaveToken(userId);
+      return true;
+    }
+    return false;
+  }
+
   async getAndSaveToken(userId: string | null = null): Promise<string | null> {
     try {
       if (!messaging) return null;
@@ -104,18 +113,17 @@ class NotificationService {
 
   async saveTokenToDatabase(userId: string, token: string): Promise<void> {
     try {
-      // Get existing user settings/metadata
       const { data: user } = await supabase.from('users').select('settings').eq('uid', userId).single();
       if (!user) return;
 
       const settings = user.settings || {};
       const tokens = settings.fcm_tokens || [];
-      
+
       if (!tokens.includes(token)) {
         tokens.push(token);
         await supabase
           .from('users')
-          .update({ 
+          .update({
             settings: { ...settings, fcm_tokens: tokens },
             updated_at: new Date().toISOString()
           })
@@ -150,57 +158,46 @@ class NotificationService {
 
   async sendNotificationToUser(receiverUserId: string, notification: NotificationData): Promise<void> {
     try {
-      // 1. Resolve users
-      const { data: sender } = await supabase.from('users').select('id').eq('uid', notification.senderId).single();
-      const { data: receiver } = await supabase.from('users').select('id').eq('uid', receiverUserId).single();
-      
-      if (!receiver) return;
+      const { data: sender } = await supabase.from('users').select('id, uid, display_name').eq('uid', notification.senderId).maybeSingle();
+      const { data: receiver } = await supabase.from('users').select('id, uid').eq('uid', receiverUserId).maybeSingle();
 
-      // 2. Insert into notifications table
-      await supabase.from('notifications').insert({
+      if (!receiver) {
+        console.warn(`Notification skipped: Receiver ${receiverUserId} not found in Supabase`);
+        return;
+      }
+
+      // Check for duplicate recent notification to avoid spam? (Optional, skipping for now)
+
+      const payload = {
         receiver_id: receiver.id,
-        sender_id: sender?.id || null,
+        sender_id: sender?.id || null, // Allow system notifications if no sender found
+        sender_name: notification.senderName || sender?.display_name || 'System', // Fix: Required by DB
+        sender_photo_url: notification.senderPhotoURL || null, // Fix: Likely required
         type: notification.type,
         message: notification.message,
-        content_id: (notification.postId || notification.storyId || notification.momentId) as any,
+        content_id: notification.postId || notification.storyId || notification.momentId || null,
         is_read: false,
-        created_at: new Date().toISOString()
-      });
+        created_at: new Date().toISOString(),
+        metadata: {
+          url: notification.url,
+          senderName: notification.senderName || sender?.display_name,
+          senderPhoto: notification.senderPhotoURL,
+          ...notification.data
+        }
+      };
 
-      // 3. Push Logic (Triggered by Edge Function in real app, or here if we have tokens)
-      // For now, we rely on the DB entry for in-app notifications.
+      const { error } = await supabase.from('notifications').insert(payload);
+
+      if (error) {
+        console.error('❌ Supabase insert error:', error);
+        throw error;
+      }
+      console.log(`✅ Notification sent to ${receiverUserId} (Supabase)`);
     } catch (error) {
       console.error('❌ Error sending notification:', error);
     }
   }
 
-  async enableNotifications(userId: string): Promise<boolean> {
-    const permission = await this.requestPermission();
-    if (permission === 'granted' && userId) {
-      await this.getAndSaveToken(userId);
-      return true;
-    }
-    return false;
-  }
-
-  async sendStoryLikeNotification(likerUid: string, likerName: string, likerPhoto: string, ownerUid: string, storyId: string, storyData?: any): Promise<void> {
-    await this.sendLikeNotification(likerUid, likerName, likerPhoto, ownerUid, storyId, { contentType: 'story', ...storyData });
-  }
-
-  async sendStoryCommentNotification(uid: string, name: string, photo: string, ownerUid: string, storyId: string, text: string, storyData?: any): Promise<void> {
-    if (uid === ownerUid) return;
-    await this.sendNotificationToUser(ownerUid, {
-      senderId: uid,
-      senderName: name,
-      senderPhotoURL: photo,
-      type: 'story_comment',
-      message: `${name} commented on your story: "${text.substring(0, 30)}..."`,
-      storyId: storyId,
-      url: `/story/${storyId}`
-    });
-  }
-
-  // Simplified helpers that call sendNotificationToUser
   async sendLikeNotification(likerUid: string, likerName: string, likerPhoto: string, ownerUid: string, contentId: string, contentData: any): Promise<void> {
     if (likerUid === ownerUid) return;
     const type = contentData?.contentType || 'post';
@@ -239,8 +236,24 @@ class NotificationService {
       url: `/profile/${uid}`
     });
   }
-  
-  // Add other notification methods as needed (story_like, connection_request, etc.)
+
+  async sendStoryLikeNotification(likerUid: string, likerName: string, likerPhoto: string, ownerUid: string, storyId: string, storyData?: any): Promise<void> {
+    await this.sendLikeNotification(likerUid, likerName, likerPhoto, ownerUid, storyId, { contentType: 'story' });
+  }
+
+  async sendStoryCommentNotification(uid: string, name: string, photo: string, ownerUid: string, storyId: string, text: string, storyData?: any): Promise<void> {
+    if (uid === ownerUid) return;
+    await this.sendNotificationToUser(ownerUid, {
+      senderId: uid,
+      senderName: name,
+      senderPhotoURL: photo,
+      type: 'story_comment',
+      message: `${name} commented on your story: "${text.substring(0, 30)}..."`,
+      storyId: storyId,
+      url: `/story/${storyId}`
+    });
+  }
+
   async sendConnectionRequestNotification(
     recipientId: string,
     senderName: string,
@@ -249,7 +262,7 @@ class NotificationService {
     connectionType: string
   ): Promise<void> {
     await this.sendNotificationToUser(recipientId, {
-      senderId: 'system', 
+      senderId: 'system', // Or resolve sender if available
       senderName,
       senderPhotoURL,
       type: 'connection_request',

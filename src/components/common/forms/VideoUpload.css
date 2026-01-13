@@ -113,12 +113,16 @@
   background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
   padding: 20px 15px 15px;
   backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .controls-row {
   display: flex;
   align-items: center;
   gap: 12px;
+  justify-content: space-between;
 }
 
 .control-btn {
@@ -158,39 +162,6 @@
   box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
 }
 
-.progress-container {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.progress-bar {
-  flex: 1;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
-  border-radius: 3px;
-  transition: width 0.1s ease;
-}
-
-.time-display {
-  display: flex;
-  gap: 4px;
-  color: white;
-  font-size: 12px;
-  font-weight: 500;
-  min-width: 80px;
-  justify-content: center;
-}
 
 .volume-control {
   display: flex;

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Video, X, Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
 import { validateVideoFile, SUPPORTED_VIDEO_TYPES, MAX_VIDEO_SIZE } from '../../../services/api/videoService';
+import SimpleProgressBar from '../media/SimpleProgressBar';
 import './VideoUpload.css';
 
 interface VideoUploadProps {
@@ -145,16 +146,6 @@ export default function VideoUpload({
     }
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const progressBar = e.currentTarget;
-    const rect = progressBar.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const newTime = (clickX / rect.width) * duration;
-    
-    if (videoRef.current) {
-      videoRef.current.currentTime = newTime;
-    }
-  };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
@@ -186,11 +177,6 @@ export default function VideoUpload({
     }
   };
 
-  const formatTime = (time: number): string => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
 
   // Handle video events and auto-play
   useEffect(() => {
@@ -264,6 +250,18 @@ export default function VideoUpload({
               
               {showControls && (
                 <div className="video-controls">
+                  <SimpleProgressBar
+                    currentTime={currentTime}
+                    duration={duration}
+                    onSeek={(time) => {
+                      if (videoRef.current) {
+                        videoRef.current.currentTime = time;
+                      }
+                    }}
+                    showTime={true}
+                    className="video-upload-progress"
+                  />
+
                   <div className="controls-row">
                     <button
                       type="button"
@@ -273,24 +271,7 @@ export default function VideoUpload({
                     >
                       {isPlaying ? <Pause size={18} /> : <Play size={18} />}
                     </button>
-                    
-                    <div className="progress-container">
-                      <div 
-                        className="progress-bar"
-                        onClick={handleSeek}
-                      >
-                        <div 
-                          className="progress-fill"
-                          style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
-                        />
-                      </div>
-                      <div className="time-display">
-                        <span>{formatTime(currentTime)}</span>
-                        <span>/</span>
-                        <span>{formatTime(duration)}</span>
-                      </div>
-                    </div>
-                    
+
                     <div className="volume-control">
                       <button
                         type="button"
@@ -310,7 +291,7 @@ export default function VideoUpload({
                         className="volume-slider"
                       />
                     </div>
-                    
+
                     <button
                       type="button"
                       className="control-btn fullscreen-btn"

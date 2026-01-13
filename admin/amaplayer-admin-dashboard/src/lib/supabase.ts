@@ -8,9 +8,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase environment variables. Please check your .env file.');
 }
 
+// Check for Service Role Key (Preferred for Admin Dashboard)
+const supabaseServiceKey = process.env.REACT_APP_SUPABASE_SERVICE_ROLE_KEY;
+const supabaseKey = supabaseServiceKey || supabaseAnonKey;
+
+if (supabaseServiceKey) {
+  console.log('✅ Supabase initialized with Service Role Key (Admin Mode)');
+}
+
 export const supabase = createClient(
-  supabaseUrl || '', 
-  supabaseAnonKey || '', 
+  supabaseUrl || '',
+  supabaseKey || '',
   {
     auth: {
       persistSession: false,

@@ -48,7 +48,7 @@ class ShareErrorHandler {
    */
   handleShareError(error: Error, context: ShareErrorContext = {}) {
     const errorInfo = this.categorizeError(error);
-    
+
     // Log to central error handler
     errorHandler.logError(
       error,
@@ -183,7 +183,7 @@ class ShareErrorHandler {
       message.includes('timeout') ||
       message.includes('offline') ||
       error?.name === 'NetworkError' ||
-      error?.name === 'TypeError' && message.includes('failed to fetch')
+      (error?.name === 'TypeError' && message.includes('failed to fetch'))
     );
   }
 
@@ -258,7 +258,7 @@ class ShareErrorHandler {
     if (match) {
       const value = parseInt(match[1]);
       const unit = match[2].toLowerCase();
-      
+
       if (unit.startsWith('min')) {
         return value * 60 * 1000;
       }
@@ -272,7 +272,7 @@ class ShareErrorHandler {
    */
   addToHistory(errorEntry: any) {
     this.errorHistory.unshift(errorEntry);
-    
+
     if (this.errorHistory.length > this.maxHistorySize) {
       this.errorHistory = this.errorHistory.slice(0, this.maxHistorySize);
     }
@@ -283,19 +283,19 @@ class ShareErrorHandler {
    */
   getErrorHistory(filters: ErrorFilterOptions = {}) {
     let history = [...this.errorHistory];
-    
+
     if (filters.category) {
       history = history.filter(entry => entry.errorInfo.category === filters.category);
     }
-    
+
     if (filters.shareType) {
       history = history.filter(entry => entry.context.shareType === filters.shareType);
     }
-    
+
     if (filters.limit) {
       history = history.slice(0, filters.limit);
     }
-    
+
     return history;
   }
 
@@ -313,7 +313,7 @@ class ShareErrorHandler {
     this.errorHistory.forEach(entry => {
       const category = entry.errorInfo.category;
       const shareType = entry.context.shareType || 'unknown';
-      
+
       stats.byCategory[category] = (stats.byCategory[category] || 0) + 1;
       stats.byShareType[shareType] = (stats.byShareType[shareType] || 0) + 1;
     });
@@ -351,10 +351,10 @@ class ShareErrorHandler {
         return await operation();
       } catch (error) {
         lastError = error;
-        
+
         if (attempt < maxRetries) {
           const errorInfo = this.categorizeError(error);
-          
+
           // Don't retry if error is not retryable
           if (!errorInfo.canRetry) {
             throw error;
@@ -362,13 +362,13 @@ class ShareErrorHandler {
 
           // Use error-specific delay if available
           const retryDelay = errorInfo.retryDelay || delay;
-          
+
           if (onRetry) {
             onRetry(attempt + 1, retryDelay, error);
           }
 
           await new Promise(resolve => setTimeout(resolve, retryDelay));
-          
+
           // Exponential backoff
           delay = Math.min(delay * backoffMultiplier, maxDelay);
         }
@@ -403,11 +403,11 @@ const shareErrorHandler = new ShareErrorHandler();
 export default shareErrorHandler;
 
 // Export utility functions
-export const handleShareError = (error: Error, context: ShareErrorContext) => 
+export const handleShareError = (error: Error, context: ShareErrorContext) =>
   shareErrorHandler.handleShareError(error, context);
 
-export const retryShareOperation = (operation: () => Promise<any>, options: RetryOptions) => 
+export const retryShareOperation = (operation: () => Promise<any>, options: RetryOptions) =>
   shareErrorHandler.retryWithBackoff(operation, options);
 
-export const wrapShareOperation = (operation: () => Promise<any>, context: ShareErrorContext) => 
+export const wrapShareOperation = (operation: () => Promise<any>, context: ShareErrorContext) =>
   shareErrorHandler.wrapShareOperation(operation, context);

@@ -1,12 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, Settings, LogOut, Lock } from 'lucide-react';
+import { ArrowLeft, Users, Settings, LogOut, Lock, UserPlus } from 'lucide-react';
 import { X } from 'lucide-react';
-import groupsService from '../../services/api/groupsService';
+import groupsService from '../../services/supabase/groupsService';
 import { useAuth } from '../../contexts/AuthContext';
 import { GroupDetails as IGroupDetails } from '../../types/models/group';
 import GroupChat from '../../features/messaging/components/GroupChat';
+import InviteMembersModal from './components/InviteMembersModal';
 
 import './GroupDetails.css';
 
@@ -19,6 +20,7 @@ const GroupDetails: React.FC = () => {
     const [isMember, setIsMember] = useState(false);
     const [joining, setJoining] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
+    const [showInvite, setShowInvite] = useState(false);
 
     useEffect(() => {
         if (!groupId || !user) return;
@@ -67,6 +69,14 @@ const GroupDetails: React.FC = () => {
         } catch (e) {
             console.error(e);
         }
+    };
+
+    const handleInvite = async (userIds: string[]) => {
+        if (!groupId) return;
+        await groupsService.addMembers(groupId, userIds);
+        // Refresh group details to update member count
+        const details = await groupsService.getGroupDetails(groupId);
+        if (details) setGroup(details);
     };
 
     if (loading) return <div className="loading-chat">Loading...</div>;
@@ -124,6 +134,10 @@ const GroupDetails: React.FC = () => {
                                 <button className="settings-btn">
                                     <Settings size={18} />
                                     Settings
+                                </button>
+                                <button className="settings-btn" onClick={() => setShowInvite(true)}>
+                                    <UserPlus size={18} />
+                                    Invite
                                 </button>
                                 <button onClick={handleLeave} className="leave-btn">
                                     <LogOut size={18} />
@@ -185,6 +199,16 @@ const GroupDetails: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {user && (
+                <InviteMembersModal
+                    isOpen={showInvite}
+                    onClose={() => setShowInvite(false)}
+                    onInvite={handleInvite}
+                    currentUser={user}
+                    groupId={groupId as string}
+                />
+            )}
         </div>
     );
 };

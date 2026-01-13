@@ -117,15 +117,14 @@ class AthletesService {
         .from('athletes')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      if (error) {
-        if (error.code === 'PGRST116') return null;
-        throw error;
-      }
+      if (error) throw error;
+      if (!data) return null;
 
       const stats = data.stats || {};
-      
+
       const profile: any = {
         id: userId,
         uid: userId,
@@ -168,7 +167,7 @@ class AthletesService {
         .select('stats')
         .eq('user_id', userId)
         .single();
-        
+
       const currentStats = currentData?.stats || {};
       const newStats = { ...currentStats, ...updates }; // Naive merge
 
@@ -184,8 +183,8 @@ class AthletesService {
       if (anyUpdates.height) dbUpdates.height = anyUpdates.height;
       if (anyUpdates.weight) dbUpdates.weight = anyUpdates.weight;
       if (updates.sports) {
-         dbUpdates.sports = [updates.sports.primary, updates.sports.secondary].filter(Boolean);
-         dbUpdates.position = updates.sports.position;
+        dbUpdates.sports = [updates.sports.primary, updates.sports.secondary].filter(Boolean);
+        dbUpdates.position = updates.sports.position;
       }
 
       const { error } = await supabase
