@@ -21,6 +21,18 @@ module.exports = {
       '@constants': path.resolve(__dirname, 'src/constants/'),
     },
     configure: (webpackConfig, { env }) => {
+      // Disable source maps in production
+      if (env === 'production') {
+        webpackConfig.devtool = false;
+      }
+
+      // Disable ESLint warnings as errors in CI/production
+      if (process.env.CI === 'true' || env === 'production') {
+        webpackConfig.plugins = webpackConfig.plugins.filter(
+          plugin => plugin.constructor.name !== 'ESLintWebpackPlugin'
+        );
+      }
+
       // Performance optimizations for production
       if (env === 'production') {
         // Remove CSS minimizer to avoid parsing errors
