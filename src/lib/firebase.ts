@@ -9,15 +9,27 @@ import { Analytics, getAnalytics, isSupported as isAnalyticsSupported } from 'fi
 import { validateFirebaseConfig } from '../utils/validation/configValidation';
 import { FirebaseConfig } from '../types/api/firebase';
 
-const firebaseConfig: FirebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || '',
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || '',
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || '',
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: process.env.REACT_APP_FIREBASE_APP_ID || '',
-  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
+// Get Firebase config from runtime (window.FIREBASE_CONFIG) or build-time (process.env)
+const getRuntimeConfig = (): FirebaseConfig => {
+  // @ts-ignore - window.FIREBASE_CONFIG is loaded from public/config.js
+  if (typeof window !== 'undefined' && window.FIREBASE_CONFIG) {
+    // @ts-ignore
+    return window.FIREBASE_CONFIG;
+  }
+
+  // Fallback to environment variables (for local development)
+  return {
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY || '',
+    authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || '',
+    projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || '',
+    storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || '',
+    appId: process.env.REACT_APP_FIREBASE_APP_ID || '',
+    measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
+  };
 };
+
+const firebaseConfig: FirebaseConfig = getRuntimeConfig();
 
 // Validate configuration before initializing
 validateFirebaseConfig(firebaseConfig);
@@ -47,7 +59,8 @@ try {
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     messaging = getMessaging(app);
   }
-} catch (error) {}
+} catch (error) {
+}
 
 // Initialize Analytics conditionally with proper error handling
 let analytics: Analytics | null = null;
@@ -57,10 +70,12 @@ if (typeof window !== 'undefined') {
     .then((supported) => {
       if (supported && firebaseConfig.measurementId) {
         try {
-          analytics = getAnalytics(app);} catch (error) {
+          analytics = getAnalytics(app);
+        } catch (error) {
           console.warn('⚠️ Firebase Analytics initialization failed:', error);
         }
-      } else {}
+      } else {
+      }
     })
     .catch((error) => {
       console.warn('⚠️ Failed to check Analytics support:', error);
