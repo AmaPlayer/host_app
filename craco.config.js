@@ -33,6 +33,14 @@ module.exports = {
         );
       }
 
+      // Disable CSS order warnings in mini-css-extract-plugin
+      webpackConfig.plugins = webpackConfig.plugins.map(plugin => {
+        if (plugin.constructor.name === 'MiniCssExtractPlugin') {
+          plugin.options.ignoreOrder = true;
+        }
+        return plugin;
+      });
+
       // Performance optimizations for production
       if (env === 'production') {
         // Remove CSS minimizer to avoid parsing errors
