@@ -1,9 +1,10 @@
 import { useState, useEffect, FormEvent, ChangeEvent, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Home, Eye, EyeOff } from 'lucide-react';
+import { Home, Eye, EyeOff, Check, X, AlertCircle } from 'lucide-react';
 import ThemeToggle from '../../components/common/ui/ThemeToggle';
 import LanguageSelector from '../../components/common/forms/LanguageSelector';
+import { validatePassword, DEFAULT_PASSWORD_REQUIREMENTS, PasswordValidationResult } from '../../utils/validation/validation';
 import './Auth.css';
 
 export default function Signup() {
@@ -15,6 +16,11 @@ export default function Signup() {
   const [loading, setLoading] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+
+  // Password validation state
+  const [passwordValidation, setPasswordValidation] = useState<PasswordValidationResult | null>(null);
+  const [isPasswordFocused, setIsPasswordFocused] = useState<boolean>(false);
+
   const { signup, googleLogin, appleLogin, currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -75,6 +81,14 @@ export default function Signup() {
       }
     }
   }, []);
+
+  // Update password handler
+  const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setPassword(val);
+    const result = validatePassword(val, DEFAULT_PASSWORD_REQUIREMENTS);
+    setPasswordValidation(result);
+  };
 
   // Helper function to save pending details after authentication
   async function savePendingDetails(): Promise<void> {
@@ -282,6 +296,13 @@ export default function Signup() {
       return setError('Passwords do not match');
     }
 
+    // Explicitly validate password before submission
+    const validation = validatePassword(password, DEFAULT_PASSWORD_REQUIREMENTS);
+    if (!validation.isValid) {
+      if (validation.error) return setError(validation.error);
+      return setError('Please check password requirements');
+    }
+
     try {
       setError('');
       setLoading(true);
@@ -395,7 +416,9 @@ export default function Signup() {
               type={showPassword ? "text" : "password"}
               placeholder="Password"
               value={password}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
+              onFocus={() => setIsPasswordFocused(true)}
+              onBlur={() => setIsPasswordFocused(false)}
               required
             />
             <button
@@ -406,6 +429,45 @@ export default function Signup() {
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
+
+            {/* Password Requirements Popup */}
+            {isPasswordFocused && (
+              <div className="password-requirements-popup">
+                <h4>Password Requirements:</h4>
+                <ul className="requirements-list">
+                  <li className={`requirement-item ${passwordValidation?.requirements?.minLength ? 'met' : 'unmet'}`}>
+                    <span className="requirement-icon">
+                      {passwordValidation?.requirements?.minLength ? <Check size={14} /> : <AlertCircle size={14} />}
+                    </span>
+                    At least 10 characters
+                  </li>
+                  <li className={`requirement-item ${passwordValidation?.requirements?.startsWithUppercase ? 'met' : 'unmet'}`}>
+                    <span className="requirement-icon">
+                      {passwordValidation?.requirements?.startsWithUppercase ? <Check size={14} /> : <AlertCircle size={14} />}
+                    </span>
+                    Start with an uppercase letter
+                  </li>
+                  <li className={`requirement-item ${passwordValidation?.requirements?.hasLowercase ? 'met' : 'unmet'}`}>
+                    <span className="requirement-icon">
+                      {passwordValidation?.requirements?.hasLowercase ? <Check size={14} /> : <AlertCircle size={14} />}
+                    </span>
+                    At least one lowercase letter
+                  </li>
+                  <li className={`requirement-item ${passwordValidation?.requirements?.hasNumber ? 'met' : 'unmet'}`}>
+                    <span className="requirement-icon">
+                      {passwordValidation?.requirements?.hasNumber ? <Check size={14} /> : <AlertCircle size={14} />}
+                    </span>
+                    At least one number
+                  </li>
+                  <li className={`requirement-item ${passwordValidation?.requirements?.hasSpecialChar ? 'met' : 'unmet'}`}>
+                    <span className="requirement-icon">
+                      {passwordValidation?.requirements?.hasSpecialChar ? <Check size={14} /> : <AlertCircle size={14} />}
+                    </span>
+                    At least one special character
+                  </li>
+                </ul>
+              </div>
+            )}
           </div>
           <div className="form-group password-field">
             <input

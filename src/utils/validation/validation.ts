@@ -157,6 +157,7 @@ export interface PasswordValidationResult extends ValidationResult {
     hasUppercase: boolean;
     hasNumber: boolean;
     hasSpecialChar: boolean;
+    startsWithUppercase?: boolean; // New requirement property
   };
 }
 
@@ -169,6 +170,7 @@ export interface PasswordRequirements {
   requireUppercase: boolean;
   requireNumber: boolean;
   requireSpecialChar: boolean;
+  requireStartsWithUppercase?: boolean; // New requirement
   forbiddenPatterns?: RegExp[];
 }
 
@@ -176,11 +178,12 @@ export interface PasswordRequirements {
  * Default password requirements
  */
 export const DEFAULT_PASSWORD_REQUIREMENTS: PasswordRequirements = {
-  minLength: 8,
+  minLength: 10, // Updated to 10
   requireLowercase: true,
   requireUppercase: true,
   requireNumber: true,
-  requireSpecialChar: false,
+  requireSpecialChar: true, // Enforce special char as well for security
+  requireStartsWithUppercase: true, // New requirement
   forbiddenPatterns: [
     /(.)\1{2,}/, // No more than 2 consecutive identical characters
     /^(password|123456|qwerty|abc123|admin|user)$/i, // Common weak passwords
@@ -194,14 +197,15 @@ export const validatePassword = (
   password: string,
   requirements: PasswordRequirements = DEFAULT_PASSWORD_REQUIREMENTS
 ): PasswordValidationResult => {
-  const { minLength, requireLowercase, requireUppercase, requireNumber, requireSpecialChar, forbiddenPatterns } = requirements;
-  
+  const { minLength, requireLowercase, requireUppercase, requireNumber, requireSpecialChar, requireStartsWithUppercase, forbiddenPatterns } = requirements;
+
   // Check individual requirements
   const hasMinLength = password.length >= minLength;
   const hasLowercase = /[a-z]/.test(password);
   const hasUppercase = /[A-Z]/.test(password);
   const hasNumber = /\d/.test(password);
   const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
+  const startsWithUppercase = requireStartsWithUppercase ? /^[A-Z]/.test(password) : true;
 
   const requirementChecks = {
     minLength: hasMinLength,
@@ -209,11 +213,12 @@ export const validatePassword = (
     hasUppercase: hasUppercase,
     hasNumber: hasNumber,
     hasSpecialChar: hasSpecialChar,
+    startsWithUppercase: startsWithUppercase,
   };
 
   // Calculate score and strength
   const { score, strength } = calculatePasswordStrength(password, requirements);
-  
+
   // Generate error messages and suggestions
   const errors: string[] = [];
   const suggestions: string[] = [];
@@ -221,6 +226,11 @@ export const validatePassword = (
   if (!hasMinLength) {
     errors.push(`Password must be at least ${minLength} characters long`);
     suggestions.push(`Add ${minLength - password.length} more characters`);
+  }
+
+  if (requireStartsWithUppercase && !startsWithUppercase) {
+    errors.push('Password must start with a capital letter');
+    suggestions.push('Capitalize the first letter');
   }
 
   if (requireLowercase && !hasLowercase) {
@@ -262,6 +272,7 @@ export const validatePassword = (
     strength,
     score,
     suggestions: suggestions.length > 0 ? suggestions : undefined,
+    // @ts-ignore - appending new property to requirementChecks which might need type update in interface if strictly typed elsewhere, but let's update interface below
     requirements: requirementChecks,
   };
 };

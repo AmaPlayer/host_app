@@ -1,0 +1,25 @@
+[
+    {
+        "AllowedOrigins": [
+            "https://www.amaplayer.com",
+            "http://localhost:3000",
+            "*"
+        ],
+        "AllowedMethods": [
+            "GET",
+            "PUT",
+            "POST",
+            "DELETE",
+            "HEAD"
+        ],
+        "AllowedHeaders": [
+            "*"
+        ],
+        "ExposeHeaders": [
+            "ETag",
+            "Content-Length",
+            "x-amz-request-id"
+        ],
+        "MaxAgeSeconds": 3600
+    }
+]

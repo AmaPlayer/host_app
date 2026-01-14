@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, Volume2, VolumeX, Heart, MessageCircle, Share, Maximize } from 'lucide-react';
-import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+
 import { MomentVideo, VideoPlayerState } from '../../../types/models/moment';
 import { MomentsService } from '../../../services/api/momentsService';
 import PostsService from '../../../services/supabase/postsService';
@@ -110,7 +109,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [lastError, setLastError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<string>('');
   const [videoStatus, setVideoStatus] = useState<string>('');
-  
+
   // Network status monitoring
   const { networkStatus, isGoodConnection, recommendedVideoQuality } = useNetworkStatus();
 
@@ -156,7 +155,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     const cleanup = VideoOptimizationUtils.monitorNetworkChanges((networkInfo) => {
       setNetworkQuality(networkInfo.effectiveType);
-      
+
       // Re-optimize video quality when network changes
       if (videoRef.current) {
         optimizeQuality(moment.id).catch(console.warn);
@@ -235,8 +234,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    moment.id, 
-    autoPlayEnabled, 
+    moment.id,
+    autoPlayEnabled,
     enablePerformanceOptimizations
     // Note: Removed registerPerformanceVideo, unregisterPerformanceVideo, onVideoRegister, onVideoUnregister
     // from dependencies as they are stable callbacks and including them causes infinite re-registration
@@ -249,68 +248,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [isActive, moment.id, enablePerformanceOptimizations, setVideoVisible]);
 
-  // Real-time comment counter listener
-  // FIX: Using debounced listener to prevent rapid churn during virtual scrolling
-  const listenerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const currentSubscriptionRef = useRef<Unsubscribe | null>(null);
-
+  // Sync comment count from props (Supabase source of truth)
   useEffect(() => {
-    if (!moment.id) return;
-
-    // Clear any pending debounce timer
-    if (listenerDebounceRef.current) {
-      clearTimeout(listenerDebounceRef.current);
-    }
-
-    // Debounce listener creation (200ms) to prevent rapid churn during virtual scrolling
-    listenerDebounceRef.current = setTimeout(() => {
-      try {
-        // Unsubscribe from old listener if exists
-        if (currentSubscriptionRef.current) {
-          currentSubscriptionRef.current();
-        }
-
-        // Create new subscription
-        const unsubscribe = onSnapshot(
-          doc(db, 'moments', moment.id),
-          (docSnapshot) => {
-            if (docSnapshot.exists()) {
-              const data = docSnapshot.data();
-              // Update comment count from Firestore engagement.commentsCount field
-              setRealtimeCommentCount(data.engagement?.commentsCount || 0);
-            }
-          },
-          (error) => {
-            // Silently handle permission errors - expected for moments user doesn't own
-            if (error.code !== 'permission-denied') {
-              console.warn('Error listening to moment updates:', error);
-            }
-            // Fallback to initial value if listener fails
-            setRealtimeCommentCount(moment.engagement.commentsCount || 0);
-          }
-        );
-
-        currentSubscriptionRef.current = unsubscribe;
-      } catch (error) {
-        console.error('Error setting up comment count listener:', error);
-        setRealtimeCommentCount(moment.engagement.commentsCount || 0);
-      }
-    }, 200); // 200ms debounce
-
-    return () => {
-      // Clear debounce timer on unmount
-      if (listenerDebounceRef.current) {
-        clearTimeout(listenerDebounceRef.current);
-      }
-      // Unsubscribe from listener
-      if (currentSubscriptionRef.current) {
-        currentSubscriptionRef.current();
-        currentSubscriptionRef.current = null;
-      }
-    };
-    // FIX: Only depend on moment.id, NOT moment.engagement.commentsCount
-    // Removes the 90% of rapid listener churn caused by engagement updates
-  }, [moment.id]);
+    setRealtimeCommentCount(moment.engagement.commentsCount || 0);
+  }, [moment.engagement.commentsCount]);
 
   // Handle video play/pause based on isActive prop
   useEffect(() => {
@@ -413,7 +354,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleError = useCallback(() => {
     const video = videoRef.current;
     let errorMessage = 'Video failed to load';
-    
+
     if (video?.error) {
       switch (video.error.code) {
         case MediaError.MEDIA_ERR_ABORTED:
@@ -432,14 +373,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           errorMessage = video.error.message || 'Unknown video error';
       }
     }
-    
+
     setPlayerState(prev => ({
       ...prev,
       hasError: true,
       isLoading: false,
       isPlaying: false
     }));
-    
+
     setLastError(errorMessage);
     onVideoError?.(errorMessage);
   }, [onVideoError]);
@@ -447,11 +388,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Show controls temporarily
   const showControlsTemporarily = useCallback(() => {
     setShowControls(true);
-    
+
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
     }
-    
+
     controlsTimeoutRef.current = setTimeout(() => {
       setShowControls(false);
     }, 3000);
@@ -540,13 +481,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       // Route to the correct service based on video type
       if (moment.isPostVideo) {
-        // This is a video from the posts collectionresult = await PostsService.toggleLike(
+        // This is a video from the posts collection
+        result = await PostsService.toggleLike(
           moment.id,
           currentUserId,
           { displayName: 'Current User', photoURL: null } // In real app, get from user context
         );
       } else {
-        // This is a video from the moments collectionresult = await MomentsService.toggleLike(
+        // This is a video from the moments collection
+        result = await MomentsService.toggleLike(
           moment.id,
           currentUserId,
           'Current User', // In real app, get from user context
@@ -579,7 +522,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [moment.id, onShare]);
 
   // Handle share action
-  const handleShareAction = useCallback((platform: string) => {// Track share interaction
+  const handleShareAction = useCallback((platform: string) => {
+    // Track share interaction
     if (currentUserId) {
       MomentsService.trackInteraction({
         momentId: moment.id,
@@ -607,7 +551,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     setRetryCount(prev => prev + 1);
     setLastError(null);
-    
+
     setPlayerState(prev => ({
       ...prev,
       hasError: false,
@@ -616,11 +560,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     // Wait a bit before retrying
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     try {
       // Try to reload the video
       video.load();
-      
+
       // If network is poor, try to get a lower quality version
       if (!isGoodConnection && enablePerformanceOptimizations) {
         try {
@@ -802,7 +746,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`video-player-container ${isMobile ? 'mobile' : 'desktop'}`}
       tabIndex={isActive ? 0 : -1}
@@ -811,7 +755,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       aria-describedby={`video-metadata-${moment.id}`}
       onFocus={() => showControlsTemporarily()}
     >
-      <div 
+      <div
         className="video-wrapper"
         onClick={handleVideoClick}
         onMouseMove={!isMobile ? showControlsTemporarily : undefined}
@@ -840,9 +784,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         {/* Loading State */}
         {playerState.isLoading && !playerState.hasError && (
           <div className="video-loading">
-            <LoadingSpinner 
-              size="large" 
-              message="Loading video..." 
+            <LoadingSpinner
+              size="large"
+              message="Loading video..."
               overlay={false}
             />
           </div>
@@ -937,7 +881,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             {moment.userDisplayName}
           </span>
         </div>
-        
+
         {moment.caption && (
           <p className="video-description" role="text" aria-label={`Video description: ${moment.caption}`}>
             {moment.caption}
@@ -972,7 +916,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         >
           <Heart size={28} fill={moment.isLiked ? 'currentColor' : 'none'} strokeWidth={2.5} />
           <span className="engagement-count" aria-hidden="true">
-            {moment.engagement.likesCount > 0 ? moment.engagement.likesCount.toLocaleString() : ''}
+            {moment.engagement.likesCount.toLocaleString()}
           </span>
         </button>
 
@@ -991,7 +935,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         >
           <MessageCircle size={28} strokeWidth={2.5} />
           <span className="engagement-count" aria-hidden="true">
-            {realtimeCommentCount > 0 ? realtimeCommentCount.toLocaleString() : ''}
+            {realtimeCommentCount.toLocaleString()}
           </span>
         </button>
 
@@ -1007,7 +951,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         >
           <Share size={28} strokeWidth={2.5} />
           <span className="engagement-count" aria-hidden="true">
-            {moment.engagement.sharesCount > 0 ? moment.engagement.sharesCount.toLocaleString() : ''}
+            {moment.engagement.sharesCount.toLocaleString()}
           </span>
         </button>
       </div>
@@ -1032,18 +976,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       />
 
       {/* Screen Reader Announcements */}
-      <div 
-        aria-live="polite" 
-        aria-atomic="true" 
+      <div
+        aria-live="polite"
+        aria-atomic="true"
         className="sr-only"
         role="status"
       >
         {announcement}
       </div>
-      
-      <div 
-        aria-live="assertive" 
-        aria-atomic="true" 
+
+      <div
+        aria-live="assertive"
+        aria-atomic="true"
         className="sr-only"
         role="alert"
       >
@@ -1051,9 +995,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       </div>
 
       {/* Video Status for Screen Readers */}
-      <div 
-        aria-live="polite" 
-        aria-atomic="false" 
+      <div
+        aria-live="polite"
+        aria-atomic="false"
         className="sr-only"
         role="status"
       >

@@ -37,16 +37,31 @@ export const useRealtimeEngagement = (
   const lastUpdateRef = useRef<number>(0);
 
   // Helper to extract engagement data from a record
-  const extractEngagement = (data: any): EngagementData => ({
-    likes: data.likes_count || 0,
-    likesCount: data.likes_count || 0,
-    comments: data.comments_count || 0,
-    commentsCount: data.comments_count || 0,
-    shares: data.shares_count || 0,
-    sharesCount: data.shares_count || 0,
-    views: data.views_count || 0,
-    viewsCount: data.views_count || 0
-  });
+  const extractEngagement = (data: any): EngagementData => {
+    const result: EngagementData = {};
+
+    if (data.likes_count !== undefined) {
+      result.likes = data.likes_count;
+      result.likesCount = data.likes_count;
+    }
+
+    if (data.comments_count !== undefined) {
+      result.comments = data.comments_count;
+      result.commentsCount = data.comments_count;
+    }
+
+    if (data.shares_count !== undefined) {
+      result.shares = data.shares_count;
+      result.sharesCount = data.shares_count;
+    }
+
+    if (data.views_count !== undefined) {
+      result.views = data.views_count;
+      result.viewsCount = data.views_count;
+    }
+
+    return result;
+  };
 
   // Initial fetch
   const fetchInitialData = useCallback(async () => {
@@ -54,7 +69,7 @@ export const useRealtimeEngagement = (
 
     try {
       setLoading(true);
-      // Only query columns that exist in posts table (Fix: removed shares_count, views_count)
+      // Only query columns that exist in posts table
       const { data, error } = await supabase
         .from(tableName)
         .select('likes_count, comments_count')
@@ -62,7 +77,12 @@ export const useRealtimeEngagement = (
         .single();
 
       if (error) throw error;
-      if (data) setEngagement(extractEngagement(data));
+      if (data) {
+        setEngagement(prev => ({
+          ...prev,
+          ...extractEngagement(data)
+        }));
+      }
     } catch (err) {
       console.error('Error fetching initial engagement:', err);
       setError('Failed to fetch initial data');
@@ -99,11 +119,11 @@ export const useRealtimeEngagement = (
             if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
             if (now - lastUpdateRef.current > debounceMs) {
-              setEngagement(engagementData);
+              setEngagement(prev => ({ ...prev, ...engagementData }));
               lastUpdateRef.current = now;
             } else {
               debounceTimerRef.current = setTimeout(() => {
-                setEngagement(engagementData);
+                setEngagement(prev => ({ ...prev, ...engagementData }));
                 lastUpdateRef.current = Date.now();
               }, debounceMs - (now - lastUpdateRef.current));
             }

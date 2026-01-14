@@ -353,7 +353,7 @@
     right: 15px;
     gap: 8px;
   }
-  
+
   .auth-link-btn {
     padding: 8px 16px;
     font-size: 12px;
@@ -366,13 +366,15 @@
     top: 10px;
     right: 10px;
   }
-  
+
   .auth-link-btn {
     padding: 6px 12px;
     font-size: 11px;
     min-width: 80px;
   }
-}/* 
+}
+
+/* 
 Role Indicator Styling */
 .role-indicator {
   background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
@@ -394,6 +396,7 @@ Role Indicator Styling */
   font-weight: 700;
   text-transform: capitalize;
 }
+
 /* Checkbox styles for Keep me logged in */
 .checkbox-group {
   margin: 16px 0;
@@ -431,12 +434,12 @@ Role Indicator Styling */
   position: relative;
 }
 
-.checkbox-input:checked + .checkbox-custom {
+.checkbox-input:checked+.checkbox-custom {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
 }
 
-.checkbox-input:checked + .checkbox-custom::after {
+.checkbox-input:checked+.checkbox-custom::after {
   content: '✓';
   color: white;
   font-size: 12px;
@@ -458,7 +461,7 @@ Role Indicator Styling */
 }
 
 /* Focus states for accessibility */
-.checkbox-input:focus + .checkbox-custom {
+.checkbox-input:focus+.checkbox-custom {
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
 }
@@ -468,12 +471,13 @@ Role Indicator Styling */
   .checkbox-custom {
     border-color: var(--border-dark);
   }
-  
+
   .checkbox-text {
     color: var(--text-primary-dark);
   }
-}/
-* Enhanced error handling styles */
+}
+
+/* Enhanced error handling styles */
 .error-retryable {
   display: flex;
   align-items: center;
@@ -781,4 +785,80 @@ Role Indicator Styling */
   .forgot-password-link {
     margin-left: 26px;
   }
+}
+
+/* Password Requirements Popup */
+.password-requirements-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-secondary);
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.password-requirements-popup h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-align: left;
+}
+
+.requirements-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+
+.requirement-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.requirement-item.met {
+  color: var(--accent-success);
+}
+
+.requirement-item.unmet {
+  color: var(--text-muted);
+}
+
+.requirement-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark mode adjustments for popup */
+[data-theme="dark"] .password-requirements-popup {
+  background: rgba(30, 30, 30, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
 }
