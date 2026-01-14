@@ -31,14 +31,6 @@ class R2StorageService implements StorageService {
             },
             forcePathStyle: true, // Needed for R2? Usually no, but harmless often.
         });
-
-        console.log('🚀 R2 Storage Initialized with:', {
-            bucket: this.bucket,
-            accountId: accountId,
-            publicUrl: this.publicUrl,
-            hasAccessKey: !!accessKeyId,
-            hasSecret: !!secretAccessKey
-        });
     }
 
     async uploadFile(
