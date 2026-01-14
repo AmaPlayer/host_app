@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, User, Shield, Eye, Bell, Sun, Globe, Mail, Lock, Check } from 'lucide-react';
+import { Settings as SettingsIcon, User, Shield, Eye, Bell, Sun, Globe, Mail, Lock, Check, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useLanguage } from '../../../hooks/useLanguage';
 import PasswordChangeSection from '../components/PasswordChangeSection';
+import DeleteAccountModal from '../components/DeleteAccountModal';
 import ThemeToggle from '../../../components/common/ui/ThemeToggle';
 import LanguageSelector from '../../../components/common/forms/LanguageSelector';
 import '../styles/Settings.css';
@@ -16,6 +17,7 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [isLoading] = useState<boolean>(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const tabs = [
     { id: 'account', label: t('accountSettings'), icon: User },
@@ -36,7 +38,7 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
           <div className="settings-tab-content">
             <h3>{t('accountSettings')}</h3>
             <p>{t('manageAccount')}</p>
-            
+
             <div className="settings-section">
               <div className="setting-item">
                 <div className="setting-icon">
@@ -45,15 +47,15 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
                 <div className="setting-content">
                   <h4>{t('displayName')}</h4>
                   <p>{t('publicDisplayName')}</p>
-                  <input 
-                    type="text" 
-                    placeholder={t('enterDisplayName')} 
-                    value={currentUser?.displayName || ''} 
-                    className="setting-input" 
+                  <input
+                    type="text"
+                    placeholder={t('enterDisplayName')}
+                    value={currentUser?.displayName || ''}
+                    className="setting-input"
                   />
                 </div>
               </div>
-              
+
               <div className="setting-item">
                 <div className="setting-icon">
                   <Mail size={20} />
@@ -61,19 +63,51 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
                 <div className="setting-content">
                   <h4>{t('emailAddress')}</h4>
                   <p>{t('accountEmail')}</p>
-                  <input 
-                    type="email" 
-                    value={currentUser?.email || ''} 
-                    className="setting-input" 
-                    disabled 
+                  <input
+                    type="email"
+                    value={currentUser?.email || ''}
+                    className="setting-input"
+                    disabled
                   />
                 </div>
               </div>
-              
+
               <div className="setting-actions">
                 <button className="save-btn">
                   <Check size={16} />
                   {t('saveChanges')}
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-section danger-zone">
+              <div className="setting-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <AlertTriangle size={20} color="#ef4444" />
+                <h4 style={{ color: '#ef4444', margin: 0 }}>{t('dangerZone') || 'Danger Zone'}</h4>
+              </div>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
+                {t('dangerZoneDescription') || 'Irreversible actions for your account.'}
+              </p>
+
+              <div className="setting-item" style={{ border: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.05)' }}>
+                <div className="setting-content">
+                  <h4 style={{ color: '#ef4444' }}>{t('deleteAccount') || 'Delete Account'}</h4>
+                  <p>{t('deleteAccountWarning') || 'Permanently remove your account and all data.'}</p>
+                </div>
+                <button
+                  className="delete-account-btn"
+                  onClick={() => setShowDeleteModal(true)}
+                  style={{
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {t('deleteAccount') || 'Delete Account'}
                 </button>
               </div>
             </div>
@@ -84,7 +118,7 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
           <div className="settings-tab-content">
             <h3>{t('appPreferences')}</h3>
             <p>{t('customizeExperience')}</p>
-            
+
             <div className="settings-section">
               <div className="setting-item">
                 <div className="setting-icon">
@@ -98,7 +132,7 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="setting-item">
                 <div className="setting-icon">
                   <Globe size={20} />
@@ -142,7 +176,7 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
           <div className="settings-tab-content">
             <h3>{t('privacySettings')}</h3>
             <p>{t('controlPrivacy')}</p>
-            
+
             <div className="settings-section">
               <div className="setting-item">
                 <div className="setting-icon">
@@ -158,7 +192,7 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
                   </select>
                 </div>
               </div>
-              
+
               <div className="setting-item">
                 <div className="setting-content">
                   <h4>{t('activityStatus')}</h4>
@@ -178,7 +212,7 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
           <div className="settings-tab-content">
             <h3>{t('notificationPreferences')}</h3>
             <p>{t('manageNotifications')}</p>
-            
+
             <div className="settings-section">
               <div className="setting-item">
                 <div className="setting-icon">
@@ -194,7 +228,7 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
                   </label>
                 </div>
               </div>
-              
+
               <div className="setting-item">
                 <div className="setting-content">
                   <h4>{t('pushNotifications')}</h4>
@@ -206,7 +240,7 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
                   </label>
                 </div>
               </div>
-              
+
               <div className="setting-item">
                 <div className="setting-content">
                   <h4>{t('achievementNotifications')}</h4>
@@ -273,6 +307,10 @@ const Settings: React.FC<SettingsPageProps> = ({ initialTab = 'account' }) => {
           )}
         </main>
       </div>
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+      />
     </div>
   );
 };

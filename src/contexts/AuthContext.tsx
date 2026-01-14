@@ -814,6 +814,55 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
     }
   }
 
+  /**
+   * Permanently delete account
+   * requires password for email auth, or recent login/reauth for social
+   */
+  async function deleteAccount(password?: string): Promise<void> {
+    if (!currentUser) throw new Error('No user logged in');
+
+    try {
+      console.log('🗑️ Starting account deletion flow...');
+
+      // 1. Re-authenticate
+      const providerId = currentUser.providerData[0]?.providerId;
+
+      if (providerId === 'password') {
+        if (!password) throw new Error('Password required for deletion');
+
+        const credential = EmailAuthProvider.credential(currentUser.email!, password);
+        await reauthenticateWithCredential(currentUser, credential);
+        console.log('✅ Re-authentication successful (password)');
+      } else if (providerId === 'google.com') {
+        await reauthenticateWithGoogle();
+        console.log('✅ Re-authentication successful (Google)');
+      } else if (providerId === 'apple.com') {
+        await reauthenticateWithApple();
+        console.log('✅ Re-authentication successful (Apple)');
+      }
+
+      // 2. Delete Supabase Data
+      await userService.deleteUserDeep(currentUser.uid);
+
+      // 3. Delete Firebase User
+      await currentUser.delete();
+
+      console.log('✅ Firebase user deleted');
+
+      // 4. Cleanup
+      await logout();
+
+    } catch (error: any) {
+      console.error('❌ Error deleting account:', error);
+
+      if (error.code === 'auth/requires-recent-login') {
+        throw new Error('Please log in again before deleting your account for security.');
+      }
+
+      throw error;
+    }
+  }
+
   const value: AuthContextValue = {
     currentUser,
     loading,
@@ -836,7 +885,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactElement {
     refreshAuthToken,
     checkSignInMethods,
     linkGoogleAccount,
-    signInAndLinkGoogle
+    signInAndLinkGoogle,
+    deleteAccount
   };
 
   return (

@@ -3,7 +3,7 @@ import { COLLECTIONS } from '../../constants/firebase';
 import { ParentProfile, Parent, CreateParentData } from '../../types/models/parent';
 
 class ParentsService {
-  
+
   /**
    * Calculate child's age from date of birth in DD-MM-YYYY format
    */
@@ -28,7 +28,7 @@ class ParentsService {
     try {
       // Calculate child's age from date of birth
       const age = this.calculateAge(data.child?.dateOfBirth || '');
-      
+
       const childData = {
         ...data.child,
         age
@@ -80,7 +80,7 @@ class ParentsService {
 
       // Map Supabase data back to application model
       const details = data.details || {};
-      
+
       const profile: any = {
         id: userId,
         uid: userId, // Keeping compatibility, but this is UUID now
@@ -117,26 +117,26 @@ class ParentsService {
       // For simplicity, we'll just update the specific fields if they map to columns,
       // or update the 'details' JSONB. 
       // This is a simplified implementation.
-      
+
       const { data: currentData } = await supabase
         .from('parents')
         .select('details')
         .eq('user_id', userId)
         .single();
-        
+
       const currentDetails = currentData?.details || {};
       const newDetails = { ...currentDetails, ...updates }; // Naive merge
-      
+
       // Recalculate age if date of birth is updated
       if (updates.child?.dateOfBirth) {
-         // Logic to update age inside newDetails.child
-         newDetails.child.age = this.calculateAge(updates.child.dateOfBirth);
+        // Logic to update age inside newDetails.child
+        newDetails.child.age = this.calculateAge(updates.child.dateOfBirth);
       }
 
       const dbUpdates: any = {
         details: newDetails
       };
-      
+
       if (updates.child?.fullName) dbUpdates.child_names = [updates.child.fullName];
       if (updates.sports) dbUpdates.child_sports = [updates.sports.primary, updates.sports.secondary].filter(Boolean);
       if (updates.aspirations) dbUpdates.aspirations = updates.aspirations;
@@ -149,6 +149,23 @@ class ParentsService {
       if (error) throw error;
     } catch (error) {
       console.error('Error updating parent profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete parent profile
+   */
+  async deleteParentProfile(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('parents')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting parent profile:', error);
       throw error;
     }
   }

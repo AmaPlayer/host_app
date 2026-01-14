@@ -20,6 +20,8 @@ interface CommentSectionProps {
   hideCommentForm?: boolean; // Hide form when using separate CommentInputForm
   onCommentAdded?: () => void; // Callback when comment is added (Fix Issue #5)
   onCommentDeleted?: () => void; // Callback when comment is deleted (Fix Issue #5)
+  refreshTrigger?: number; // External trigger to force refresh
+  onReply?: (comment: Comment) => void; // Callback for reply action
 }
 
 const CommentSection = memo<CommentSectionProps>(({
@@ -28,7 +30,9 @@ const CommentSection = memo<CommentSectionProps>(({
   className = '',
   hideCommentForm = false,
   onCommentAdded,
-  onCommentDeleted
+  onCommentDeleted,
+  refreshTrigger = 0,
+  onReply
 }) => {
   const { currentUser, isGuest } = useAuth();
   // Ensure useSupabaseComments returns nested comments (CommentService does the nesting)
@@ -60,15 +64,26 @@ const CommentSection = memo<CommentSectionProps>(({
     }
   }, [currentUser, isGuest]);
 
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log('🔄 External refresh trigger received, refreshing comments...');
+      refresh();
+    }
+  }, [refreshTrigger, refresh]);
+
   // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewComment(e.target.value);
   };
 
   const startReply = (comment: Comment) => {
-    setReplyingTo({ id: comment.id, displayName: comment.userDisplayName });
-    const input = document.querySelector('.comment-input') as HTMLInputElement;
-    if (input) input.focus();
+    if (onReply) {
+      onReply(comment);
+    } else {
+      setReplyingTo({ id: comment.id, displayName: comment.userDisplayName });
+      const input = document.querySelector('.comment-input') as HTMLInputElement;
+      if (input) input.focus();
+    }
   };
 
   const cancelReply = () => {

@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX, Heart, MessageCircle, Share, Maximize } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
 
 import { MomentVideo, VideoPlayerState } from '../../../types/models/moment';
 import { MomentsService } from '../../../services/api/momentsService';
 import PostsService from '../../../services/supabase/postsService';
-import VideoComments from './VideoComments';
+import CommentsModal from '../../common/comments/CommentsModal';
 import VideoShare from './VideoShare';
+import { useEngagementActions } from '../../../hooks/useEngagementActions';
+import { EngagementBar } from '../../common/engagement/EngagementBar';
 import { useTouchGestures } from '../../../hooks/useTouchGestures';
 import { useVideoPerformance } from '../../../hooks/useVideoPerformance';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
@@ -98,9 +100,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   });
 
   const [showControls, setShowControls] = useState(false);
-  const [isLiking, setIsLiking] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  const [showShare, setShowShare] = useState(false);
   const [realtimeCommentCount, setRealtimeCommentCount] = useState<number>(moment.engagement.commentsCount || 0);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -471,71 +470,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, []);
 
-  // Handle like button click
-  const handleLike = useCallback(async () => {
-    if (!currentUserId || isLiking) return;
-
-    setIsLiking(true);
-    try {
-      let result;
-
-      // Route to the correct service based on video type
-      if (moment.isPostVideo) {
-        // This is a video from the posts collection
-        result = await PostsService.toggleLike(
-          moment.id,
-          currentUserId,
-          { displayName: 'Current User', photoURL: null } // In real app, get from user context
-        );
-      } else {
-        // This is a video from the moments collection
-        result = await MomentsService.toggleLike(
-          moment.id,
-          currentUserId,
-          'Current User', // In real app, get from user context
-          null // In real app, get from user context
-        );
-      }
-
-      onLike?.(moment.id, result.liked, result.likesCount);
-      setAnnouncement(`Video ${result.liked ? 'liked' : 'unliked'}. ${result.likesCount} total likes`);
-    } catch (error) {
-      console.error('Failed to toggle like:', error);
-      setAnnouncement('Failed to update like status');
-    } finally {
-      setIsLiking(false);
-    }
-  }, [currentUserId, isLiking, moment.id, moment.isPostVideo, onLike]);
-
-  // Handle comment button click
-  const handleCommentClick = useCallback(() => {
-    setShowComments(true);
-    setAnnouncement('Comments dialog opened');
-    onComment?.(moment.id);
-  }, [moment.id, onComment]);
-
-  // Handle share button click
-  const handleShareClick = useCallback(() => {
-    setShowShare(true);
-    setAnnouncement('Share dialog opened');
-    onShare?.(moment.id);
-  }, [moment.id, onShare]);
-
-  // Handle share action
-  const handleShareAction = useCallback((platform: string) => {
-    // Track share interaction
-    if (currentUserId) {
-      MomentsService.trackInteraction({
-        momentId: moment.id,
-        userId: currentUserId,
-        type: 'share',
-        timestamp: new Date(),
-        metadata: {
-          platform
-        }
-      }).catch(console.error);
-    }
-  }, [moment.id, currentUserId]);
+  // Use shared engagement actions hook
+  const {
+    isLiking,
+    handleLike,
+    handleComment: handleCommentClick,
+    handleShare: handleShareClick,
+    handleShareAction,
+    showComments,
+    setShowComments,
+    showShare,
+    setShowShare
+  } = useEngagementActions({
+    id: moment.id,
+    isPostVideo: moment.isPostVideo,
+    currentUserId,
+    onLike,
+    onComment,
+    onShare,
+    setAnnouncement
+  });
 
   // Handle video click (play/pause and show controls) - for non-touch devices
   const handleVideoClick = useCallback(() => {
@@ -900,68 +854,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       {/* Engagement Actions */}
       <div className="engagement-actions">
-        <button
-          className={`engagement-btn ${moment.isLiked ? 'is-liked liked' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (currentUserId) {
-              handleLike();
-            }
-          }}
-          disabled={isLiking || !currentUserId}
-          aria-label={`${moment.isLiked ? 'Unlike' : 'Like'} video by ${moment.userDisplayName}. ${moment.engagement.likesCount} likes`}
-          aria-pressed={moment.isLiked}
-          title={currentUserId ? `${moment.isLiked ? 'Unlike' : 'Like'} (L)` : 'Sign in to like'}
-          tabIndex={0}
-        >
-          <Heart size={28} fill={moment.isLiked ? 'currentColor' : 'none'} strokeWidth={2.5} />
-          <span className="engagement-count" aria-hidden="true">
-            {moment.engagement.likesCount.toLocaleString()}
-          </span>
-        </button>
-
-        <button
-          className="engagement-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (currentUserId) {
-              handleCommentClick();
-            }
-          }}
+        <EngagementBar
+          likesCount={moment.engagement.likesCount}
+          commentsCount={realtimeCommentCount}
+          sharesCount={moment.engagement.sharesCount}
+          isLiked={!!moment.isLiked}
+          isLiking={isLiking}
+          onLike={handleLike}
+          onComment={handleCommentClick}
+          onShare={handleShareClick}
+          variant="vertical"
           disabled={!currentUserId}
-          aria-label={`View comments for video by ${moment.userDisplayName}. ${realtimeCommentCount} comments`}
-          title={currentUserId ? "View comments (C)" : "Sign in to comment"}
-          tabIndex={0}
-        >
-          <MessageCircle size={28} strokeWidth={2.5} />
-          <span className="engagement-count" aria-hidden="true">
-            {realtimeCommentCount.toLocaleString()}
-          </span>
-        </button>
-
-        <button
-          className="engagement-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleShareClick();
-          }}
-          aria-label={`Share video by ${moment.userDisplayName}. ${moment.engagement.sharesCount} shares`}
-          title="Share video (S)"
-          tabIndex={0}
-        >
-          <Share size={28} strokeWidth={2.5} />
-          <span className="engagement-count" aria-hidden="true">
-            {moment.engagement.sharesCount.toLocaleString()}
-          </span>
-        </button>
+        />
       </div>
 
       {/* Comments Modal */}
-      <VideoComments
-        momentId={moment.id}
+      {/* Comments Modal */}
+      <CommentsModal
+        contentId={moment.id}
         isVisible={showComments}
         onClose={() => setShowComments(false)}
-        isPostVideo={moment.isPostVideo || false}
+        contentType={moment.isPostVideo ? 'post' : 'moment'}
       />
 
       {/* Share Modal */}

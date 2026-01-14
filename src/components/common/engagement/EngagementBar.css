@@ -1,0 +1,143 @@
+/* EngagementBar.css */
+.engagement-bar {
+    display: flex;
+    gap: 1.5rem;
+    z-index: 10;
+    pointer-events: auto;
+}
+
+/* Vertical Variant (Moments/Video Style) */
+.engagement-bar.vertical {
+    flex-direction: column;
+    padding: 0.5rem 0;
+}
+
+/* Horizontal Variant (Feed/Post Style) */
+.engagement-bar.horizontal {
+    flex-direction: row;
+    padding: 0.5rem;
+    width: 100%;
+    justify-content: flex-start;
+    /* Or space-around if desired */
+}
+
+/* Button Styles */
+.engagement-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    cursor: pointer;
+    padding: 0.75rem;
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(10px);
+    min-width: 52px;
+    min-height: 52px;
+    justify-content: center;
+    will-change: transform;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Horizontal overrides: Remove bubble background for feed? */
+/* The user asked for "make same system", implying they might WANT the bubbles. 
+   However, on a white feed, white text/glassmorphism might look bad. 
+   I need to handle 'dark mode' vs 'light mode' context. 
+   For now, I'll assume the Feed is dark (based on manifest theme color #0f1419). */
+
+.engagement-bar.horizontal .engagement-btn {
+    /* Adjust for horizontal bar if needed */
+    background: transparent;
+    /* Usually feed posts don't have bubbles around buttons */
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    flex-direction: row;
+    /* Icon + Text side-by-side */
+    min-width: auto;
+    min-height: auto;
+    padding: 8px 12px;
+    border-radius: 20px;
+    /* Capsule shape on hover */
+}
+
+.engagement-bar.horizontal .engagement-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Hover Effects */
+.engagement-btn:hover {
+    transform: scale(1.15);
+}
+
+.engagement-btn:active {
+    transform: scale(0.9);
+}
+
+/* Heart Animation */
+.engagement-btn.liked {
+    animation: heartBeat 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes heartBeat {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    25% {
+        transform: scale(1.3);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+
+    75% {
+        transform: scale(1.25);
+    }
+}
+
+.engagement-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Liked State */
+.engagement-btn.is-liked {
+    color: #ff3040;
+}
+
+.engagement-bar.vertical .engagement-btn.is-liked {
+    background: rgba(255, 48, 64, 0.2);
+}
+
+.engagement-bar.horizontal .engagement-btn.is-liked {
+    background: transparent;
+    /* Keep transparent on feed */
+}
+
+/* Count Styles */
+.engagement-count {
+    font-size: 0.75rem;
+    /* 12px */
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+    line-height: 1;
+}
+
+.engagement-bar.vertical .engagement-count {
+    margin-top: 0.25rem;
+}
+
+.engagement-bar.horizontal .engagement-count {
+    margin-left: 0.5rem;
+    /* Spacing for side-by-side */
+    margin-top: 0;
+}

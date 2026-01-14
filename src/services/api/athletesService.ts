@@ -198,6 +198,23 @@ class AthletesService {
       throw error;
     }
   }
+
+  /**
+   * Delete athlete profile
+   */
+  async deleteAthleteProfile(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('athletes')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting athlete profile:', error);
+      throw error;
+    }
+  }
 }
 
 export const athletesService = new AthletesService();

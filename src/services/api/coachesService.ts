@@ -3,7 +3,7 @@ import { COLLECTIONS } from '../../constants/firebase';
 import { CoachProfile, Coach, CreateCoachData } from '../../types/models/coach';
 
 class CoachesService {
-  
+
   /**
    * Create a new coach profile in the coaches table
    * @param userId - The Supabase UUID
@@ -109,9 +109,9 @@ class CoachesService {
         .select('*')
         .eq('user_id', userId)
         .single();
-        
+
       const currentDetails = currentData?.details || {};
-      
+
       // Synchronize name and fullName
       if (updates.name && !updates.fullName) updates.fullName = updates.name;
       if (updates.fullName && !updates.name) updates.name = updates.fullName;
@@ -134,10 +134,10 @@ class CoachesService {
 
       if (updates.sport) dbUpdates.specializations = [updates.sport];
       if (updates.specializations) dbUpdates.specializations = updates.specializations;
-      
+
       if (updates.yearsExperience !== undefined) dbUpdates.years_experience = updates.yearsExperience;
       if (updates.yearsOfExperience !== undefined) dbUpdates.years_experience = updates.yearsOfExperience;
-      
+
       if (updates.bio) dbUpdates.coaching_philosophy = updates.bio;
       if (updates.certifications) dbUpdates.certifications = Array.isArray(updates.certifications) ? updates.certifications : [updates.certifications];
 
@@ -149,6 +149,23 @@ class CoachesService {
       if (error) throw error;
     } catch (error) {
       console.error('Error updating coach profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete coach profile
+   */
+  async deleteCoachProfile(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('coaches')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting coach profile:', error);
       throw error;
     }
   }

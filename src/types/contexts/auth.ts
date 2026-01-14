@@ -38,31 +38,31 @@ export interface AuthContextValue {
 
   /** Check if the current user is a guest (anonymous) */
   isGuest: () => boolean;
-  
+
   /** Sign up a new user with email and password */
   signup: (email: string, password: string, displayName: string) => Promise<void>;
-  
+
   /** Log in an existing user with email and password */
   login: (email: string, password: string, keepLoggedIn?: boolean) => Promise<UserCredential>;
-  
+
   /** Log in as a guest (anonymous user) */
   guestLogin: () => Promise<UserCredential>;
-  
+
   /** Log in with Google OAuth */
   googleLogin: () => Promise<UserCredential>;
-  
+
   /** Log in with Apple OAuth */
   appleLogin: () => Promise<UserCredential>;
-  
+
   /** Log out the current user */
   logout: () => Promise<void>;
-  
+
   /** Update the current user's profile */
   updateUserProfile: (profileData: ProfileUpdateData) => Promise<User>;
-  
+
   /** Manually refresh the auth context state */
   refreshAuth: () => void;
-  
+
   /** Change the current user's password */
   changePassword: (currentPassword: string, newPassword: string, isSocialUser?: boolean) => Promise<PasswordChangeResult>;
 
@@ -95,6 +95,9 @@ export interface AuthContextValue {
 
   /** Sign in with email/password and link Google credential */
   signInAndLinkGoogle: (email: string, password: string, googleCredential: AuthCredential) => Promise<UserCredential>;
+
+  /** Permanently delete the user account */
+  deleteAccount: (password?: string) => Promise<void>;
 }
 
 /**

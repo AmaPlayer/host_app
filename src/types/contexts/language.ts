@@ -10,7 +10,7 @@ import { ReactNode } from 'react';
 /**
  * Supported language codes
  */
-export type LanguageCode = 
+export type LanguageCode =
   | 'en'  // English
   | 'hi'  // Hindi
   | 'pa'  // Punjabi
@@ -30,10 +30,10 @@ export type LanguageCode =
 export interface Language {
   /** ISO language code */
   code: LanguageCode;
-  
+
   /** English name of the language */
   name: string;
-  
+
   /** Native name of the language */
   nativeName: string;
 }
@@ -333,7 +333,11 @@ export type TranslationKey =
   | 'accountTypeLabel'
   | 'notSpecified'
   | 'loadingVideos'
-  | 'loadingPosts';
+  | 'loadingPosts'
+  | 'dangerZone'
+  | 'dangerZoneDescription'
+  | 'deleteAccount'
+  | 'deleteAccountWarning';
 
 /**
  * Translation dictionary mapping keys to translated strings
@@ -351,16 +355,16 @@ export type Translations = Record<LanguageCode, Partial<TranslationDictionary>>;
 export interface LanguageContextValue {
   /** The currently selected language code */
   currentLanguage: LanguageCode;
-  
+
   /** Change the application language */
   changeLanguage: (languageCode: LanguageCode) => void;
-  
+
   /** Get the current language object with full details */
   getCurrentLanguage: () => Language;
 
   /** Translate a key to the current language */
   t: (key: TranslationKey, fallback?: string) => string;
-  
+
   /** Array of all available languages */
   languages: Language[];
 }

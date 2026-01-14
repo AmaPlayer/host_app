@@ -240,6 +240,10 @@ export const translations = {
     linkCopied: 'Link Copied!',
     editYourPost: 'Edit your post...',
     edited: '(edited)',
+    dangerZone: 'Danger Zone',
+    dangerZoneDescription: 'Irreversible actions for your account.',
+    deleteAccount: 'Delete Account',
+    deleteAccountWarning: 'Permanently remove your account and all data.',
   },
 
   hi: {

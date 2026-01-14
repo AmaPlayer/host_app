@@ -727,7 +727,70 @@ class UserService {
     } as User;
   }
 
-  private mapModelToSupabaseUser(user: Partial<User>): any {
+  /**
+   * Deep delete user data from Supabase
+   * Deletes all records associated with the user in correct order
+   */
+  async deleteUserDeep(userId: string): Promise<void> {
+    try {
+      console.log(`🗑️ Starting deep deletion for user ${userId}...`);
+
+      // 1. Delete Role Profiles
+      // We try to delete from all role tables - checks are cheap
+      await parentsService.deleteParentProfile(userId).catch(() => { });
+      await coachesService.deleteCoachProfile(userId).catch(() => { });
+      await organizationsService.deleteOrganizationProfile(userId).catch(() => { });
+      await athletesService.deleteAthleteProfile(userId).catch(() => { });
+
+      // 2. Delete User Content
+      // Delete Comments
+      const { error: commentsError } = await supabase
+        .from('comments')
+        .delete()
+        .eq('user_id', userId);
+
+      if (commentsError) console.warn('Error deleting comments:', commentsError);
+
+      // Delete Likes
+      await supabase.from('likes').delete().eq('user_id', userId);
+
+      // Delete Posts (and their storage files if we had a way to list them easily, 
+      // typically Supabase storage cascade triggers should handle files if configured,
+      // otherwise we leave orphaned files to avoid complex listing here)
+      const { error: postsError } = await supabase
+        .from('posts')
+        .delete()
+        .eq('user_id', userId);
+
+      if (postsError) console.warn('Error deleting posts:', postsError);
+
+      // 3. Delete Storage Files (Profile/Cover)
+      try {
+        await this.deleteProfilePicture(userId);
+        await this.deleteCoverPhoto(userId);
+      } catch (e) {
+        console.warn('Error deleting storage files:', e);
+      }
+
+      // 4. Delete User Base Record
+      // Note: We delete by UID since that's our primary key in 'users' table usually,
+      // but let's check if we need to delete by ID if it's UUID.
+      // Based on typical schema, we delete by uid or id.
+      const { error: userError } = await supabase
+        .from('users')
+        .delete()
+        .eq('uid', userId);
+
+      if (userError) throw userError;
+
+      console.log('✅ User data deleted from Supabase');
+    } catch (error) {
+      console.error('❌ Error in deleteUserDeep:', error);
+      throw error;
+    }
+  }
+
+  private mapModelToSupabaseUser(user: Partial<User>): any { // Context for placement
     const map: any = {};
     if (user.displayName !== undefined) map.display_name = user.displayName;
     if (user.photoURL !== undefined) map.photo_url = user.photoURL;

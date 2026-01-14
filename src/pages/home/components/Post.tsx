@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, MessageCircle, Video, Trash2, MoreVertical, Edit3, Share2, Check, Repeat } from 'lucide-react';
+import { Video, Trash2, MoreVertical, Edit3, Share2, Check, Repeat } from 'lucide-react';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import OptimizedImage from '../../../components/common/media/OptimizedImage';
 import VideoPlayer from '../../../components/common/media/VideoPlayer';
@@ -7,14 +7,15 @@ import LazyImage from '../../../components/common/ui/LazyImage';
 import LazyLoadImage from '../../../components/common/media/LazyLoadImage';
 import SafeImage from '../../../components/common/SafeImage';
 import ErrorBoundary from '../../../components/common/safety/ErrorBoundary';
-import CommentSection from '../../../components/common/comments/CommentSection';
 import RoleBadge from '../../../components/common/ui/RoleBadge';
 import SportBanner from '../../../features/profile/components/SportBanner';
-import LikeButton from '../../../features/social/components/LikeButton';
 import { Post as PostType, Like } from '../../../types/models';
 import { User } from 'firebase/auth';
 import userService from '../../../services/api/userService';
 import { useRealtimeEngagement } from '../../../hooks/useRealtimeEngagement';
+import { useEngagementActions } from '../../../hooks/useEngagementActions';
+import { EngagementBar } from '../../../components/common/engagement/EngagementBar';
+import CommentsModal from '../../../components/common/comments/CommentsModal';
 import './Post.css';
 
 const FullScreenMediaViewer = React.lazy(() => import('../../../components/common/media/FullScreenMediaViewer'));
@@ -99,13 +100,8 @@ const Post: React.FC<PostProps> = ({
   const realLikesCount = engagement.likesCount ?? post.likesCount ?? 0;
   const realCommentsCount = engagement.commentsCount ?? post.commentsCount ?? 0;
 
-  // Local state for immediate UI updates (Fix Issue #5)
-  const [displayCommentsCount, setDisplayCommentsCount] = useState(realCommentsCount);
-
-  // Sync with real data when it changes
-  useEffect(() => {
-    setDisplayCommentsCount(realCommentsCount);
-  }, [realCommentsCount]);
+  // Local state for optimistic updates
+  const [optimisticCommentsCount, setOptimisticCommentsCount] = useState<number | null>(null);
 
   // Use isLiked from post object if available (from Supabase)
   const userLiked = displayPost.isLiked !== undefined
@@ -113,6 +109,49 @@ const Post: React.FC<PostProps> = ({
     : (Array.isArray(displayPost.likes) && displayPost.likes.length > 0 && typeof displayPost.likes[0] === 'string'
       ? (displayPost.likes as unknown as string[]).includes(currentUser?.uid || '')
       : (displayPost.likes as Like[]).some(like => like.userId === (currentUser?.uid || '')));
+
+  // Local state for optimistic updates
+  const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
+  const [optimisticLikesCount, setOptimisticLikesCount] = useState<number | null>(null);
+
+  // Derived state: prefer optimistic, then realtime, then props
+  const finalLiked = optimisticLiked ?? userLiked;
+  const finalLikesCount = optimisticLikesCount ?? realLikesCount;
+  const finalCommentsCount = optimisticCommentsCount ?? realCommentsCount;
+
+  // Unified Engagement Actions Hook
+  const {
+    isLiking,
+    handleLike,
+    handleComment: handleCommentClick,
+    handleShare: handleShareClick, // Mapping Share button to Repost/Share
+    showComments: showCommentsModal,
+    setShowComments: setShowCommentsModal
+  } = useEngagementActions({
+    id: displayPost.id,
+    isPostVideo: true,
+    currentUserId: currentUser?.uid,
+    onLike: (id, liked, count) => {
+      // Optional: Notify parent if needed, but realtime hook handles the UI
+      // We can trigger the simplistic onLike prop if we want to sync local state, 
+      // but the signatures mismatch. We'll trust the hook.
+      // OPTIMISTIC UPDATE: Update local state immediately
+      setOptimisticLiked(liked);
+      setOptimisticLikesCount(count);
+
+      // Also notify parent if needed (optional)
+      if (onLike) {
+        // onLike(id, ...); // Signature complex, skipping for now as local UI is handled
+      }
+    },
+    onComment: () => {
+      // Triggered when comment button clicked
+    },
+    onShare: () => {
+      // Triggered when share button clicked
+      onRepost?.(displayPost.id, displayPost, 'quote');
+    }
+  });
 
   const handleNavigateToPost = (postId: string) => {
     if (onNavigateToPost) onNavigateToPost(postId);
@@ -355,59 +394,35 @@ const Post: React.FC<PostProps> = ({
         )}
 
         <div className="post-actions">
-          <LikeButton
-            postId={displayPost.id} // Like the displayed content (Original)
-            initialLiked={userLiked}
-            initialCount={displayPost.likesCount || 0} // Use displayPost counts
-            size="medium"
-            onLikeChange={(liked, count) => {
-              // Callback to notify parent (Fix Issue #2)
-              console.log(`✅ Like changed: ${liked}, count: ${count}`);
-              // Parent can update state if needed, but real-time hook handles it
-              if (onLike) {
-                // We could expose this but onLike signature is complex
-              }
-            }}
+          <EngagementBar
+            likesCount={finalLikesCount}
+            commentsCount={finalCommentsCount}
+            sharesCount={displayPost.sharesCount || displayPost.shareCount || 0}
+            isLiked={finalLiked}
+            isLiking={isLiking}
+            onLike={handleLike}
+            onComment={handleCommentClick}
+            onShare={handleShareClick}
+            variant="horizontal"
+            disabled={!currentUser}
           />
-          <button onClick={() => onToggleComments(post.id)} className={showComments[post.id] ? 'active' : ''}>
-            <MessageCircle size={20} />
-            <span>{displayPost.commentsCount || 0}</span>
-          </button>
-
-          <div className="repost-action-container">
-            <button
-              className="repost-btn"
-              onClick={handleRepostAction}
-              title="Quote Post"
-            >
-              <Repeat size={20} />
-              <span>{displayPost.sharesCount || displayPost.shareCount || 0}</span>
-            </button>
-          </div>
         </div>
 
-        <ErrorBoundary name={`Post Comments for post ${post.id}`}>
-          {showComments[post.id] && post.id && (
-            <CommentSection
-              contentId={displayPost.id} // Comments attached to Original? No, usually Repost has its own comment thread on X? 
-              // On X, clicking a retweet shows the original tweet's comments.
-              // If it's a quote tweet, it has its own comments.
-              // For Instant Repost, `post.id` is the Repost ID. `displayPost.id` is Original.
-              // If I comment on an Instant Repost, do I comment on the original? Yes.
-              // So `contentId={displayPost.id}` is correct.
-              contentType="post"
-              className="feed-post-comments"
-              onCommentAdded={() => {
-                console.log('✅ Comment added, updating count immediately');
-                setDisplayCommentsCount(prev => prev + 1);
-              }}
-              onCommentDeleted={() => {
-                console.log('✅ Comment deleted, updating count immediately');
-                setDisplayCommentsCount(prev => Math.max(0, prev - 1));
-              }}
-            />
-          )}
-        </ErrorBoundary>
+        {/* Comments Modal */}
+        <CommentsModal
+          contentId={displayPost.id}
+          isVisible={showCommentsModal}
+          onClose={() => setShowCommentsModal(false)}
+          contentType="post"
+          onCommentAdded={() => {
+            console.log('✅ Post: onCommentAdded received, incrementing count...');
+            setOptimisticCommentsCount(prev => {
+              const newValue = (prev ?? realCommentsCount) + 1;
+              console.log(`✅ Post: incrementing comment count to ${newValue}`);
+              return newValue;
+            });
+          }}
+        />
       </div>
 
       {showMediaViewer && mediaSource && (

@@ -10,6 +10,9 @@ interface CommentInputFormProps {
   contentId: string;
   contentType: ContentType;
   className?: string;
+  onCommentAdded?: () => void;
+  replyingTo?: { id: string; displayName: string } | null;
+  onCancelReply?: () => void;
 }
 
 /**
@@ -19,7 +22,10 @@ interface CommentInputFormProps {
 const CommentInputForm: React.FC<CommentInputFormProps> = ({
   contentId,
   contentType,
-  className = ''
+  className = '',
+  onCommentAdded,
+  replyingTo,
+  onCancelReply
 }) => {
   const { currentUser, isGuest } = useAuth();
   const [newComment, setNewComment] = useState('');
@@ -63,10 +69,20 @@ const CommentInputForm: React.FC<CommentInputFormProps> = ({
         text: newComment.trim(),
         userId: currentUser.uid,
         userDisplayName: displayName,
-        userPhotoURL: photoURL
+        userPhotoURL: photoURL,
+        parentId: replyingTo?.id
       });
 
       setNewComment('');
+      if (onCancelReply) onCancelReply(); // Clear reply state after sending
+
+      console.log('✅ Comment submitted successfully, triggering callback check...');
+      if (onCommentAdded) {
+        console.log('✅ onCommentAdded callback found, executing...');
+        onCommentAdded();
+      } else {
+        console.log('❌ onCommentAdded callback is MISSING');
+      }
     } catch (err: any) {
       // eslint-disable-next-line no-console
       console.error('Error submitting comment:', err);
@@ -74,7 +90,7 @@ const CommentInputForm: React.FC<CommentInputFormProps> = ({
     } finally {
       setSubmitting(false);
     }
-  }, [currentUser, isGuest, newComment, submitting, contentId, contentType, userProfile]);
+  }, [currentUser, isGuest, newComment, submitting, contentId, contentType, userProfile, replyingTo, onCancelReply, onCommentAdded]);
 
   if (!currentUser) {
     return (
@@ -102,28 +118,43 @@ const CommentInputForm: React.FC<CommentInputFormProps> = ({
             className="user-avatar-small"
           />
         </div>
-        <div className="comment-input-wrapper">
-          <input
-            type="text"
-            placeholder="Add a comment..."
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            disabled={submitting}
-            maxLength={500}
-            className="comment-input"
-          />
-          <button
-            type="submit"
-            disabled={!newComment.trim() || submitting}
-            className="send-btn"
-            title="Send comment"
-          >
-            {submitting ? (
-              <div className="spinner-small" />
-            ) : (
-              <Send size={18} />
-            )}
-          </button>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {replyingTo && (
+            <div className="replying-to-indicator" style={{ fontSize: '12px', color: '#888', display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+              <span>Replying to <strong>{replyingTo.displayName}</strong></span>
+              <button
+                type="button"
+                onClick={onCancelReply}
+                style={{ marginLeft: '8px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '0 4px', fontSize: '14px' }}
+                aria-label="Cancel reply"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          <div className="comment-input-wrapper">
+            <input
+              type="text"
+              placeholder={replyingTo ? `Reply to ${replyingTo.displayName}...` : "Add a comment..."}
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              disabled={submitting}
+              maxLength={500}
+              className="comment-input"
+            />
+            <button
+              type="submit"
+              disabled={!newComment.trim() || submitting}
+              className="send-btn"
+              title="Send comment"
+            >
+              {submitting ? (
+                <div className="spinner-small" />
+              ) : (
+                <Send size={18} />
+              )}
+            </button>
+          </div>
         </div>
       </form>
     </div>

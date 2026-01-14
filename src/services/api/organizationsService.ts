@@ -3,7 +3,7 @@ import { COLLECTIONS } from '../../constants/firebase';
 import { OrganizationProfile, Organization, CreateOrganizationData } from '../../types/models/organization';
 
 class OrganizationsService {
-  
+
   /**
    * Create a new organization profile in the organizations table
    * @param userId - The Supabase UUID
@@ -110,7 +110,7 @@ class OrganizationsService {
         .select('contact_info')
         .eq('user_id', userId)
         .single();
-        
+
       const currentInfo = currentData?.contact_info || {};
       const newInfo = { ...currentInfo, ...updates }; // Naive merge
 
@@ -131,6 +131,23 @@ class OrganizationsService {
       if (error) throw error;
     } catch (error) {
       console.error('Error updating organization profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete organization profile
+   */
+  async deleteOrganizationProfile(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting organization profile:', error);
       throw error;
     }
   }
