@@ -35,7 +35,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigation = [
     {
       name: 'Dashboard',
-      href: '/',
+      href: '/home',
       icon: LayoutDashboard,
     },
     {
@@ -69,10 +69,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <NavLink
       to={item.href}
       className={({ isActive }) =>
-        `flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
-          isActive
-            ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-700'
-            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+        `flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${isActive
+          ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-700'
+          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
         }`
       }
       onClick={() => setSidebarOpen(false)}
@@ -94,9 +93,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 z-50 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 z-50 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="flex flex-col h-full">
           {/* Sidebar header */}

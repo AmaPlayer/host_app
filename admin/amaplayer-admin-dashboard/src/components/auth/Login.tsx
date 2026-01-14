@@ -11,11 +11,11 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPasswordReset, setShowPasswordReset] = useState(false);
-  
+
   const { login, currentUser, isAdmin } = useAuth();
 
   if (currentUser && isAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

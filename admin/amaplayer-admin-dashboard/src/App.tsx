@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Login from './components/auth/Login';
@@ -19,7 +19,8 @@ function App() {
         <div className="min-h-screen bg-gray-50">
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/home" element={
               <ProtectedRoute>
                 <Layout>
                   <Dashboard />
