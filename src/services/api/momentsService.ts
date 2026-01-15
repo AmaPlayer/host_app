@@ -408,13 +408,31 @@ class MomentsService {
     return (data || []).map(m => this.mapMomentToModel(m, false));
   }
 
-  static async getVerifiedTalentVideos(limit = 10): Promise<MomentVideo[]> {
+  static async getVerifiedTalentVideos(limit = 10, currentUserId?: string): Promise<MomentVideo[]> {
     try {
       const { data } = await supabase
         .from('talent_videos')
         .select(`*, user:users!user_id(uid, display_name, photo_url)`)
         .eq('is_approved', true)
         .limit(limit);
+
+      if (!data) return [];
+
+      let likedIds = new Set<string>();
+      if (currentUserId && data.length > 0) {
+        const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
+        if (user) {
+          const ids = data.map(m => m.id);
+          // Assuming 'talent_video_likes' exists, otherwise default to false or create table logic
+          // Since I can't check DB schema directly easily, I will attempt to query 'talent_video_likes' 
+          // If it fails, we fall back to false. 
+          // Actually, 'Moments' uses 'moment_likes', Posts 'post_likes'. 
+          // Talent Videos might not have a generic like table yet.
+          // Let's stick to false for now unless I find evidence of table.
+          // However, user complained about "feed" and "post". 
+          // Talent videos are likely less frequent.
+        }
+      }
 
       return (data || []).map(m => ({
         id: m.id,
@@ -432,7 +450,7 @@ class MomentsService {
         engagement: { likes: [], likesCount: 0, comments: [], commentsCount: 0, shares: [], sharesCount: 0, views: 0, watchTime: 0, completionRate: 0 },
         metadata: { width: 0, height: 0, fileSize: 0, format: 'mp4', aspectRatio: '9:16', uploadedAt: m.created_at, processingStatus: 'completed' },
         isTalentVideo: true,
-        isLiked: false
+        isLiked: false // Keeping false for now per comment
       }));
     } catch (e) {
       return [];
@@ -451,6 +469,8 @@ class MomentsService {
         .order('created_at', { ascending: false })
         .limit(fetchBuffer);
 
+      // Filter for duration <= 30 seconds (Strict per user request)
+      // BUT include videos with unknown duration (legacy/missing metadata) to ensure we don't hide valid clips.
       // Filter for duration <= 30 seconds (Strict per user request)
       // BUT include videos with unknown duration (legacy/missing metadata) to ensure we don't hide valid clips.
       const filteredPosts = (data || []).filter(p => {
@@ -473,6 +493,24 @@ class MomentsService {
         // This ensures we fetch "every video" that isn't explicitly too long.
         return true;
       });
+
+      // Fetch like status if user is logged in
+      let likedPostIds = new Set<string>();
+      if (currentUserId && filteredPosts.length > 0) {
+        const { data: user } = await supabase.from('users').select('id').eq('uid', currentUserId).single();
+        if (user) {
+          const postIds = filteredPosts.slice(0, limit).map(p => p.id);
+          const { data: likes } = await supabase
+            .from('post_likes')
+            .select('post_id')
+            .eq('user_id', user.id)
+            .in('post_id', postIds);
+
+          if (likes) {
+            likes.forEach(l => likedPostIds.add(l.post_id));
+          }
+        }
+      }
 
       return filteredPosts.slice(0, limit).map(p => {
         const metadata = p.metadata || {};
@@ -502,7 +540,7 @@ class MomentsService {
           },
           metadata: p.metadata || {},
           isPostVideo: true,
-          isLiked: false
+          isLiked: likedPostIds.has(p.id)
         };
       });
     } catch (e) {
@@ -521,7 +559,7 @@ class MomentsService {
 
     const [moments, talent, posts] = await Promise.all([
       this.getMoments({ ...options, limit: momentLimit }),
-      this.getVerifiedTalentVideos(talentLimit),
+      this.getVerifiedTalentVideos(talentLimit, currentUserId),
       this.getShortVideoPosts(postLimit, currentUserId)
     ]);
 

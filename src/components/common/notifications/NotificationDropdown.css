@@ -230,8 +230,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Announcement-specific styles */
@@ -324,20 +329,28 @@
 /* Mobile responsive */
 @media (max-width: 768px) {
   .notification-dropdown {
-    width: 320px;
-    right: -20px;
+    position: fixed;
+    top: 70px;
+    /* Clear the header */
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 94%;
+    max-width: 400px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
   }
-  
+
   .notification-item {
-    padding: 10px 16px;
+    padding: 12px 16px;
   }
-  
+
   .notification-header {
     padding: 12px 16px;
   }
-  
+
   .notification-footer {
-    padding: 10px 16px;
+    padding: 12px 16px;
   }
 }
 

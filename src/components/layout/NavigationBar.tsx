@@ -102,7 +102,7 @@ const NavigationBar = ({ currentUser, isGuest, onTitleClick, title = "AmaPlayer"
 
   return (
     <nav
-      className={`nav-bar ${!isVisible ? 'nav-hidden' : ''}`}
+      className={`nav-bar`}
       role="navigation"
       aria-label="Main navigation"
     >

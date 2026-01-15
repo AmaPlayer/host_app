@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import CommentSection from './CommentSection';
 import CommentInputForm from './CommentInputForm';
 import { Comment } from '../../../services/api/commentService';
+import { useTouchGestures } from '../../../hooks/useTouchGestures';
 import './CommentsModal.css';
 
 interface CommentsModalProps {
@@ -27,6 +28,20 @@ const CommentsModal: React.FC<CommentsModalProps> = ({
 }) => {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [replyingTo, setReplyingTo] = useState<{ id: string; displayName: string } | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Touch gestures for swipe-to-close
+    const { attachGestures } = useTouchGestures({
+        onSwipeDown: onClose,
+        minSwipeDistance: 50
+    });
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (container && isVisible) {
+            return attachGestures(container);
+        }
+    }, [isVisible, attachGestures]);
 
     const handleReply = (comment: Comment) => {
         setReplyingTo({ id: comment.id, displayName: comment.userDisplayName });
@@ -53,7 +68,7 @@ const CommentsModal: React.FC<CommentsModalProps> = ({
                 }
             }}
         >
-            <div className="comments-modal-container">
+            <div className="comments-modal-container" ref={containerRef}>
                 {/* Header - order: 1 */}
                 <div className="comments-header">
                     <h3 id="comments-title">Comments</h3>

@@ -507,3 +507,13 @@ select:focus,
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
 }
+
+/* Touch Target Standard */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}

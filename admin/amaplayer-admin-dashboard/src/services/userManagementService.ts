@@ -162,7 +162,13 @@ export class UserManagementService {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          posts:posts(count),
+          stories:stories(count),
+          followers:followers!following_id(count),
+          following:followers!follower_id(count)
+        `)
         .eq('id', userId)
         .single();
 
@@ -224,21 +230,39 @@ export class UserManagementService {
   /**
    * Get all users
    */
+  /**
+   * Get all users
+   */
   async getAllUsers(): Promise<User[]> {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          posts:posts(count),
+          stories:stories(count),
+          followers:followers!following_id(count),
+          following:followers!follower_id(count)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return (data || []).map(this.mapToModel);
     } catch (error) {
+      console.error('Error in getAllUsers:', error);
       return [];
     }
   }
 
   private mapToModel(data: any): User {
+    // Helper to safely extract count from Supabase relation array
+    const getCount = (field: any) => {
+      if (Array.isArray(field) && field.length > 0) {
+        return field[0].count || 0;
+      }
+      return 0;
+    };
+
     return {
       uid: data.uid,
       id: data.id,
@@ -250,10 +274,11 @@ export class UserManagementService {
       isVerified: data.is_verified,
       photoURL: data.photo_url,
       bio: data.bio,
-      postsCount: data.posts_count || 0,
-      followersCount: data.followers_count || 0,
-      followingCount: data.following_count || 0,
-      storiesCount: data.stories_count || 0,
+      // Use dynamic counts if available, fallback to static columns if needed (or 0)
+      postsCount: data.posts ? getCount(data.posts) : (data.posts_count || 0),
+      storiesCount: data.stories ? getCount(data.stories) : (data.stories_count || 0),
+      followersCount: data.followers ? getCount(data.followers) : (data.followers_count || 0),
+      followingCount: data.following ? getCount(data.following) : (data.following_count || 0),
       sports: data.sports || [],
       location: data.location || '',
       dateOfBirth: data.date_of_birth,

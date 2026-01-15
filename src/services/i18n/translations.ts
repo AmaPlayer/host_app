@@ -229,6 +229,12 @@ export const translations = {
     stateLabel: 'STATE',
     countryLabel: 'COUNTRY',
     accountTypeLabel: 'ACCOUNT TYPE',
+    district: 'District',
+    position: 'Position',
+    organizationName: 'Organization Name',
+    contactEmail: 'Contact Email',
+    website: 'Website',
+    specializations: 'Specializations',
     notSpecified: 'Not specified',
     loadingVideos: 'Loading videos...',
 
@@ -244,6 +250,48 @@ export const translations = {
     dangerZoneDescription: 'Irreversible actions for your account.',
     deleteAccount: 'Delete Account',
     deleteAccountWarning: 'Permanently remove your account and all data.',
+    permissionDenied: 'Permission Denied',
+
+    // Profile Edit Modal
+    editPersonalDetails: 'Edit Personal Details',
+    unsavedChanges: 'Unsaved changes',
+
+    enterYourName: 'Enter your full name',
+    enterYourUsername: 'Enter your username',
+    selectGender: 'Select your gender',
+    selectPlayerType: 'Select player type',
+    selectOrganizationType: 'Select organization type',
+    selectRelationship: 'Select relationship',
+    selectCoachingLevel: 'Select coaching level',
+    usernameRequired: 'Username is required',
+    validEmailRequired: 'Please enter a valid email address',
+    yearsExperiencePositive: 'Years of experience cannot be negative',
+    nameUsernameDifferent: 'Display name should be different from username',
+    usernameTaken: 'This username is already taken by another user. Please choose a different username.',
+    unsavedChangesWarning: 'You have unsaved changes. Are you sure you want to close?',
+
+    // Dropdown Options
+    male: 'Male',
+    female: 'Female',
+    other: 'Other',
+    preferNotToSay: 'Prefer not to say',
+    amateur: 'Amateur',
+    professional: 'Professional',
+    studentAthlete: 'Student Athlete',
+    trainingFacility: 'Training Facility',
+    sportsClub: 'Sports Club',
+    academy: 'Academy',
+    school: 'School',
+    professionalTeam: 'Professional Team',
+    father: 'Father',
+    mother: 'Mother',
+    guardian: 'Guardian',
+    level1: 'Level 1 Certified',
+    level2: 'Level 2 Certified',
+    level3: 'Level 3 Certified',
+    masterLevel: 'Master Level',
+
+
   },
 
   hi: {
@@ -431,18 +479,9 @@ export const translations = {
     cityLabel: 'शहर',
     stateLabel: 'राज्य',
     countryLabel: 'देश',
-    accountTypeLabel: 'खाता प्रकार',
-    notSpecified: 'निर्दिष्ट नहीं',
-    loadingVideos: 'वीडियो लोड हो रहे हैं...',
-
-    // Common (सामान्य)
-    save: 'सहेजें',
-    saved: 'सहेजा गया',
-    remove: 'हटाएं',
-    sharePost: 'पोस्ट साझा करें',
-    linkCopied: 'लिंक कॉपी हो गया!',
-    editYourPost: 'अपनी पोस्ट संपादित करें...',
-    edited: '(संपादित)',
+    deleteAccount: 'खाता हटाएं',
+    deleteAccountWarning: 'अपने खाते और सभी डेटा को स्थायी रूप से हटाएं।',
+    permissionDenied: 'अनुमति अस्वीकृत',
   },
 
   pa: {
@@ -1037,7 +1076,7 @@ export const translations = {
     yourJourney: 'ଆଥଲେଟିକ୍ ଉତ୍କର୍ଷତା ପ୍ରତି ଆପଣଙ୍କର ଯାତ୍ରା ଏଠାରୁ ଆରମ୍ଭ ହୁଏ',
   },
 
-  as: {
+  'as': {
     amaplayer: 'আমাপ্লেয়াৰ',
     athlete: 'খেলুৱৈ',
     athleteDescription: 'আপোনাৰ প্ৰতিভা প্ৰদৰ্শন কৰক আৰু প্ৰশিক্ষকসকলৰ সৈতে সংযোগ কৰক',
@@ -1102,18 +1141,3 @@ export const translations = {
     yourJourney: 'ক্ৰীড়া উৎকৰ্ষতাৰ প্ৰতি আপোনাৰ যাত্ৰা ইয়াতে আৰম্ভ হয়',
   }
 } as const;
-
-export function getTranslation(language: LanguageCode, key: string, fallback?: string): string {
-  const languageTranslations = translations[language];
-  if (languageTranslations && languageTranslations[key as keyof typeof languageTranslations]) {
-    return languageTranslations[key as keyof typeof languageTranslations] as string;
-  }
-
-  // Fallback to English
-  const englishTranslations = translations.en;
-  if (englishTranslations && englishTranslations[key as keyof typeof englishTranslations]) {
-    return englishTranslations[key as keyof typeof englishTranslations] as string;
-  }
-
-  return fallback || key;
-}

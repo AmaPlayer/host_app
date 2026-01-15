@@ -12,6 +12,7 @@ import { useTouchGestures } from '../../../hooks/useTouchGestures';
 import { useVideoPerformance } from '../../../hooks/useVideoPerformance';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import VideoOptimizationUtils from '../../../utils/videoOptimization';
+import { useHapticFeedback } from '../../../hooks/useHapticFeedback';
 import LoadingSpinner from '../loading/LoadingSpinner';
 import RetryHandler from '../error/RetryHandler';
 import UserAvatar from '../user/UserAvatar';
@@ -108,6 +109,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [lastError, setLastError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<string>('');
   const [videoStatus, setVideoStatus] = useState<string>('');
+  const haptic = useHapticFeedback();
 
   // Network status monitoring
   const { networkStatus, isGoodConnection, recommendedVideoQuality } = useNetworkStatus();
@@ -167,15 +169,125 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     return cleanup;
   }, [enablePerformanceOptimizations, moment.id, optimizeQuality, getCurrentNetworkType]);
 
+  // Show controls temporarily
+  const showControlsTemporarily = useCallback(() => {
+    setShowControls(true);
+
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+
+    controlsTimeoutRef.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+  }, []);
+
+  // Toggle play/pause
+  const togglePlayPause = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || playerState.hasError) return;
+
+    if (playerState.isPlaying) {
+      video.pause();
+    } else {
+      video.play().catch((error) => {
+        console.error('Play failed:', error);
+      });
+    }
+  }, [playerState.isPlaying, playerState.hasError]);
+
+  // Toggle mute/unmute
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const newMuted = !playerState.isMuted;
+    video.muted = newMuted;
+    setPlayerState(prev => ({ ...prev, isMuted: newMuted }));
+
+    // Persist mute preference to localStorage for all future videos
+    try {
+      localStorage.setItem('videoMutePreference', String(newMuted));
+      // Dispatch custom event to notify other video players
+      window.dispatchEvent(new CustomEvent('videoMutePreferenceChanged', {
+        detail: { isMuted: newMuted }
+      }));
+      haptic.light(); // Feedback for mute toggle
+    } catch (error) {
+      console.error('Failed to save mute preference:', error);
+    }
+
+    setAnnouncement(`Video ${newMuted ? 'muted' : 'unmuted'}`);
+  }, [playerState.isMuted]);
+
+  // Handle fullscreen toggle
+  const toggleFullscreen = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    console.log('Toggle fullscreen clicked');
+
+    // Check if we are already in fullscreen
+    const isFullscreen = document.fullscreenElement || (video as any).webkitDisplayingFullscreen;
+
+    if (!isFullscreen) {
+      console.log('Attempting to enter fullscreen');
+      if (video.requestFullscreen) {
+        video.requestFullscreen().catch(err => {
+          console.error('Error attempting to enable fullscreen:', err);
+        });
+      } else if ((video as any).webkitEnterFullscreen) {
+        // iOS Safari specific
+        console.log('Using webkitEnterFullscreen');
+        (video as any).webkitEnterFullscreen();
+      } else if ((video as any).msRequestFullscreen) {
+        // IE11
+        (video as any).msRequestFullscreen();
+      } else {
+        console.warn('Fullscreen API not supported');
+      }
+    } else {
+      console.log('Attempting to exit fullscreen');
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if ((video as any).webkitExitFullscreen) {
+        (video as any).webkitExitFullscreen();
+      }
+    }
+  }, []);
+
+  // Use shared engagement actions hook
+  const {
+    isLiking,
+    handleLike,
+    handleComment: handleCommentClick,
+    handleShare: handleShareClick,
+    handleShareAction,
+    showComments,
+    setShowComments,
+    showShare,
+    setShowShare
+  } = useEngagementActions({
+    id: moment.id,
+    isPostVideo: moment.isPostVideo,
+    currentUserId,
+    onLike,
+    onComment,
+    onShare,
+    setAnnouncement
+  });
+
   // Touch gesture handlers
   const handleDoubleTap = useCallback(() => {
+    haptic.medium();
     handleLike();
-  }, []);
+  }, [handleLike, haptic]);
 
   const handleSingleTap = useCallback(() => {
     togglePlayPause();
-    showControlsTemporarily();
-  }, []);
+    // Don't show controls on tap - let the play/pause state determine visibility
+    // showControlsTemporarily(); 
+  }, [togglePlayPause]);
 
   const handleLongPress = useCallback(() => {
     // Show video info or additional options on long press
@@ -384,119 +496,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     onVideoError?.(errorMessage);
   }, [onVideoError]);
 
-  // Show controls temporarily
-  const showControlsTemporarily = useCallback(() => {
-    setShowControls(true);
 
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
-
-    controlsTimeoutRef.current = setTimeout(() => {
-      setShowControls(false);
-    }, 3000);
-  }, []);
-
-  // Toggle play/pause
-  const togglePlayPause = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || playerState.hasError) return;
-
-    if (playerState.isPlaying) {
-      video.pause();
-    } else {
-      video.play().catch((error) => {
-        console.error('Play failed:', error);
-      });
-    }
-  }, [playerState.isPlaying, playerState.hasError]);
-
-  // Toggle mute/unmute
-  const toggleMute = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const newMuted = !playerState.isMuted;
-    video.muted = newMuted;
-    setPlayerState(prev => ({ ...prev, isMuted: newMuted }));
-
-    // Persist mute preference to localStorage for all future videos
-    try {
-      localStorage.setItem('videoMutePreference', String(newMuted));
-      // Dispatch custom event to notify other video players
-      window.dispatchEvent(new CustomEvent('videoMutePreferenceChanged', {
-        detail: { isMuted: newMuted }
-      }));
-    } catch (error) {
-      console.error('Failed to save mute preference:', error);
-    }
-
-    setAnnouncement(`Video ${newMuted ? 'muted' : 'unmuted'}`);
-  }, [playerState.isMuted]);
-
-  // Handle fullscreen toggle
-  const toggleFullscreen = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    console.log('Toggle fullscreen clicked');
-
-    // Check if we are already in fullscreen
-    const isFullscreen = document.fullscreenElement || (video as any).webkitDisplayingFullscreen;
-
-    if (!isFullscreen) {
-      console.log('Attempting to enter fullscreen');
-      if (video.requestFullscreen) {
-        video.requestFullscreen().catch(err => {
-          console.error('Error attempting to enable fullscreen:', err);
-        });
-      } else if ((video as any).webkitEnterFullscreen) {
-        // iOS Safari specific
-        console.log('Using webkitEnterFullscreen');
-        (video as any).webkitEnterFullscreen();
-      } else if ((video as any).msRequestFullscreen) {
-        // IE11
-        (video as any).msRequestFullscreen();
-      } else {
-        console.warn('Fullscreen API not supported');
-      }
-    } else {
-      console.log('Attempting to exit fullscreen');
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if ((video as any).webkitExitFullscreen) {
-        (video as any).webkitExitFullscreen();
-      }
-    }
-  }, []);
-
-  // Use shared engagement actions hook
-  const {
-    isLiking,
-    handleLike,
-    handleComment: handleCommentClick,
-    handleShare: handleShareClick,
-    handleShareAction,
-    showComments,
-    setShowComments,
-    showShare,
-    setShowShare
-  } = useEngagementActions({
-    id: moment.id,
-    isPostVideo: moment.isPostVideo,
-    currentUserId,
-    onLike,
-    onComment,
-    onShare,
-    setAnnouncement
-  });
 
   // Handle video click (play/pause and show controls) - for non-touch devices
   const handleVideoClick = useCallback(() => {
     if (isMobile) return; // Let touch gestures handle mobile interactions
     togglePlayPause();
-    showControlsTemporarily();
-  }, [togglePlayPause, showControlsTemporarily, isMobile]);
+    // Don't show controls on click - let the play/pause state determine visibility
+  }, [togglePlayPause, isMobile]);
 
   // Handle retry on error
   const handleRetry = useCallback(async () => {
@@ -818,6 +825,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </span>
           </div>
         )}
+
+        {/* Video Timer - Top Left */}
+        <div className="video-timer-top">
+          <span className="video-duration" role="text" aria-label={`Video progress: ${formatTime(playerState.currentTime)} of ${formatTime(playerState.duration)}`}>
+            {formatTime(playerState.currentTime)} / {formatTime(playerState.duration)}
+          </span>
+        </div>
       </div>
 
       {/* Video Metadata */}
@@ -843,9 +857,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         )}
 
         <div className="video-stats" role="group" aria-label="Video statistics">
-          <span className="video-duration" role="text" aria-label={`Video progress: ${formatTime(playerState.currentTime)} of ${formatTime(playerState.duration)}`}>
-            {formatTime(playerState.currentTime)} / {formatTime(playerState.duration)}
-          </span>
+          {/* Stats removed from here and moved to top */}
           <span className="video-views" role="text" aria-label={`${moment.engagement.views.toLocaleString()} views`}>
             {moment.engagement.views.toLocaleString()} views
           </span>

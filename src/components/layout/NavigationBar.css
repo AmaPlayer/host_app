@@ -35,7 +35,7 @@
   height: 60px;
 
   /* Styles moved from nav-bar */
-  background: var(--glass-bg);
+  background: rgba(26, 26, 26, 0.95);
   border: 1px solid var(--glass-border);
   /* Changed to full border for pill effect */
   border-radius: 16px;

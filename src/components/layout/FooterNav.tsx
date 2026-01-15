@@ -123,7 +123,7 @@ const FooterNav = memo(function FooterNav() {
   };
 
   return (
-    <footer className={`footer-nav ${!isVisible ? 'footer-hidden' : ''}`}>
+    <footer className={`footer-nav`}>
       <div className="footer-nav-container">
         {navItems.map((item) => (
           <button

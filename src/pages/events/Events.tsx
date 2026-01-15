@@ -67,15 +67,18 @@ export default function Events() {
   const loadEvents = async () => {
     try {
       setLoading(true);
-      setError(null);const startTime = performance.now();
+      setError(null);
+      const startTime = performance.now();
 
       const allEvents = await eventsService.getAllEvents();
-      const endTime = performance.now();// Calculate status ONCE when loading
+      const endTime = performance.now();
+      // Calculate status ONCE when loading
       const eventsWithStatus: EventWithStatus[] = allEvents.map(event => ({
         ...event,
         calculatedStatus: (event.status as any) || eventsService.getEventStatus(event)
       }));
-      setEvents(eventsWithStatus);} catch (error) {
+      setEvents(eventsWithStatus);
+    } catch (error) {
       console.error('Error loading events:', error);
       setError(`${t('failedLoadingEvents')}. ${t('tryAgain')}.`);
     } finally {
@@ -124,7 +127,8 @@ export default function Events() {
             : e
         )
       );
-      setShowWinnerSelector(false);} catch (err) {
+      setShowWinnerSelector(false);
+    } catch (err) {
       // Extract and format error message
       let errorMessage = 'Failed to declare winners';
 
@@ -140,7 +144,7 @@ export default function Events() {
           '. The operation took too long. Please check your connection and try again.';
       } else if (errorMessage.includes('permission')) {
         errorMessage =
-          'You do not have permission to declare winners. Please contact an administrator.';
+          t('permissionDenied') || 'You do not have permission to declare winners. Please contact an administrator.';
       } else if (errorMessage.includes('not found')) {
         errorMessage +=
           '. One or more submissions may have been deleted. Please refresh and try again.';
@@ -166,12 +170,12 @@ export default function Events() {
   // Handle event button click (Interested/Join)
   const handleEventButtonClick = async (event: Event) => {
     if (isGuest()) {
-      alert('Please log in to participate in events');
+      alert(t('pleaseLogInParticipate'));
       return;
     }
 
     if (!currentUser) {
-      alert('Please log in');
+      alert(t('pleaseLogIn'));
       return;
     }
 
@@ -185,7 +189,8 @@ export default function Events() {
 
       // Get user's existing submission
       const submission = await submissionService.getUserSubmissionForEvent(event.id!, currentUser.uid);
-      setUserSubmission(submission);console.log('✅ User submission:', submission?.id);
+      setUserSubmission(submission);
+      console.log('✅ User submission:', submission?.id);
     } catch (err) {
       console.error('❌ Error loading participation:', err);
     }
@@ -202,7 +207,8 @@ export default function Events() {
 
   // Handle submission success
   const handleSubmissionSuccess = async (submission: EventSubmission) => {
-    setUserSubmission(submission);};
+    setUserSubmission(submission);
+  };
 
   // Handle delete button click - show confirmation
   const handleDeleteClick = (submissionId: string, submissionTitle: string) => {
@@ -226,7 +232,8 @@ export default function Events() {
       // Reset state to allow new submission
       setUserSubmission(null);
       setSubmissionTab('submit');
-      setDeleteConfirmation({ show: false, submissionId: null, submissionTitle: null });} catch (err) {
+      setDeleteConfirmation({ show: false, submissionId: null, submissionTitle: null });
+    } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete submission';
       setDeleteError(message);
       console.error('❌ Delete error:', err);
@@ -247,7 +254,7 @@ export default function Events() {
     const pastEvents = events.filter(e => e.calculatedStatus === 'completed');
 
     const filtered = activeTab === 'upcoming' ? upcomingEvents :
-                     activeTab === 'live' ? liveEvents : pastEvents;
+      activeTab === 'live' ? liveEvents : pastEvents;
 
     return {
       eventsByTab: filtered,
@@ -353,11 +360,11 @@ export default function Events() {
               ) : (
                 eventsByTab.map((event) => {
                   const statusColor = event.calculatedStatus === 'live' ? '#ff4757' :
-                                    event.calculatedStatus === 'upcoming' ? 'var(--accent-primary)' : '#2ed573';
+                    event.calculatedStatus === 'upcoming' ? 'var(--accent-primary)' : '#2ed573';
                   const isResultsDeclared = event.eventState === 'results_declared';
                   const buttonText = isResultsDeclared ? t('viewResults') :
-                                    event.calculatedStatus === 'live' ? t('watchLive') :
-                                    event.calculatedStatus === 'upcoming' ? t('interested') : t('viewResults');
+                    event.calculatedStatus === 'live' ? t('watchLive') :
+                      event.calculatedStatus === 'upcoming' ? t('interested') : t('viewResults');
 
                   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
                     const img = e.target as HTMLImageElement;
@@ -623,7 +630,7 @@ export default function Events() {
 
       {/* Delete Confirmation Dialog */}
       {deleteConfirmation.show && (
-        <div className="confirmation-modal-overlay" onClick={() => setDeleteConfirmation({...deleteConfirmation, show: false})}>
+        <div className="confirmation-modal-overlay" onClick={() => setDeleteConfirmation({ ...deleteConfirmation, show: false })}>
           <div className="confirmation-modal" onClick={(e) => e.stopPropagation()}>
             <h3>{t('deleteSubmissionTitle')}</h3>
             <p className="submission-details">

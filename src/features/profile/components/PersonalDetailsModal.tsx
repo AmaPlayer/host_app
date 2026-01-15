@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Save, User } from 'lucide-react';
+import { X, User, Save, AlertCircle } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { UserRole, PersonalDetails, roleConfigurations } from '../types/ProfileTypes';
 import '../styles/SectionModal.css';
@@ -30,6 +31,8 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
   const [errors, setErrors] = useState<FormErrors>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isCheckingName, setIsCheckingName] = useState(false);
+
+  const { t } = useLanguage();
 
   // Update form data when props change
   useEffect(() => {
@@ -62,18 +65,18 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
       const value = formData[field as keyof PersonalDetails];
 
       if (field === 'username' && (!value || String(value).trim() === '')) {
-        newErrors[field] = 'Username is required';
+        newErrors[field] = t('usernameRequired');
       }
 
       if ((field === 'email' || field === 'contactEmail') && value && String(value).trim() !== '') {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(String(value))) {
-          newErrors[field] = 'Please enter a valid email address';
+          newErrors[field] = t('validEmailRequired');
         }
       }
 
       if (field === 'yearsExperience' && value && Number(value) < 0) {
-        newErrors[field] = 'Years of experience cannot be negative';
+        newErrors[field] = t('yearsExperiencePositive');
       }
     });
 
@@ -113,10 +116,10 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
   // Function to validate that name and username are different
   const validateNameAndUsername = useCallback((): boolean => {
     if (formData.name && formData.username &&
-        formData.name.toLowerCase().trim() === formData.username.toLowerCase().trim()) {
+      formData.name.toLowerCase().trim() === formData.username.toLowerCase().trim()) {
       setErrors(prev => ({
         ...prev,
-        name: 'Display name should be different from username'
+        name: t('nameUsernameDifferent')
       }));
       return false;
     }
@@ -144,7 +147,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
       if (!isUnique) {
         setErrors(prev => ({
           ...prev,
-          username: 'This username is already taken by another user. Please choose a different username.'
+          username: t('usernameTaken')
         }));
         return;
       }
@@ -157,7 +160,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
 
   const handleClose = () => {
     if (hasUnsavedChanges) {
-      if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
+      if (window.confirm(t('unsavedChangesWarning'))) {
         setHasUnsavedChanges(false);
         onClose();
       }
@@ -167,55 +170,66 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
   };
 
   const getFieldLabel = (field: string): string => {
-    const labels: Record<string, string> = {
-      name: 'Full Name',
-      username: 'Username',
-      dateOfBirth: 'Date of Birth',
-      gender: 'Gender',
-      mobile: 'Mobile',
-      email: 'Email',
-      city: 'City',
-      district: 'District',
-      state: 'State',
-      country: 'Country',
-      playerType: 'Player Type',
-      sport: 'Sport',
-      position: 'Position',
-      organizationName: 'Organization Name',
-      organizationType: 'Organization Type',
-      location: 'Location',
-      contactEmail: 'Contact Email',
-      website: 'Website',
-      relationship: 'Relationship',
-      specializations: 'Specializations',
-      yearsExperience: 'Years of Experience',
-      coachingLevel: 'Coaching Level'
+    // Map internal field names to translation keys
+    // We can use a convention or map them explicitly
+    const labelKeyMap: Record<string, string> = {
+      name: 'nameLabel',
+      username: 'usernameLabel',
+      dateOfBirth: 'dateOfBirthLabel',
+      gender: 'genderLabel',
+      mobile: 'mobileLabel',
+      email: 'emailLabel',
+      city: 'cityLabel',
+      district: 'districtLabel', // Ensure this exists in translations or defaults
+      state: 'stateLabel',
+      country: 'countryLabel',
+      playerType: 'playerType', // Using general keys as labels if specific label keys don't exist
+      sport: 'sport',
+      position: 'position',
+      organizationName: 'organizationName',
+      organizationType: 'organizationType',
+      location: 'location',
+      contactEmail: 'contactEmail',
+      website: 'website',
+      relationship: 'relationship',
+      specializations: 'specializations',
+      yearsExperience: 'yearsExperience',
+      coachingLevel: 'coachingLevel'
     };
-    
-    return labels[field] || field.charAt(0).toUpperCase() + field.slice(1);
+
+    // Try to find a translation key
+    const key = labelKeyMap[field];
+    if (key) {
+      // Check if it's a specific label key (like nameLabel) or just a general key
+      const translation = t(key as any);
+      // If t returns the key itself, it means translation is missing, fallback to capitalized field
+      if (translation !== key) return translation;
+    }
+
+    return field.charAt(0).toUpperCase() + field.slice(1);
   };
 
   const getFieldPlaceholder = (field: string): string => {
-    const placeholders: Record<string, string> = {
-      name: 'Enter your full name',
-      username: 'Enter your username',
-      dateOfBirth: 'YYYY-MM-DD',
-      mobile: 'Enter your mobile number',
-      email: 'Enter your email address',
-      city: 'Enter your city',
-      district: 'Enter your district',
-      state: 'Enter your state',
-      country: 'Enter your country',
-      sport: 'Enter your sport (e.g., Basketball, Soccer)',
-      position: 'Enter your position (e.g., Point Guard, Striker)',
-      organizationName: 'Enter organization name',
-      location: 'Enter city, state/country',
-      contactEmail: 'Enter email address',
-      website: 'Enter website URL',
-      specializations: 'Enter specializations separated by commas'
-    };
-
-    return placeholders[field] || `Enter ${getFieldLabel(field).toLowerCase()}`;
+    // Return translated placeholders
+    switch (field) {
+      case 'name': return t('enterYourName');
+      case 'username': return t('enterYourUsername');
+      case 'dateOfBirth': return 'YYYY-MM-DD'; // Universal format
+      case 'mobile': return t('mobileLabel'); // Using label as placeholder for simplicity if no specific key
+      case 'email': return t('enterDisplayName'); // Reusing existing or need new key
+      case 'city': return t('cityLabel');
+      case 'district': return t('district');
+      case 'state': return t('stateLabel');
+      case 'country': return t('countryLabel');
+      case 'sport': return t('sport');
+      case 'position': return t('position');
+      case 'organizationName': return t('organizationName');
+      case 'location': return t('location');
+      case 'contactEmail': return t('contactEmail');
+      case 'website': return t('website');
+      case 'specializations': return t('specializations');
+      default: return t('enterDisplayName').replace('display name', getFieldLabel(field).toLowerCase());
+    }
   };
 
   const renderFormInput = (field: string, value: any, error: string) => {
@@ -224,13 +238,13 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
       className: `form-input ${error ? 'error' : ''}`,
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         let newValue: string | number | string[] = e.target.value;
-        
+
         if (field === 'yearsExperience') {
           newValue = e.target.value ? parseInt(e.target.value) : '';
         } else if (field === 'specializations') {
           newValue = e.target.value.split(',').map(s => s.trim()).filter(s => s);
         }
-        
+
         handleFieldChange(field as keyof PersonalDetails, newValue);
       }
     };
@@ -239,60 +253,60 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
       case 'gender':
         return (
           <select {...commonProps} value={String(value || '')}>
-            <option value="">Select your gender</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
-            <option value="Prefer not to say">Prefer not to say</option>
+            <option value="">{t('selectGender')}</option>
+            <option value="Male">{t('male')}</option>
+            <option value="Female">{t('female')}</option>
+            <option value="Other">{t('other')}</option>
+            <option value="Prefer not to say">{t('preferNotToSay')}</option>
           </select>
         );
-      
+
       case 'playerType':
         return (
           <select {...commonProps} value={String(value || '')}>
-            <option value="">Select player type</option>
-            <option value="Amateur">Amateur</option>
-            <option value="Professional">Professional</option>
-            <option value="Student Athlete">Student Athlete</option>
+            <option value="">{t('selectPlayerType')}</option>
+            <option value="Amateur">{t('amateur')}</option>
+            <option value="Professional">{t('professional')}</option>
+            <option value="Student Athlete">{t('studentAthlete')}</option>
           </select>
         );
-      
+
       case 'organizationType':
         return (
           <select {...commonProps} value={String(value || '')}>
-            <option value="">Select organization type</option>
-            <option value="Training Facility">Training Facility</option>
-            <option value="Sports Club">Sports Club</option>
-            <option value="Academy">Academy</option>
-            <option value="School">School</option>
-            <option value="Professional Team">Professional Team</option>
-            <option value="Other">Other</option>
+            <option value="">{t('selectOrganizationType')}</option>
+            <option value="Training Facility">{t('trainingFacility')}</option>
+            <option value="Sports Club">{t('sportsClub')}</option>
+            <option value="Academy">{t('academy')}</option>
+            <option value="School">{t('school')}</option>
+            <option value="Professional Team">{t('professionalTeam')}</option>
+            <option value="Other">{t('other')}</option>
           </select>
         );
-      
+
       case 'relationship':
         return (
           <select {...commonProps} value={String(value || '')}>
-            <option value="">Select relationship</option>
-            <option value="Father">Father</option>
-            <option value="Mother">Mother</option>
-            <option value="Guardian">Guardian</option>
-            <option value="Other">Other</option>
+            <option value="">{t('selectRelationship')}</option>
+            <option value="Father">{t('father')}</option>
+            <option value="Mother">{t('mother')}</option>
+            <option value="Guardian">{t('guardian')}</option>
+            <option value="Other">{t('other')}</option>
           </select>
         );
-      
+
       case 'coachingLevel':
         return (
           <select {...commonProps} value={String(value || '')}>
-            <option value="">Select coaching level</option>
-            <option value="Level 1 Certified">Level 1 Certified</option>
-            <option value="Level 2 Certified">Level 2 Certified</option>
-            <option value="Level 3 Certified">Level 3 Certified</option>
-            <option value="Master Level">Master Level</option>
-            <option value="Professional">Professional</option>
+            <option value="">{t('selectCoachingLevel')}</option>
+            <option value="Level 1 Certified">{t('level1')}</option>
+            <option value="Level 2 Certified">{t('level2')}</option>
+            <option value="Level 3 Certified">{t('level3')}</option>
+            <option value="Master Level">{t('masterLevel')}</option>
+            <option value="Professional">{t('professional')}</option>
           </select>
         );
-      
+
       case 'yearsExperience':
         return (
           <input
@@ -304,7 +318,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
             value={value || ''}
           />
         );
-      
+
       case 'specializations':
         return (
           <textarea
@@ -314,7 +328,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
             rows={3}
           />
         );
-      
+
       case 'website':
         return (
           <input
@@ -324,7 +338,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
             value={String(value || '')}
           />
         );
-      
+
       case 'contactEmail':
       case 'email':
         return (
@@ -335,7 +349,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
             value={String(value || '')}
           />
         );
-      
+
       case 'dateOfBirth':
         return (
           <input
@@ -344,7 +358,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
             value={String(value || '')}
           />
         );
-      
+
       default:
         return (
           <input
@@ -367,7 +381,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
         <div className="modal-header">
           <div className="modal-header-left">
             <User size={20} />
-            <h2 className="modal-title">Edit Personal Details</h2>
+            <h2 className="modal-title">{t('editPersonalDetails')}</h2>
           </div>
           <button
             className="modal-close-button"
@@ -384,16 +398,16 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
               {roleConfig.editableFields.map(field => {
                 const value = formData[field as keyof PersonalDetails];
                 const error = errors[field];
-                
+
                 return (
                   <div key={field} className="form-field">
                     <label htmlFor={field} className="form-label">
                       {getFieldLabel(field)}
                       {field === 'username' && <span className="required">*</span>}
                     </label>
-                    
+
                     {renderFormInput(field, value, error)}
-                    
+
                     {error && <span className="form-error">{error}</span>}
                   </div>
                 );
@@ -406,7 +420,7 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
           <div className="modal-footer-left">
             {hasUnsavedChanges && (
               <span className="unsaved-indicator">
-                Unsaved changes
+                {t('unsavedChanges')}
               </span>
             )}
           </div>
@@ -415,14 +429,14 @@ const PersonalDetailsModal: React.FC<PersonalDetailsModalProps> = ({
               className="modal-button secondary"
               onClick={handleClose}
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               className="modal-button primary"
               onClick={handleSave}
             >
               <Save size={16} />
-              Save Changes
+              {t('saveChanges')}
             </button>
           </div>
         </div>

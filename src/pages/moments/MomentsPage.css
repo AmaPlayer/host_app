@@ -109,9 +109,10 @@
   will-change: scroll-position;
   /* Passive event listeners will be used in JS */
   touch-action: pan-y;
-  
+
   /* iOS-specific scroll improvements */
-  overscroll-behavior-y: contain; /* Prevent bounce at edges */
+  overscroll-behavior-y: contain;
+  /* Prevent bounce at edges */
 
   /* Force hardware acceleration on iOS */
   -webkit-transform: translate3d(0, 0, 0);
@@ -129,7 +130,8 @@
     -webkit-overflow-scrolling: auto;
 
     /* Re-enable with better snap behavior */
-    scroll-snap-type: y proximity; /* Change from 'mandatory' to 'proximity' */
+    scroll-snap-type: y proximity;
+    /* Change from 'mandatory' to 'proximity' */
   }
 }
 
@@ -215,7 +217,7 @@
   object-fit: contain;
   display: block;
   /* Ensure centering within the flex container if aspect ratio differs */
-  margin: auto; 
+  margin: auto;
 }
 
 .video-description {
@@ -225,15 +227,7 @@
 }
 
 /* Engagement buttons */
-.engagement-actions {
-  position: absolute;
-  right: 1rem;
-  bottom: 6rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  z-index: 10;
-}
+/* Engagement actions styles removed to prefer VideoPlayer.css */
 
 .engagement-btn {
   display: flex;
@@ -298,8 +292,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Video error states */
@@ -344,6 +343,7 @@
 
 /* Touch device optimizations */
 @media (pointer: coarse) {
+
   .engagement-btn,
   .retry-btn {
     min-width: 48px;
@@ -364,23 +364,15 @@
     padding-left: 0;
     padding-right: 0;
   }
-  
+
   .video-item {
     /* Don't add padding - let video fill edge to edge */
     padding-left: 0;
     padding-right: 0;
   }
-  
+
   /* Add safe area padding only to UI elements */
-  .video-metadata {
-    padding-left: max(1rem, env(safe-area-inset-left));
-    padding-right: max(1rem, env(safe-area-inset-right));
-    padding-bottom: max(1rem, env(safe-area-inset-bottom));
-  }
-  
-  .engagement-actions {
-    right: max(1rem, env(safe-area-inset-right));
-  }
+  /* Safe area padding handled in VideoPlayer.css */
 }
 
 /* Performance optimizations for mobile */
@@ -391,13 +383,13 @@
     -webkit-transform: translateZ(0);
     will-change: scroll-position;
   }
-  
+
   .video-item {
     /* Optimize rendering performance */
     contain: layout style paint;
     will-change: transform;
   }
-  
+
   /* Reduce animations on mobile for better performance */
   .engagement-btn,
   .retry-btn {
@@ -411,15 +403,15 @@
     scroll-behavior: auto;
     scroll-snap-type: none;
   }
-  
+
   .engagement-btn:hover {
     transform: none;
   }
-  
+
   .loading-spinner {
     animation: none;
   }
-  
+
   /* Disable all transforms for reduced motion */
   .engagement-btn:active,
   .retry-btn:active {
@@ -432,12 +424,12 @@
   .video-controls {
     background: rgba(0, 0, 0, 0.9);
   }
-  
+
   .engagement-btn {
     background: rgba(0, 0, 0, 0.8);
     border: 1px solid white;
   }
-  
+
   .creator-avatar {
     border: 2px solid white;
   }
@@ -490,8 +482,13 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .create-moment-modal {
@@ -510,6 +507,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -857,6 +855,7 @@
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }

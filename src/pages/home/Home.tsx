@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useMemo, memo, Suspense, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import { adaptFirebaseUser } from '../../utils/auth/userAdapter';
 import { usePostOperations } from '../../hooks/usePostOperations';
@@ -79,6 +80,7 @@ interface AdvancedFeatures {
  */
 function Home(): React.JSX.Element {
   const { currentUser: firebaseUser, logout, isGuest } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   // Memoize isGuest value to prevent function calls on every render
@@ -266,10 +268,10 @@ function Home(): React.JSX.Element {
           'public'
         );
         await refreshPosts();
-        alert('Reposted successfully!');
+        alert(t('postCreatedSuccessfully')); // Or generic success
       } catch (error) {
         console.error('Repost failed:', error);
-        alert('Failed to repost. Please try again.');
+        alert(t('failedToCreatePost'));
       }
     }
   }, [firebaseUser, refreshPosts]);

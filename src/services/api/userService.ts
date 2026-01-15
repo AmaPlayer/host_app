@@ -178,7 +178,11 @@ class UserService {
       // 1. Determine if userId is text (Firebase) or UUID (Supabase)
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
 
-      let query = supabase.from('users').select('*');
+      let query = supabase.from('users').select(`
+        *,
+        posts:posts(count),
+        stories:stories(count)
+      `);
 
       if (isUuid) {
         query = query.eq('id', userId);
@@ -192,6 +196,19 @@ class UserService {
         console.warn(`⚠️ User profile not found for ${isUuid ? 'ID' : 'UID'}:`, userId);
         return null;
       }
+
+      // Helper to extract count from relation array (e.g. posts: [{ count: 5 }])
+      const getCount = (field: any) => {
+        if (Array.isArray(field) && field.length > 0) {
+          return field[0].count || 0;
+        }
+        return 0;
+      };
+
+      // Patch the data with dynamic counts before mapping
+      // logic: if dynamic count exists, overwrite the static column
+      if (userData.posts) userData.posts_count = getCount(userData.posts);
+      if (userData.stories) userData.stories_count = getCount(userData.stories);
 
       const user = this.mapSupabaseUserToModel(userData);
       const userRole = role || user.role as UserRole;
