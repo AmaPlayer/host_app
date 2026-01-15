@@ -14,7 +14,9 @@ export const MEDIA_COMPRESSION_CONFIG = {
     videos: {
         maxWidth: 1920,
         maxHeight: 1080,
-        videoBitrate: 3000000, // 3 Mbps
+        videoBitrate: 8000000, // 8 Mbps (Base target)
+        minBitrate: 2500000,   // 2.5 Mbps (Minimum)
+        maxBitrate: 25000000,   // 25 Mbps (Maximum - Increased for 4K/60fps support)
         audioBitrate: 160000, // 160 kbps
         fps: 30,
     },

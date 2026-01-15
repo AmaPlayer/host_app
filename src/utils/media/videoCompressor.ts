@@ -22,98 +22,163 @@ function isWebCodecsSupported(): boolean {
  * @param onProgress - Progress callback (optional)
  * @returns Compressed video file with metadata
  */
+// Native Video Compression using MediaRecorder
 export async function compressVideo(
     file: File,
     options?: VideoCompressionOptions,
     onProgress?: (progress: CompressionProgress) => void
 ): Promise<CompressionResult> {
     const originalSize = file.size;
+    const startTime = Date.now();
 
     try {
-        // Report analyzing stage
-        onProgress?.({
-            stage: 'analyzing',
-            progress: 5,
-            message: 'Analyzing video...',
-        });
+        // 1. Validate
+        onProgress?.({ stage: 'analyzing', progress: 5, message: 'Analyzing video...' });
 
-        // Check browser support
-        if (!isWebCodecsSupported()) {
-            console.warn('⚠️ WebCodecs API not supported. Skipping video compression.');
-            onProgress?.({
-                stage: 'complete',
-                progress: 100,
-                message: 'Video compression not supported in this browser. Using original file.',
-            });
-
-            // Return original file without compression
-            const metadata = await getVideoMetadata(file);
-            return {
-                originalSize,
-                compressedSize: originalSize,
-                compressionRatio: 0,
-                file,
-                metadata,
-            };
+        // Check if MediaRecorder is supported
+        if (typeof MediaRecorder === 'undefined') {
+            throw new Error('MediaRecorder not supported');
         }
 
-        // Get video metadata
-        const metadata = await getVideoMetadata(file);
+        // 2. Prepare Video Element
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.src = URL.createObjectURL(file);
 
-        onProgress?.({
-            stage: 'compressing',
-            progress: 20,
-            message: 'Compressing video...',
+        // Wait for metadata
+        await new Promise((resolve, reject) => {
+            video.onloadedmetadata = resolve;
+            video.onerror = reject;
         });
 
-        // For now, we'll use a simplified approach
-        // Full WebCodecs implementation would be complex and require significant code
-        // This is a placeholder that returns the original file
-        // In production, you'd implement full WebCodecs encoding here
+        // 3. Configure Smart Bitrate Calculation
+        // Calculate original bitrate: (Size in bits) / (Duration in seconds)
+        const duration = video.duration || 1; // avoid div by zero
+        const originalBitrate = (originalSize * 8) / duration;
 
-        console.log('📹 Video compression with WebCodecs would happen here');
-        console.log('Original video:', {
-            size: formatFileSize(originalSize),
-            duration: metadata.duration,
-            dimensions: `${metadata.width}x${metadata.height}`,
+        // Config defaults
+        const config = MEDIA_COMPRESSION_CONFIG.videos;
+        const minBitrate = (config as any).minBitrate || 2500000;
+        const maxBitrate = (config as any).maxBitrate || 8000000;
+
+        // Target Original Bitrate (1.0).
+        // Since we are likely converting H.264 -> VP9 (more efficient), matching the bitrate often yields excellent quality 
+        // while still saving space due to container overhead removal and encoder efficiency.
+        let calcBitrate = Math.floor(originalBitrate * 1.0);
+
+        // Clamp
+        calcBitrate = Math.max(minBitrate, Math.min(calcBitrate, maxBitrate));
+
+        const targetBitrate = options?.videoBitrate || calcBitrate;
+        const targetFps = options?.fps || config.fps || 30;
+
+        console.log(`📊 Smart Bitrate: Original ${(originalBitrate / 1000000).toFixed(2)} Mbps -> Target ${(targetBitrate / 1000000).toFixed(2)} Mbps`);
+
+        // Setup Stream & Recorder
+        const stream = (video as any).captureStream ? (video as any).captureStream(targetFps) : (video as any).mozCaptureStream(targetFps);
+
+        if (!stream) throw new Error('captureStream not supported');
+
+        const mimeType = 'video/webm;codecs=vp9'; // efficient web compression
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            // Fallback to default if vp9 not supported
+            console.warn('VP9 not supported, falling back to default WebM');
+        }
+
+        const recorder = new MediaRecorder(stream, {
+            mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : 'video/webm',
+            bitsPerSecond: targetBitrate
         });
 
-        // Simulate compression progress
-        for (let i = 20; i <= 90; i += 10) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        // 4. Record
+        onProgress?.({ stage: 'compressing', progress: 10, message: 'Starting compression...' });
+
+        const recordingPromise = new Promise<void>((resolve, reject) => {
+            recorder.onstop = () => resolve();
+            recorder.onerror = (e) => reject(e);
+        });
+
+        recorder.start(100); // 100ms chunks
+
+        // Play video to feed recorder
+        // We can try to speed it up slightly (e.g. 1.5x) but too fast might drop frames
+        video.playbackRate = 1.5;
+        await video.play();
+
+        // Monitor progress
+        const durationMs = video.duration * 1000;
+        const progressInterval = setInterval(() => {
+            const percent = Math.min(95, 10 + (video.currentTime / video.duration) * 85);
             onProgress?.({
                 stage: 'compressing',
-                progress: i,
-                message: `Compressing video... ${i}%`,
+                progress: percent,
+                message: `Compressing... ${Math.round(percent)}%`
             });
-        }
+            if (video.ended) clearInterval(progressInterval);
+        }, 500);
+
+        // Wait for end
+        await new Promise((resolve) => {
+            video.onended = resolve;
+        });
+
+        // Stop
+        recorder.stop();
+        clearInterval(progressInterval);
+        await recordingPromise;
+
+        // Cleanup
+        URL.revokeObjectURL(video.src);
+        video.src = '';
+
+        // 5. Finalize
+        const compressedBlob = new Blob(chunks, { type: 'video/webm' });
+        const compressedFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, '.webm'), {
+            type: 'video/webm',
+            lastModified: Date.now()
+        });
+
+        // Stats
+        const compressedSize = compressedFile.size;
+        const compressionRatio = ((originalSize - compressedSize) / originalSize) * 100;
+        const timeTaken = Date.now() - startTime;
+
+        console.log(`✅ Video compressed in ${(timeTaken / 1000).toFixed(1)}s: ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)} (${compressionRatio.toFixed(1)}% saved)`);
 
         onProgress?.({
             stage: 'complete',
             progress: 100,
-            message: 'Video ready for upload',
+            message: 'Compression complete'
         });
 
-        // For now, return original file
-        // TODO: Implement full WebCodecs compression
         return {
             originalSize,
-            compressedSize: originalSize,
-            compressionRatio: 0,
-            file,
-            metadata,
+            compressedSize,
+            compressionRatio,
+            file: compressedFile,
+            metadata: {
+                duration: video.duration,
+                width: video.videoWidth,
+                height: video.videoHeight,
+                format: 'video/webm'
+            }
         };
-    } catch (error) {
-        console.error('❌ Video compression failed:', error);
 
-        // Fallback: return original file
-        const metadata = await getVideoMetadata(file);
+    } catch (error) {
+        console.error('❌ Video compression failed, using original:', error);
+        // Fallback to original
         return {
             originalSize,
             compressedSize: originalSize,
             compressionRatio: 0,
-            file,
-            metadata,
+            file: file,
+            metadata: await getVideoMetadata(file)
         };
     }
 }
