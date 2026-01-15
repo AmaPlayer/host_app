@@ -36,6 +36,7 @@ export async function compressImage(
         const config = {
             maxWidthOrHeight: options?.maxWidth || MEDIA_COMPRESSION_CONFIG.images.maxWidth,
             initialQuality: options?.quality || MEDIA_COMPRESSION_CONFIG.images.quality,
+            maxSizeMB: (MEDIA_COMPRESSION_CONFIG.images as any).maxSizeMB || 0.5,
             useWebWorker: true,
             fileType: `image/${options?.outputFormat || MEDIA_COMPRESSION_CONFIG.images.format}`,
             onProgress: (progress: number) => {

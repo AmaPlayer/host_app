@@ -3,9 +3,10 @@
 
 export const MEDIA_COMPRESSION_CONFIG = {
     images: {
-        maxWidth: 2048,
-        maxHeight: 2048,
-        quality: 0.88,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        quality: 0.70, // Reduced from 0.88 to achieve ~50% reduction
+        maxSizeMB: 0.5, // Aggressive target: 500KB
         format: 'jpeg' as const,
         thumbnailSize: 400,
         thumbnailQuality: 0.75,

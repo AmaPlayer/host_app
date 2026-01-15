@@ -15,7 +15,7 @@ class R2StorageService implements StorageService {
         const accountId = process.env.REACT_APP_R2_ACCOUNT_ID || '';
         const accessKeyId = process.env.REACT_APP_R2_ACCESS_KEY_ID || '';
         const secretAccessKey = process.env.REACT_APP_R2_SECRET_ACCESS_KEY || '';
-        this.bucket = process.env.REACT_APP_R2_BUCKET_NAME || '';
+        this.bucket = process.env.REACT_APP_R2_BUCKET_NAME || 'amaplay-media'; // Hardcoded fallback for debugging
         this.publicUrl = process.env.REACT_APP_R2_PUBLIC_URL || '';
 
         if (!accountId || !accessKeyId || !secretAccessKey || !this.bucket) {
@@ -29,7 +29,13 @@ class R2StorageService implements StorageService {
                 accessKeyId,
                 secretAccessKey,
             },
-            forcePathStyle: true, // Needed for R2? Usually no, but harmless often.
+            forcePathStyle: true,
+        });
+
+        console.log('[R2 Debug] Initialized with:', {
+            bucket: this.bucket,
+            accountId: accountId ? '***' + accountId.slice(-4) : 'MISSING',
+            endpoint: `https://${accountId}.r2.cloudflarestorage.com`
         });
     }
 
